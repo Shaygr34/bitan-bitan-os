@@ -1,56 +1,90 @@
-/* ——— Home / dashboard ——— */
+/* ——— Dashboard ——— */
 
-.section {
-  margin-bottom: var(--space-3xl);
+/* ——— Metric Cards ——— */
+
+.metricsSection {
+  margin-bottom: 32px;
 }
 
-.sectionLabel {
-  font-size: var(--font-size-xs);
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.metricCard {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--brand-navy);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.metricLabel {
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--text-caption);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-  margin-bottom: var(--space-lg);
 }
 
-.moduleGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-xl);
+.metricValue {
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-heading);
+  font-variant-numeric: tabular-nums;
 }
 
-.moduleLink {
-  display: block;
+/* ——— Table Section ——— */
+
+.tableSection {
+  margin-bottom: 32px;
 }
 
-.moduleName {
-  font-size: var(--font-size-lg);
+.tableSectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tableSectionTitle {
+  font-size: 1rem;
   font-weight: var(--font-weight-semibold);
   color: var(--text-heading);
-  margin-bottom: var(--space-xs);
 }
 
-.moduleDescription {
-  font-size: var(--font-size-sm);
-  color: var(--muted-foreground);
-  line-height: var(--line-height-relaxed);
+.goldSeparator {
+  height: 1px;
+  background: var(--separator-gold);
+  margin-bottom: 16px;
+  margin-top: var(--space-sm);
 }
 
-/* ——— Build footer ——— */
-
-.buildInfo {
-  margin-top: var(--space-6xl);
-  padding-top: var(--space-xl);
-  border-top: 1px solid var(--border);
-  font-size: var(--font-size-xs);
-  color: var(--text-caption);
-  font-family: var(--font-mono);
+.dateCell {
   font-variant-numeric: tabular-nums;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
+  direction: ltr;
+  unicode-bidi: embed;
 }
 
-.buildSeparator {
-  color: var(--border);
+.statusCell {
+  text-align: center;
+}
+
+.actionsCell {
+  text-align: center;
+}
+
+/* ——— Responsive ——— */
+
+@media (max-width: 1024px) {
+  .metricsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .metricsGrid {
+    grid-template-columns: 1fr;
+  }
 }

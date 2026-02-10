@@ -1,8 +1,15 @@
 .header {
   margin-bottom: var(--space-3xl);
-  padding-bottom: var(--space-xl);
+  padding-bottom: var(--space-lg);
   background: var(--background);
   border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.titleBlock {
+  flex: 1;
 }
 
 .title {
@@ -12,14 +19,18 @@
   letter-spacing: var(--tracking-tight);
   color: var(--text-heading);
   border-bottom: 1px solid var(--separator-gold);
-  padding-bottom: 0.5rem;
+  padding-bottom: 6px;
   display: inline-block;
 }
 
 .description {
-  margin-top: var(--space-sm);
+  margin-top: var(--space-xs);
   font-size: var(--font-size-sm);
   color: var(--text-caption);
   line-height: var(--line-height-relaxed);
   max-width: 520px;
+}
+
+.actionArea {
+  flex-shrink: 0;
 }
