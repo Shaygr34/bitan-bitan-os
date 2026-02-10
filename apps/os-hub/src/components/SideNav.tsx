@@ -2,12 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { t } from "@/lib/strings";
 import styles from "./SideNav.module.css";
 
-const channels = [
-  { name: "OS Hub", href: "/" },
-  { name: "Sumit Sync", href: "/sumit-sync" },
-  { name: "Content Engine", href: "/content-engine" },
+const mainNav = [
+  { key: "nav.items.dashboard", href: "/" },
+  { key: "nav.items.contentEngine", href: "/content-engine" },
+  { key: "nav.items.sumitSync", href: "/sumit-sync" },
+];
+
+const secondaryNav = [
+  { key: "nav.items.documents", href: "/documents" },
+  { key: "nav.items.settings", href: "/settings" },
 ];
 
 export default function SideNav() {
@@ -21,18 +27,36 @@ export default function SideNav() {
       </div>
 
       <ul className={styles.list}>
-        {channels.map((ch) => {
+        {mainNav.map((item) => {
           const isActive =
-            ch.href === "/"
+            item.href === "/"
               ? pathname === "/"
-              : pathname === ch.href || pathname.startsWith(ch.href + "/");
+              : pathname === item.href || pathname.startsWith(item.href + "/");
           return (
-            <li key={ch.href}>
+            <li key={item.href}>
               <Link
-                href={ch.href}
+                href={item.href}
                 className={`${styles.link} ${isActive ? styles.linkActive : ""}`}
               >
-                {ch.name}
+                {t(item.key)}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className={styles.separator} />
+
+      <ul className={styles.list}>
+        {secondaryNav.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                className={`${styles.link} ${isActive ? styles.linkActive : ""}`}
+              >
+                {t(item.key)}
               </Link>
             </li>
           );

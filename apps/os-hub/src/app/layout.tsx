@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Heebo } from "next/font/google";
 import "./globals.css";
 import SideNav from "@/components/SideNav";
+import ToastContainer from "@/components/Toast";
 
 const heebo = Heebo({
   subsets: ["hebrew", "latin"],
@@ -25,6 +26,7 @@ export default function RootLayout({
         <div className="app-shell">
           <SideNav />
           <main className="main-content">{children}</main>
+          <ToastContainer />
         </div>
       </body>
     </html>

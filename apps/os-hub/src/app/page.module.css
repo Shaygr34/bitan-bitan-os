@@ -1,26 +1,31 @@
-/* ——— Home / dashboard ——— */
+/* ——— Dashboard ——— */
 
-.section {
-  margin-bottom: var(--space-3xl);
+.modulesSection {
+  margin-bottom: 32px;
 }
 
-.sectionLabel {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-caption);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-  margin-bottom: var(--space-lg);
+.sectionTitle {
+  font-size: 1rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-heading);
 }
 
-.moduleGrid {
+.goldSeparator {
+  height: 1px;
+  background: var(--separator-gold);
+  margin-bottom: 16px;
+  margin-top: var(--space-sm);
+}
+
+.modulesGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-xl);
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
 .moduleLink {
   display: block;
+  transition: border-color var(--transition-fast);
 }
 
 .moduleName {
@@ -36,21 +41,20 @@
   line-height: var(--line-height-relaxed);
 }
 
-/* ——— Build footer ——— */
-
-.buildInfo {
-  margin-top: var(--space-6xl);
+.comingSoonSection {
+  margin-top: var(--space-3xl);
   padding-top: var(--space-xl);
   border-top: 1px solid var(--border);
-  font-size: var(--font-size-xs);
-  color: var(--text-caption);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
 }
 
-.buildSeparator {
-  color: var(--border);
+.comingSoonText {
+  font-size: var(--font-size-sm);
+  color: var(--text-caption);
+  line-height: var(--line-height-relaxed);
+}
+
+@media (max-width: 640px) {
+  .modulesGrid {
+    grid-template-columns: 1fr;
+  }
 }

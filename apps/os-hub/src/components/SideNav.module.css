@@ -67,6 +67,14 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* ——— Separator ——— */
+
+.separator {
+  height: 1px;
+  background: var(--sidebar-border);
+  margin: 0 var(--space-xl);
+}
+
 /* ——— Footer ——— */
 
 .navFooter {

@@ -1,54 +1,50 @@
+import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
-import Link from "next/link";
+import { t } from "@/lib/strings";
 import styles from "./page.module.css";
 
 const modules = [
   {
-    name: "Sumit Sync",
-    href: "/sumit-sync",
-    description: "Synchronization workflows and data management.",
+    key: "nav.items.contentEngine",
+    descKey: "dashboard.modules.contentEngine.description",
+    href: "/content-engine",
   },
   {
-    name: "Content Engine",
-    href: "/content-engine",
-    description: "Content pipeline and publishing engine.",
+    key: "nav.items.sumitSync",
+    descKey: "dashboard.modules.sumitSync.description",
+    href: "/sumit-sync",
   },
 ];
 
 export default function Home() {
-  const commit =
-    process.env.RAILWAY_GIT_COMMIT_SHA ??
-    process.env.COMMIT_SHA ??
-    "unknown";
-  const buildTime = process.env.BUILD_TIME ?? "unknown";
-
   return (
     <div>
       <PageHeader
-        title="OS Hub"
-        description="Central operations for Bitan &amp; Bitan. Manage workflows, content, and system tools from one place."
+        title={t("dashboard.title")}
+        description={t("dashboard.subtitle")}
       />
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionLabel}>Modules</h2>
-        <div className={styles.moduleGrid}>
+      <section className={styles.modulesSection}>
+        <h2 className={styles.sectionTitle}>{t("dashboard.modules.title")}</h2>
+        <div className={styles.goldSeparator} />
+        <div className={styles.modulesGrid}>
           {modules.map((mod) => (
             <Link key={mod.href} href={mod.href} className={styles.moduleLink}>
               <Card>
-                <h3 className={styles.moduleName}>{mod.name}</h3>
-                <p className={styles.moduleDescription}>{mod.description}</p>
+                <h3 className={styles.moduleName}>{t(mod.key)}</h3>
+                <p className={styles.moduleDescription}>{t(mod.descKey)}</p>
               </Card>
             </Link>
           ))}
         </div>
       </section>
 
-      <footer className={styles.buildInfo}>
-        <span>{commit.slice(0, 7)}</span>
-        <span className={styles.buildSeparator}>&middot;</span>
-        <span>Built {buildTime}</span>
-      </footer>
+      <section className={styles.comingSoonSection}>
+        <p className={styles.comingSoonText}>
+          {t("dashboard.comingSoonDetail")}
+        </p>
+      </section>
     </div>
   );
 }

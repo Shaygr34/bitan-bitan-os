@@ -1,5 +1,5 @@
 .empty {
-  padding: var(--space-4xl) var(--space-2xl);
+  padding: 48px 24px;
   text-align: center;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
@@ -7,8 +7,8 @@
 }
 
 .message {
-  font-size: var(--font-size-body);
-  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  color: var(--text-body);
   font-weight: var(--font-weight-medium);
 }
 
@@ -17,4 +17,8 @@
   font-size: var(--font-size-sm);
   color: var(--text-caption);
   line-height: var(--line-height-relaxed);
+}
+
+.action {
+  margin-top: var(--space-lg);
 }

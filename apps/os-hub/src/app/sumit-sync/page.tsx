@@ -5,6 +5,7 @@ import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
 import StatusBadge from "@/components/StatusBadge";
+import { t } from "@/lib/strings";
 import styles from "./page.module.css";
 
 interface RunSummary {
@@ -39,8 +40,8 @@ export default function SumitSyncPage() {
   return (
     <div>
       <PageHeader
-        title="Sumit Sync"
-        description="סנכרון נתוני IDOM/שע״מ מול מערכת SUMIT"
+        title={t("sumitSync.title")}
+        description={t("sumitSync.subtitle")}
       />
 
       <div className={styles.toolbar}>
@@ -60,8 +61,8 @@ export default function SumitSyncPage() {
 
       {!loading && !error && runs.length === 0 && (
         <EmptyState
-          message="אין הרצות"
-          detail="לחץ ׳הרצה חדשה׳ כדי להתחיל סנכרון ראשון."
+          message={t("common.emptyState.title")}
+          detail={t("common.emptyState.subtitle")}
         />
       )}
 
