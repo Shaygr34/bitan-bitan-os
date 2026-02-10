@@ -1,5 +1,9 @@
 export default function Home() {
-  const commit = process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.COMMIT_SHA ?? "unknown";
+  const commit =
+    process.env.RAILWAY_GIT_COMMIT_SHA ??
+    process.env.COMMIT_SHA ??
+    "unknown";
+  const buildTime = process.env.BUILD_TIME ?? "unknown";
 
   return (
     <div>
@@ -10,8 +14,16 @@ export default function Home() {
         Welcome to the operational hub. Use the sidebar to navigate between
         channels.
       </p>
-      <footer style={{ marginTop: "3rem", fontSize: "0.75rem", color: "#999" }}>
-        Commit: {commit.slice(0, 7)}
+      <footer
+        style={{
+          marginTop: "3rem",
+          fontSize: "0.75rem",
+          color: "#999",
+          lineHeight: 1.8,
+        }}
+      >
+        <div>Commit: {commit.slice(0, 7)}</div>
+        <div>Built: {buildTime}</div>
       </footer>
     </div>
   );

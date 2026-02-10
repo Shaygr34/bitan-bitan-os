@@ -1,6 +1,12 @@
 import { readdirSync, existsSync } from "fs";
 
+export const dynamic = "force-dynamic";
+
 export function GET() {
+  if (process.env.ENABLE_DEBUG !== "1") {
+    return Response.json({ error: "debug disabled" }, { status: 403 });
+  }
+
   const topLevel = (() => {
     try {
       return readdirSync("/app");
