@@ -28,7 +28,10 @@ export default function SideNav() {
 
       <ul className={styles.list}>
         {mainNav.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <li key={item.href}>
               <Link

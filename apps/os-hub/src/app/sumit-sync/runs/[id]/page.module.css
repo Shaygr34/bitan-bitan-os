@@ -1,0 +1,198 @@
+/* ——— Info row ——— */
+.infoRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xl);
+  margin-bottom: var(--space-2xl);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.infoLabel {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.infoValue {
+  font-size: var(--font-size-sm);
+  color: var(--text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.backLink {
+  margin-inline-start: auto;
+}
+
+/* ——— Sections ——— */
+.section {
+  margin-bottom: var(--space-2xl);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-heading);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--separator-gold);
+  display: inline-block;
+}
+
+/* ——— Metrics grid ——— */
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-lg);
+}
+
+.metricCard {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.metricWarning {
+  border-color: var(--status-warning);
+  background: var(--status-warning-bg);
+}
+
+.metricLabel {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+}
+
+.metricValue {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.metricAccent {
+  font-size: var(--font-size-xs);
+  color: var(--status-success);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ——— File list ——— */
+.fileList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.fileRole {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-heading);
+  min-width: 140px;
+}
+
+.fileNameDisplay {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  flex: 1;
+}
+
+.fileSize {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ——— Exceptions table ——— */
+.exceptionsTable {
+  width: 100%;
+  border-collapse: collapse;
+  direction: rtl;
+}
+
+.exceptionsTable thead th {
+  background: var(--table-header-bg);
+  color: var(--table-header-text);
+  font-weight: var(--font-weight-semibold);
+  border-bottom: 2px solid var(--brand-gold);
+  padding: var(--space-sm) var(--space-lg);
+  text-align: start;
+  font-size: var(--font-size-sm);
+}
+
+.exceptionsTable tbody tr:nth-child(even) {
+  background: var(--table-row-alt);
+}
+
+.exceptionsTable tbody td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-sm);
+}
+
+.numericCell {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.descCell {
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ——— Loading / Error ——— */
+.loadingText {
+  color: var(--text-caption);
+  font-size: var(--font-size-sm);
+  padding: var(--space-xl) 0;
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--status-error-bg);
+  color: var(--status-error);
+  border: 1px solid var(--status-error);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-xl);
+}
+
+.errorIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-xl);
+  height: var(--space-xl);
+  border-radius: 50%;
+  background: var(--status-error);
+  color: var(--background);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xs);
+  flex-shrink: 0;
+}
