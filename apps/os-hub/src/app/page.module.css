@@ -1,54 +1,10 @@
 /* ——— Dashboard ——— */
 
-/* ——— Metric Cards ——— */
-
-.metricsSection {
+.modulesSection {
   margin-bottom: 32px;
 }
 
-.metricsGrid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-.metricCard {
-  background: var(--surface-card);
-  border: 1px solid var(--border);
-  border-top: 2px solid var(--brand-navy);
-  border-radius: var(--radius);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.metricLabel {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-caption);
-}
-
-.metricValue {
-  font-size: 1.5rem;
-  font-weight: var(--font-weight-bold);
-  color: var(--text-heading);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ——— Table Section ——— */
-
-.tableSection {
-  margin-bottom: 32px;
-}
-
-.tableSectionHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.tableSectionTitle {
+.sectionTitle {
   font-size: 1rem;
   font-weight: var(--font-weight-semibold);
   color: var(--text-heading);
@@ -61,30 +17,44 @@
   margin-top: var(--space-sm);
 }
 
-.dateCell {
-  font-variant-numeric: tabular-nums;
-  direction: ltr;
-  unicode-bidi: embed;
+.modulesGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
-.statusCell {
-  text-align: center;
+.moduleLink {
+  display: block;
+  transition: border-color var(--transition-fast);
 }
 
-.actionsCell {
-  text-align: center;
+.moduleName {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-heading);
+  margin-bottom: var(--space-xs);
 }
 
-/* ——— Responsive ——— */
+.moduleDescription {
+  font-size: var(--font-size-sm);
+  color: var(--muted-foreground);
+  line-height: var(--line-height-relaxed);
+}
 
-@media (max-width: 1024px) {
-  .metricsGrid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.comingSoonSection {
+  margin-top: var(--space-3xl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--border);
+}
+
+.comingSoonText {
+  font-size: var(--font-size-sm);
+  color: var(--text-caption);
+  line-height: var(--line-height-relaxed);
 }
 
 @media (max-width: 640px) {
-  .metricsGrid {
+  .modulesGrid {
     grid-template-columns: 1fr;
   }
 }

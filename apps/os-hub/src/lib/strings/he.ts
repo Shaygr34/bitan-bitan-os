@@ -15,19 +15,18 @@ export const strings: Record<string, string> = {
   "dashboard.title": "לוח בקרה",
   "dashboard.subtitle": "סקירה כללית",
 
-  // Dashboard metric cards
-  "dashboard.cards.activeDocuments": "מסמכים פעילים",
-  "dashboard.cards.monthlySubmissions": "סומיטים החודש",
-  "dashboard.cards.pendingApproval": "ממתינים לאישור",
-  "dashboard.cards.recentExports": "ייצוא אחרון",
+  // Dashboard module links
+  "dashboard.modules.title": "מודולים",
+  "dashboard.modules.contentEngine.description": "ניהול תוכן מקצועי — חוזרים, מסמכים ופרסומים.",
+  "dashboard.modules.sumitSync.description": "סנכרון נתוני סומיט — ייבוא ועדכון אוטומטי.",
 
-  // Dashboard table
-  "dashboard.table.title": "פעילות אחרונה",
-  "dashboard.table.col.name": "שם מסמך",
-  "dashboard.table.col.type": "סוג",
-  "dashboard.table.col.date": "תאריך",
-  "dashboard.table.col.status": "סטטוס",
-  "dashboard.table.col.actions": "פעולות",
+  // Dashboard — coming soon
+  "dashboard.comingSoon": "בקרוב",
+  "dashboard.comingSoonDetail": "לוח הבקרה יציג נתונים בזמן אמת לאחר הפעלת המודולים.",
+
+  // Placeholder — coming soon (generic)
+  "common.comingSoon.title": "בקרוב",
+  "common.comingSoon.subtitle": "עמוד זה בפיתוח ויהיה זמין בקרוב.",
 
   // ═══════════════════════════════════════
   // Content Engine
