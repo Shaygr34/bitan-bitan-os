@@ -32,7 +32,10 @@ ENV PORT=3000
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy standalone output
+# Copy node_modules from deps (ensures next is always resolvable)
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy standalone output (overlays traced files on top)
 COPY --from=build /app/apps/os-hub/.next/standalone ./
 COPY --from=build /app/apps/os-hub/.next/static ./apps/os-hub/.next/static
 COPY --from=build /app/apps/os-hub/public ./apps/os-hub/public
@@ -41,4 +44,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["node", "apps/os-hub/server.js"]
