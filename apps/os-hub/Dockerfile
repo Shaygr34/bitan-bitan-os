@@ -41,4 +41,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "apps/os-hub/server.js"]
+CMD ["node", "server.js"]
