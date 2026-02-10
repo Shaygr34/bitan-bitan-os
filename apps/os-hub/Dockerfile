@@ -47,7 +47,7 @@ COPY --from=build /app/apps/os-hub/.next ./apps/os-hub/.next
 COPY --from=build /app/apps/os-hub/public ./apps/os-hub/public
 
 # Diagnostics on startup, then run next start
-RUN printf '#!/bin/sh\necho "=== DEPLOY DIAGNOSTICS ==="\necho "node_modules/next:"\nls /app/node_modules/next/package.json 2>/dev/null && echo "FOUND" || echo "MISSING"\necho "apps/os-hub/.next:"\nls /app/apps/os-hub/.next/BUILD_ID 2>/dev/null && echo "FOUND" || echo "MISSING"\necho "========================"\ncd /app/apps/os-hub\nexec npx next start -p ${PORT:-3000}\n' > /app/entrypoint.sh && \
+RUN printf '#!/bin/sh\necho "=== DEPLOY DIAGNOSTICS ==="\necho "node_modules/next:"\nls /app/node_modules/next/package.json 2>/dev/null && echo "FOUND" || echo "MISSING"\necho "apps/os-hub/.next:"\nls /app/apps/os-hub/.next/BUILD_ID 2>/dev/null && echo "FOUND" || echo "MISSING"\necho "PORT=${PORT:-3000}"\necho "NODE_ENV=${NODE_ENV}"\necho "========================"\ncd /app/apps/os-hub\nexec npx next start -p ${PORT:-3000}\n' > /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh
 
 USER nextjs
