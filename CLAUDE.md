@@ -20,3 +20,10 @@
 - Follow the linter configuration in each app.
 - Prefer explicit over clever.
 - Write tests for new functionality.
+
+## Design & Style Enforcement
+
+- All UI must comply with `docs/DESIGN_LANGUAGE_SYSTEM.md` — use only defined tokens and components.
+- All implementation must comply with `docs/STYLE_CONTRACT.md` — no hard-coded values, follow naming conventions.
+- If unsure about a design or style decision, create an explicit `<!-- TODO: ... -->` with your assumption and flag it in the PR.
+- No new UI without referencing tokens/components defined in the Design Language System.
