@@ -32,19 +32,17 @@ ENV PORT=3000
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# outputFileTracingRoot is set to the monorepo root in next.config.js,
-# so standalone output mirrors the monorepo tree:
-#   node_modules/  at /app/  (traced deps including next)
-#   server.js      at /app/apps/os-hub/server.js
-# We WORKDIR into the app dir so "node server.js" resolves next
-# via Node's upward node_modules lookup → /app/node_modules/next.
+# Copy standalone output (structure depends on outputFileTracingRoot)
 COPY --from=build /app/apps/os-hub/.next/standalone ./
 COPY --from=build /app/apps/os-hub/.next/static ./apps/os-hub/.next/static
 COPY --from=build /app/apps/os-hub/public ./apps/os-hub/public
+
+# Startup script that finds server.js regardless of standalone layout
+RUN printf '#!/bin/sh\nif [ -f /app/server.js ]; then\n  exec node /app/server.js\nelif [ -f /app/apps/os-hub/server.js ]; then\n  exec node /app/apps/os-hub/server.js\nelse\n  echo "ERROR: server.js not found. Contents of /app:"\n  ls -laR /app | head -80\n  exit 1\nfi\n' > /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
 
 USER nextjs
 
 EXPOSE 3000
 
-WORKDIR /app/apps/os-hub
-CMD ["node", "server.js"]
+CMD ["/app/entrypoint.sh"]
