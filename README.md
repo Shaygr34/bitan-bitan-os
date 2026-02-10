@@ -27,25 +27,36 @@ prompts/        # Reusable AI prompt templates
 
 | Variable | Required | Value |
 |---|---|---|
-| `SUMIT_SYNC_API_URL` | **Yes** | Private URL of sumit-sync service (e.g. `http://sumit-sync.railway.internal:8000`) |
+| `SUMIT_SYNC_API_URL` | **Yes** | Use Railway reference variable (see below) |
 | `PORT` | Auto | Railway injects |
 
-**How to find the private URL:** In Railway dashboard → sumit-sync service → Settings → Networking → Private URL. Use the `railway.internal` hostname, not the public one, for lower latency and no egress costs.
+**Setting SUMIT_SYNC_API_URL correctly:**
+
+Railway assigns a dynamic port to each service. **Do not hard-code a port.** Use a Railway reference variable so the port stays correct across redeploys:
+
+```
+SUMIT_SYNC_API_URL = http://sumit-sync.railway.internal:${{sumit-sync.PORT}}
+```
+
+In the Railway dashboard: os-hub → Variables → New Variable → paste the above. Railway will resolve `${{sumit-sync.PORT}}` to the actual port (e.g. 8080).
 
 ### 2. sumit-sync (FastAPI)
 
 | Variable | Required | Value |
 |---|---|---|
 | `DATABASE_URL` | Yes | Railway Postgres plugin auto-injects |
-| `PORT` | Auto | Railway injects (default 8000) |
+| `PORT` | Auto | Railway injects (dynamic — could be 8080, 3000, etc.) |
 | `DATA_DIR` | Recommended | `/data` (volume mount) |
 
 **Volume:** Mount a Railway Volume at `/data` for file persistence.
 
+**Migrations:** The entrypoint runs `alembic upgrade head` automatically on every deploy. If the DB is unreachable, the app starts in degraded mode (no crash).
+
 ### Debugging connectivity
 
-1. Hit `https://<os-hub-url>/api/sumit-sync/__debug` in your browser — it shows whether `SUMIT_SYNC_API_URL` is set, the resolved hostname, and a live health check against the Python service.
-2. Hit `https://<sumit-sync-url>/health` directly to verify the Python service is up.
+1. Hit `https://<os-hub-url>/api/sumit-sync/__debug` — shows whether `SUMIT_SYNC_API_URL` is set, the resolved hostname + port, and a live health check against the Python service.
+2. Hit `https://<sumit-sync-url>/health` directly to verify the Python service is up and DB is connected.
+3. Check deploy logs for `=== SUMIT-SYNC DEPLOY ===` to see which PORT the service is actually using.
 
 ## Getting started
 
