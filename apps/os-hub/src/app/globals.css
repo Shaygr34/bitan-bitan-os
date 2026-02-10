@@ -50,6 +50,18 @@
   --table-header-text: #FFFFFF;
   --table-row-alt: #F7F7F7;
 
+  /* ——— Status tokens ——— */
+  --status-success: #16A34A;
+  --status-success-bg: rgba(22, 163, 74, 0.08);
+  --status-warning: #CA8A04;
+  --status-warning-bg: rgba(202, 138, 4, 0.08);
+  --status-error: #DC2626;
+  --status-error-bg: rgba(220, 38, 38, 0.08);
+  --status-info: #2563EB;
+  --status-info-bg: rgba(37, 99, 235, 0.08);
+  --status-neutral: #6B7280;
+  --status-neutral-bg: rgba(107, 114, 128, 0.08);
+
   /* ——— Sidebar tokens ——— */
   --sidebar-background: #002040;
   --sidebar-foreground: #FFFFFF;

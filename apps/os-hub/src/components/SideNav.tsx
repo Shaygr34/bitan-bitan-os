@@ -22,7 +22,10 @@ export default function SideNav() {
 
       <ul className={styles.list}>
         {channels.map((ch) => {
-          const isActive = pathname === ch.href;
+          const isActive =
+            ch.href === "/"
+              ? pathname === "/"
+              : pathname === ch.href || pathname.startsWith(ch.href + "/");
           return (
             <li key={ch.href}>
               <Link
