@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<style>
+/* ── Font embedding ── */
+{% for weight, path in font_faces %}
+@font-face {
+    font-family: '{{ brand.font_family }}';
+    src: url('file://{{ path }}');
+    font-weight: {{ weight }};
+    font-style: normal;
+}
+{% endfor %}
+
+/* ── Page setup ── */
+@page {
+    size: A4;
+    margin-top: 0;
+    margin-bottom: calc({{ brand.page_margin_bottom }} + {{ brand.footer_height }} + 2mm);
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* ── Base ── */
+body {
+    font-family: '{{ brand.font_family }}', {{ brand.font_fallback }};
+    font-size: {{ brand.body_size }};
+    font-weight: {{ brand.body_weight }};
+    color: {{ brand.text_gray }};
+    line-height: {{ brand.line_height }};
+    direction: rtl;
+    text-align: right;
+    margin: 0;
+    padding: 0;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* ── Header (block flow, page 1 only) ── */
+.header {
+    background: {{ brand.navy }};
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14pt 20mm 14pt 18mm;
+    min-height: {{ brand.header_height }};
+    width: 100%;
+}
+
+.header-logo {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+}
+
+.header-text {
+    flex: 1;
+    text-align: center;
+    color: {{ brand.white }};
+}
+
+.header-doc-type {
+    font-size: {{ brand.small_size }};
+    font-weight: {{ brand.body_weight }};
+    color: {{ brand.gold }};
+    margin-bottom: 2pt;
+    letter-spacing: 0.5pt;
+}
+
+.header-title {
+    font-size: 16pt;
+    font-weight: {{ brand.h2_weight }};
+    color: {{ brand.white }};
+    line-height: 1.3;
+}
+
+.header-gold-line {
+    height: {{ brand.gold_line_width }};
+    background: {{ brand.gold }};
+    margin-bottom: {{ brand.section_gap }};
+}
+
+/* ── Footer (fixed = repeats every page in Chromium print) ── */
+.running-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: {{ brand.footer_height }};
+    padding: 4pt 20mm 4pt 18mm;
+    border-top: 1pt solid {{ brand.gold }};
+    text-align: center;
+    font-size: 8pt;
+    color: {{ brand.muted_gray }};
+    direction: rtl;
+}
+
+/* ── Content ── */
+.content {
+    direction: rtl;
+    text-align: right;
+    padding: 0 {{ brand.page_margin_right }} 0 {{ brand.page_margin_left }};
+}
+
+/* ── Section bars ── */
+.section-bar {
+    background: {{ brand.navy }};
+    color: {{ brand.white }};
+    font-size: {{ brand.h2_size }};
+    font-weight: {{ brand.h2_weight }};
+    padding: 6pt 14pt;
+    border-radius: {{ brand.section_bar_radius }};
+    margin-top: {{ brand.heading_gap_before }};
+    margin-bottom: {{ brand.heading_gap_after }};
+    direction: rtl;
+    text-align: right;
+    break-after: avoid;
+}
+
+/* ── Headings ── */
+h1 {
+    font-size: {{ brand.h1_size }};
+    font-weight: {{ brand.h1_weight }};
+    color: {{ brand.navy }};
+    margin-top: {{ brand.heading_gap_before }};
+    margin-bottom: {{ brand.heading_gap_after }};
+    direction: rtl;
+    text-align: right;
+    break-after: avoid;
+}
+
+h2 {
+    font-size: {{ brand.h2_size }};
+    font-weight: {{ brand.h2_weight }};
+    color: {{ brand.navy }};
+    margin-top: {{ brand.heading_gap_before }};
+    margin-bottom: {{ brand.heading_gap_after }};
+    direction: rtl;
+    text-align: right;
+    break-after: avoid;
+}
+
+h3 {
+    font-size: {{ brand.h3_size }};
+    font-weight: {{ brand.h3_weight }};
+    color: {{ brand.deep_navy }};
+    margin-top: 4mm;
+    margin-bottom: 1.5mm;
+    direction: rtl;
+    text-align: right;
+    break-after: avoid;
+}
+
+/* ── Paragraphs ── */
+p {
+    margin-top: 0;
+    margin-bottom: {{ brand.paragraph_gap }};
+    direction: rtl;
+    text-align: right;
+}
+
+/* ── Bullet lists ── */
+ul {
+    padding-right: 22px;
+    padding-left: 0;
+    margin-top: 0;
+    margin-bottom: {{ brand.paragraph_gap }};
+    list-style-type: disc;
+    direction: rtl;
+    text-align: right;
+}
+
+ul li {
+    margin-bottom: 2pt;
+    line-height: {{ brand.line_height }};
+    padding-right: 4px;
+}
+
+/* ── Tables ── */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    direction: rtl;
+    margin-top: {{ brand.section_gap }};
+    margin-bottom: {{ brand.section_gap }};
+    font-size: {{ brand.small_size }};
+    break-inside: avoid;
+}
+
+thead tr {
+    background: {{ brand.navy }};
+    color: {{ brand.white }};
+}
+
+th {
+    padding: 6pt 8pt;
+    text-align: right;
+    font-weight: {{ brand.h3_weight }};
+    border: {{ brand.table_border }} solid {{ brand.navy }};
+}
+
+td {
+    padding: 5pt 8pt;
+    text-align: right;
+    border: {{ brand.table_border }} solid #ddd;
+    vertical-align: top;
+}
+
+tbody tr:nth-child(even) {
+    background: {{ brand.table_zebra }};
+}
+
+/* ── Callout boxes ── */
+.callout {
+    background: {{ brand.callout_bg }};
+    border-right: {{ brand.callout_border }} solid {{ brand.gold }};
+    padding: 8pt 14pt;
+    margin-top: {{ brand.section_gap }};
+    margin-bottom: {{ brand.section_gap }};
+    border-radius: 0 {{ brand.section_bar_radius }} {{ brand.section_bar_radius }} 0;
+    direction: rtl;
+    text-align: right;
+    break-inside: avoid;
+}
+
+.callout p {
+    margin: 0;
+}
+
+/* ── Page break control ── */
+.section-bar, h1, h2, h3 {
+    break-after: avoid;
+}
+
+table, .callout {
+    break-inside: avoid;
+}
+
+/* ── Utility ── */
+.bold-inline {
+    font-weight: 700;
+}
+
+.ltr-inline {
+    direction: ltr;
+    unicode-bidi: isolate;
+    display: inline-block;
+}
+</style>
+</head>
+<body>
+
+<!-- Header (in normal flow — appears once on page 1) -->
+<div class="header">
+    <div class="header-text">
+        {% if doc_type %}
+        <div class="header-doc-type">{{ doc_type }}</div>
+        {% endif %}
+        <div class="header-title">{{ title }}</div>
+    </div>
+    {% if logo_base64 %}
+    <img class="header-logo" src="data:image/png;base64,{{ logo_base64 }}" alt="Bitan & Bitan">
+    {% endif %}
+</div>
+<div class="header-gold-line"></div>
+
+<!-- Footer (fixed = repeats on every printed page) -->
+<div class="running-footer">
+    ביטן את ביטן רואי חשבון | טלפון: <span class="ltr-inline">03-1234567</span> | <span class="ltr-inline">info@bitan-bitan.co.il</span>
+</div>
+
+<!-- Content -->
+<div class="content">
+{% for block in blocks %}
+
+    {% if block.block_type.value == 'HEADING' %}
+        {% if block.level == 1 %}
+            <div class="section-bar">{{ block.content }}</div>
+        {% elif block.level == 2 %}
+            <h3>{{ block.content }}</h3>
+        {% else %}
+            <h3>{{ block.content }}</h3>
+        {% endif %}
+
+    {% elif block.block_type.value == 'PARAGRAPH' %}
+        <p>{{ block.content }}</p>
+
+    {% elif block.block_type.value == 'BULLET_LIST' %}
+        <ul>
+        {% for item in block.content %}
+            <li>{{ item }}</li>
+        {% endfor %}
+        </ul>
+
+    {% elif block.block_type.value == 'TABLE' %}
+        <table>
+        {% if block.content|length > 1 %}
+            <thead>
+                <tr>
+                {% for cell in block.content[0] %}
+                    <th>{{ cell }}</th>
+                {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in block.content[1:] %}
+                <tr>
+                {% for cell in row %}
+                    <td>{{ cell }}</td>
+                {% endfor %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        {% endif %}
+        </table>
+
+    {% elif block.block_type.value == 'CALLOUT' %}
+        <div class="callout">
+        {% for line in block.content.split('\n') %}
+            <p>{{ line }}</p>
+        {% endfor %}
+        </div>
+
+    {% endif %}
+
+{% endfor %}
+</div>
+
+</body>
+</html>
