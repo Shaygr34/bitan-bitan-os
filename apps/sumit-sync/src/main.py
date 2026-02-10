@@ -1,7 +1,5 @@
 """
 IDOM-SUMIT Sync Service — FastAPI entry point.
-
-PR1: health endpoint only. API routes added in PR2.
 """
 
 from fastapi import FastAPI
@@ -9,12 +7,15 @@ from sqlalchemy import text
 
 from .db.connection import engine
 from .storage.file_store import volume_writable
+from .api.routes import router as runs_router
 
 app = FastAPI(
     title="IDOM-SUMIT Sync Service",
-    version="0.1.0",
+    version="0.2.0",
     docs_url="/docs",
 )
+
+app.include_router(runs_router)
 
 
 @app.get("/health")

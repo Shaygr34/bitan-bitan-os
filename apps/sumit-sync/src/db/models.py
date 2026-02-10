@@ -10,9 +10,8 @@ from datetime import datetime
 
 from sqlalchemy import (
     Column, String, SmallInteger, Integer, Float, Text, DateTime,
-    ForeignKey, UniqueConstraint, CheckConstraint,
+    ForeignKey, UniqueConstraint, CheckConstraint, JSON, Uuid,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
@@ -27,7 +26,7 @@ class Run(Base):
     """
     __tablename__ = "runs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
     year = Column(SmallInteger, nullable=False)
     report_type = Column(String(20), nullable=False)  # 'annual' | 'financial'
     status = Column(String(20), nullable=False, default="uploading")
@@ -58,8 +57,8 @@ class RunFile(Base):
     """Uploaded input files and generated output artifacts."""
     __tablename__ = "run_files"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    run_id = Column(UUID(as_uuid=True), ForeignKey("runs.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    run_id = Column(Uuid, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False)
     file_role = Column(String(30), nullable=False)
     original_name = Column(String(255), nullable=False)
     stored_path = Column(String(500), nullable=False)
@@ -84,8 +83,8 @@ class RunMetrics(Base):
     """
     __tablename__ = "run_metrics"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    run_id = Column(UUID(as_uuid=True), ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, unique=True)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    run_id = Column(Uuid, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, unique=True)
 
     # Counts from SyncResult
     total_idom_records = Column(Integer, nullable=False, default=0)
@@ -117,8 +116,8 @@ class Exception(Base):
     """
     __tablename__ = "exceptions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    run_id = Column(UUID(as_uuid=True), ForeignKey("runs.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    run_id = Column(Uuid, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False)
 
     exception_type = Column(String(30), nullable=False)
     severity = Column(String(10), nullable=True, default="medium")
@@ -128,7 +127,7 @@ class Exception(Base):
     sumit_ref = Column(String(100), nullable=True)   # מזהה
     client_name = Column(String(255), nullable=True)  # שם
     description = Column(Text, nullable=False)
-    field_diffs = Column(JSONB, nullable=True)
+    field_diffs = Column(JSON, nullable=True)
 
     # Resolution (review workflow)
     resolution = Column(String(20), nullable=False, default="pending")

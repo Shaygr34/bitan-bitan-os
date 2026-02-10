@@ -1,8 +1,6 @@
 """
 Smoke test for the FastAPI health endpoint.
 Verifies the app boots and /health responds.
-
-Full engine tests arrive in PR2 with golden run fixtures.
 """
 
 from fastapi.testclient import TestClient
