@@ -1,0 +1,10 @@
+{
+  "name": "bitan-bitan-os",
+  "private": true,
+  "scripts": {
+    "dev:os-hub": "pnpm --filter os-hub dev",
+    "build:os-hub": "pnpm --filter os-hub build",
+    "start:os-hub": "pnpm --filter os-hub start",
+    "lint": "pnpm --filter os-hub lint"
+  }
+}
