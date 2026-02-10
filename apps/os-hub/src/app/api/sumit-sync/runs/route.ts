@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyGet, proxyPost } from "../proxy";
+import { proxyGet, proxyPost, BASE_URL } from "../proxy";
 
 /** GET /api/sumit-sync/runs → Python GET /runs */
 export async function GET() {
@@ -7,9 +7,13 @@ export async function GET() {
     const res = await proxyGet("/runs");
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
-  } catch {
+  } catch (err) {
     return NextResponse.json(
-      { error: "Sumit Sync service unreachable" },
+      {
+        error: "Sumit Sync service unreachable",
+        target: `${BASE_URL}/runs`,
+        detail: String(err),
+      },
       { status: 502 }
     );
   }
@@ -22,9 +26,13 @@ export async function POST(request: NextRequest) {
     const res = await proxyPost("/runs", body);
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
-  } catch {
+  } catch (err) {
     return NextResponse.json(
-      { error: "Sumit Sync service unreachable" },
+      {
+        error: "Sumit Sync service unreachable",
+        target: `${BASE_URL}/runs`,
+        detail: String(err),
+      },
       { status: 502 }
     );
   }
