@@ -7,18 +7,18 @@ export default function Home() {
 
   return (
     <div>
-      <h1 style={{ fontSize: "2rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+      <h1 style={{ fontSize: "var(--font-size-h1)", fontWeight: 700, marginBottom: "var(--space-sm)" }}>
         Bitan &amp; Bitan OS Hub
       </h1>
-      <p style={{ color: "#666", maxWidth: "480px", lineHeight: 1.6 }}>
+      <p style={{ color: "var(--color-muted)", maxWidth: "480px", lineHeight: 1.6 }}>
         Welcome to the operational hub. Use the sidebar to navigate between
         channels.
       </p>
       <footer
         style={{
-          marginTop: "3rem",
-          fontSize: "0.75rem",
-          color: "#999",
+          marginTop: "var(--space-2xl)",
+          fontSize: "var(--font-size-sm)",
+          color: "var(--color-subtle)",
           lineHeight: 1.8,
         }}
       >
