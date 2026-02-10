@@ -1,20 +1,20 @@
 .empty {
   padding: var(--space-4xl) var(--space-2xl);
   text-align: center;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
 }
 
 .message {
   font-size: var(--font-size-body);
-  color: var(--color-muted);
+  color: var(--muted-foreground);
   font-weight: var(--font-weight-medium);
 }
 
 .detail {
   margin-top: var(--space-sm);
   font-size: var(--font-size-sm);
-  color: var(--color-subtle);
+  color: var(--text-caption);
   line-height: var(--line-height-relaxed);
 }

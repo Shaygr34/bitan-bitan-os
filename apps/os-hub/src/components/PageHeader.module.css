@@ -1,21 +1,25 @@
 .header {
   margin-bottom: var(--space-3xl);
   padding-bottom: var(--space-xl);
-  border-bottom: 1px solid var(--color-border);
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
 }
 
 .title {
-  font-size: var(--font-size-h1);
-  font-weight: var(--font-weight-semibold);
+  font-size: 1.25rem;
+  font-weight: var(--font-weight-bold);
   line-height: var(--line-height-tight);
   letter-spacing: var(--tracking-tight);
-  color: var(--color-text);
+  color: var(--text-heading);
+  border-bottom: 1px solid var(--separator-gold);
+  padding-bottom: 0.5rem;
+  display: inline-block;
 }
 
 .description {
   margin-top: var(--space-sm);
-  font-size: var(--font-size-body);
-  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+  color: var(--text-caption);
   line-height: var(--line-height-relaxed);
   max-width: 520px;
 }

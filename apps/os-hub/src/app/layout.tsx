@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
+import { Heebo } from "next/font/google";
 import "./globals.css";
 import SideNav from "@/components/SideNav";
+
+const heebo = Heebo({
+  subsets: ["hebrew", "latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Bitan & Bitan OS",
@@ -13,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="he" dir="rtl">
+      <body className={heebo.className}>
         <div className="app-shell">
           <SideNav />
           <main className="main-content">{children}</main>

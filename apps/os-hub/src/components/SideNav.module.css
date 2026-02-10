@@ -1,12 +1,12 @@
 .nav {
   width: var(--nav-width);
   min-height: 100vh;
-  background: var(--color-nav-bg);
+  background: var(--sidebar-background);
   display: flex;
   flex-direction: column;
   position: fixed;
   top: 0;
-  left: 0;
+  inset-inline-start: 0;
   z-index: 10;
 }
 
@@ -14,29 +14,23 @@
 
 .brand {
   padding: var(--space-2xl) var(--space-xl) var(--space-xl);
+  border-bottom: 1px solid var(--sidebar-border);
 }
 
 .brandName {
   font-size: var(--font-size-body);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-nav-active);
+  font-weight: var(--font-weight-bold);
+  color: var(--sidebar-foreground);
   letter-spacing: 0.02em;
 }
 
 .brandLabel {
   font-size: var(--font-size-xs);
-  color: var(--color-nav-muted);
+  color: var(--sidebar-foreground);
+  opacity: 0.4;
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   margin-top: var(--space-xs);
-}
-
-/* ——— Divider ——— */
-
-.divider {
-  height: 1px;
-  background: var(--color-nav-border);
-  margin: 0 var(--space-xl);
 }
 
 /* ——— Nav list ——— */
@@ -55,19 +49,21 @@
   padding: var(--space-sm) var(--space-xl);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: var(--color-nav-text);
-  border-left: 2px solid transparent;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  color: var(--sidebar-foreground);
+  opacity: 0.7;
+  border-inline-end: 3px solid transparent;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
 }
 
 .link:hover {
-  color: var(--color-nav-active);
-  background: var(--color-nav-hover-bg);
+  opacity: 1;
+  background: var(--nav-item-hover);
 }
 
 .linkActive {
-  color: var(--color-nav-active);
-  border-left-color: var(--color-accent);
+  opacity: 1;
+  background: var(--nav-item-active-bg);
+  border-inline-end-color: var(--nav-item-active-indicator);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -76,11 +72,13 @@
 .navFooter {
   margin-top: auto;
   padding: var(--space-lg) var(--space-xl);
-  border-top: 1px solid var(--color-nav-border);
+  border-top: 1px solid var(--sidebar-border);
+  text-align: center;
 }
 
 .version {
   font-size: var(--font-size-xs);
-  color: var(--color-nav-muted);
-  font-family: var(--font-mono);
+  color: var(--sidebar-foreground);
+  opacity: 0.3;
+  font-weight: var(--font-weight-light);
 }

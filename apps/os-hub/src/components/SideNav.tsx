@@ -20,8 +20,6 @@ export default function SideNav() {
         <div className={styles.brandLabel}>Operating System</div>
       </div>
 
-      <div className={styles.divider} />
-
       <ul className={styles.list}>
         {channels.map((ch) => {
           const isActive = pathname === ch.href;
@@ -39,7 +37,7 @@ export default function SideNav() {
       </ul>
 
       <div className={styles.navFooter}>
-        <span className={styles.version}>v0.1.0</span>
+        <span className={styles.version}>ביטן את ביטן</span>
       </div>
     </nav>
   );

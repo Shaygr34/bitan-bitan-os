@@ -6,8 +6,8 @@
 
 .sectionLabel {
   font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-subtle);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-caption);
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
   margin-bottom: var(--space-lg);
@@ -21,23 +21,18 @@
 
 .moduleLink {
   display: block;
-  transition: transform var(--transition-fast);
-}
-
-.moduleLink:hover {
-  transform: translateY(-1px);
 }
 
 .moduleName {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
+  color: var(--text-heading);
   margin-bottom: var(--space-xs);
 }
 
 .moduleDescription {
   font-size: var(--font-size-sm);
-  color: var(--color-muted);
+  color: var(--muted-foreground);
   line-height: var(--line-height-relaxed);
 }
 
@@ -46,15 +41,16 @@
 .buildInfo {
   margin-top: var(--space-6xl);
   padding-top: var(--space-xl);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border);
   font-size: var(--font-size-xs);
-  color: var(--color-subtle);
+  color: var(--text-caption);
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
 }
 
 .buildSeparator {
-  color: var(--color-border);
+  color: var(--border);
 }
