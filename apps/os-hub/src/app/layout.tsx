@@ -21,7 +21,7 @@ export default function RootLayout({
             style={{
               marginLeft: "var(--nav-width)",
               flex: 1,
-              padding: "2rem",
+              padding: "var(--space-xl)",
             }}
           >
             {children}

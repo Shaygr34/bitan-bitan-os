@@ -7,21 +7,45 @@
 }
 
 :root {
+  /* Layout */
   --nav-width: 240px;
+
+  /* Colors — see docs/DESIGN_LANGUAGE_SYSTEM.md */
   --color-bg: #fafafa;
+  --color-text: #111;
+  --color-muted: #666;
+  --color-subtle: #999; /* TODO: add to DLS doc when palette is finalized */
   --color-nav-bg: #111;
   --color-nav-text: #ccc;
   --color-nav-active: #fff;
   --color-nav-hover-bg: #222;
   --color-accent: #3b82f6;
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --font-size-h1: 2rem;
+  --font-size-lg: 1.25rem; /* TODO: add to DLS type scale */
+  --font-size-body: 1rem;
+  --font-size-sm: 0.75rem; /* TODO: add to DLS type scale */
+
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem; /* TODO: add to DLS spacing scale */
+
+  /* Radii */
+  --radius-sm: 4px; /* TODO: add to DLS */
 }
 
 html,
 body {
   height: 100%;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   background: var(--color-bg);
-  color: #111;
+  color: var(--color-text);
 }
 
 a {
