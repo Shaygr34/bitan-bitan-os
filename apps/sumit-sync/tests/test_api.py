@@ -179,3 +179,137 @@ def test_list_runs(client):
 def test_get_run_404(client):
     resp = client.get("/runs/00000000-0000-0000-0000-000000000000")
     assert resp.status_code == 404
+
+
+# ------------------------------------------------------------------ #
+#  PR4: Download, Exception review, Completion
+# ------------------------------------------------------------------ #
+
+def _run_full_pipeline(client, golden_idom_file, golden_sumit_file):
+    """Helper: create → upload → execute → return run detail."""
+    run = client.post("/runs", json={"year": 2024, "report_type": "financial"}).json()
+    run_id = run["id"]
+    with open(golden_idom_file, "rb") as f:
+        client.post(
+            f"/runs/{run_id}/upload",
+            data={"file_role": "idom_upload"},
+            files={"file": ("idom.xlsx", f, "application/octet-stream")},
+        )
+    with open(golden_sumit_file, "rb") as f:
+        client.post(
+            f"/runs/{run_id}/upload",
+            data={"file_role": "sumit_upload"},
+            files={"file": ("sumit.xlsx", f, "application/octet-stream")},
+        )
+    client.post(f"/runs/{run_id}/execute")
+    return client.get(f"/runs/{run_id}").json()
+
+
+def test_download_file(client, golden_idom_file, golden_sumit_file):
+    """Download endpoint returns file bytes with correct headers."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+    file_id = detail["files"][0]["id"]
+
+    resp = client.get(f"/runs/{run_id}/files/{file_id}/download")
+    assert resp.status_code == 200
+    assert len(resp.content) > 0
+    cd = resp.headers.get("content-disposition", "")
+    assert "attachment" in cd or "filename" in cd
+
+
+def test_download_file_404(client):
+    """Download with invalid file_id returns 404."""
+    run = client.post("/runs", json={"year": 2024, "report_type": "financial"}).json()
+    resp = client.get(f"/runs/{run['id']}/files/00000000-0000-0000-0000-000000000000/download")
+    assert resp.status_code == 404
+
+
+def test_patch_exception(client, golden_idom_file, golden_sumit_file):
+    """PATCH exception changes resolution status."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+    exc_id = detail["exceptions"][0]["id"]
+    assert detail["exceptions"][0]["resolution"] == "pending"
+
+    resp = client.patch(
+        f"/runs/{run_id}/exceptions/{exc_id}",
+        json={"resolution": "acknowledged", "note": "OK"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["resolution"] == "acknowledged"
+    assert body["resolution_note"] == "OK"
+    assert body["resolved_at"] is not None
+
+
+def test_bulk_patch_exceptions(client, golden_idom_file, golden_sumit_file):
+    """Bulk PATCH marks all pending exceptions as acknowledged."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+    pending_count = sum(1 for e in detail["exceptions"] if e["resolution"] == "pending")
+    assert pending_count > 0
+
+    resp = client.patch(
+        f"/runs/{run_id}/exceptions/bulk",
+        json={"resolution": "acknowledged"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["updated_count"] == pending_count
+
+    # Verify all are now acknowledged
+    detail2 = client.get(f"/runs/{run_id}").json()
+    for exc in detail2["exceptions"]:
+        assert exc["resolution"] != "pending"
+
+
+def test_complete_run(client, golden_idom_file, golden_sumit_file):
+    """POST complete transitions run to completed."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+    assert detail["status"] == "review"
+
+    resp = client.post(f"/runs/{run_id}/complete")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "completed"
+
+
+def test_complete_locks_mutations(client, golden_idom_file, golden_sumit_file):
+    """After complete, upload/execute/exception PATCH return 409."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+    exc_id = detail["exceptions"][0]["id"]
+
+    client.post(f"/runs/{run_id}/complete")
+
+    # Upload blocked
+    with open(golden_idom_file, "rb") as f:
+        resp = client.post(
+            f"/runs/{run_id}/upload",
+            data={"file_role": "idom_upload"},
+            files={"file": ("idom.xlsx", f, "application/octet-stream")},
+        )
+    assert resp.status_code == 409
+
+    # Exception PATCH blocked
+    resp = client.patch(
+        f"/runs/{run_id}/exceptions/{exc_id}",
+        json={"resolution": "acknowledged"},
+    )
+    assert resp.status_code == 409
+
+    # Bulk blocked
+    resp = client.patch(
+        f"/runs/{run_id}/exceptions/bulk",
+        json={"resolution": "acknowledged"},
+    )
+    assert resp.status_code == 409
+
+    # Double-complete blocked
+    resp = client.post(f"/runs/{run_id}/complete")
+    assert resp.status_code == 409
+
+    # Download still works
+    file_id = detail["files"][0]["id"]
+    resp = client.get(f"/runs/{run_id}/files/{file_id}/download")
+    assert resp.status_code == 200

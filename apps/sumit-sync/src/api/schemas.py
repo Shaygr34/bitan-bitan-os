@@ -15,6 +15,15 @@ class CreateRunRequest(BaseModel):
     operator_notes: Optional[str] = None
 
 
+class PatchExceptionRequest(BaseModel):
+    resolution: str = Field(..., pattern=r"^(acknowledged|dismissed)$")
+    note: Optional[str] = None
+
+
+class BulkPatchExceptionsRequest(BaseModel):
+    resolution: str = Field(..., pattern=r"^(acknowledged|dismissed)$")
+
+
 # ---------- Responses ----------
 
 class RunFileOut(BaseModel):
@@ -52,6 +61,8 @@ class ExceptionOut(BaseModel):
     description: str
     field_diffs: Optional[Dict[str, Any]]
     resolution: str
+    resolution_note: Optional[str]
+    resolved_at: Optional[datetime]
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -83,3 +94,7 @@ class ExecuteResultOut(BaseModel):
     exception_count: int
     output_files: List[str]
     warnings: List[str]
+
+
+class BulkPatchResultOut(BaseModel):
+    updated_count: int
