@@ -15,7 +15,7 @@ export async function GET(
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       return NextResponse.json(
-        { error: data.detail || `Download failed: ${res.status}` },
+        { error: data.detail || `הורדה נכשלה: ${res.status}` },
         { status: res.status }
       );
     }
@@ -32,7 +32,7 @@ export async function GET(
     return new Response(res.body, { status: 200, headers });
   } catch (err) {
     return NextResponse.json(
-      { error: "Sumit Sync service unreachable", detail: String(err) },
+      { error: "שירות Sumit Sync לא זמין", detail: String(err) },
       { status: 502 }
     );
   }

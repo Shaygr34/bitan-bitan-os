@@ -13,7 +13,7 @@ export async function POST(
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
     return NextResponse.json(
-      { error: "Sumit Sync service unreachable", detail: String(err) },
+      { error: "שירות Sumit Sync לא זמין", detail: String(err) },
       { status: 502 }
     );
   }

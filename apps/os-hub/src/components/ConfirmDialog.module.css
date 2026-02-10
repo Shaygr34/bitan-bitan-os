@@ -4,8 +4,8 @@
   padding: 0;
   max-width: 400px;
   width: 90vw;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  background: white;
+  box-shadow: var(--shadow-md);
+  background: var(--background);
 }
 
 .dialog::backdrop {
@@ -13,7 +13,7 @@
 }
 
 .content {
-  padding: 24px;
+  padding: var(--space-xl);
 }
 
 .header {
@@ -24,7 +24,7 @@
 }
 
 .title {
-  font-size: 1rem;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
   color: var(--text-heading);
 }
@@ -33,7 +33,7 @@
   background: none;
   border: none;
   color: var(--text-caption);
-  font-size: 1.25rem;
+  font-size: var(--font-size-lg);
   line-height: 1;
   padding: 0;
   cursor: pointer;
@@ -48,7 +48,7 @@
   font-size: var(--font-size-sm);
   color: var(--text-body);
   line-height: var(--line-height-relaxed);
-  margin-bottom: 24px;
+  margin-bottom: var(--space-xl);
 }
 
 .actions {
@@ -70,5 +70,5 @@
 }
 
 .destructiveBtn:hover {
-  background: #991B1B;
+  opacity: 0.85;
 }

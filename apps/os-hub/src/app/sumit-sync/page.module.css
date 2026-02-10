@@ -31,8 +31,13 @@
   font-size: var(--font-size-sm);
 }
 
-.runsTable tbody tr:hover {
-  background: rgba(192, 176, 112, 0.04);
+.clickableRow {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.clickableRow:hover {
+  background: var(--status-info-bg);
 }
 
 .numericCell {
@@ -55,12 +60,43 @@
   color: var(--brand-gold);
 }
 
-.loadingText {
-  color: var(--text-caption);
-  font-size: var(--font-size-sm);
-  padding: var(--space-xl) 0;
+/* ——— Loading skeleton ——— */
+.skeletonTable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg) 0;
 }
 
+.skeletonRow {
+  display: flex;
+  gap: var(--space-xl);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.skeletonCell {
+  height: var(--space-lg);
+  width: 120px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeletonCellShort {
+  height: var(--space-lg);
+  width: 70px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ——— Error ——— */
 .errorBanner {
   display: flex;
   align-items: center;

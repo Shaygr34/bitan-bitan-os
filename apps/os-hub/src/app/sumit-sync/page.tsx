@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
@@ -21,7 +22,20 @@ const TYPE_LABELS: Record<string, string> = {
   annual: "דוחות שנתיים",
 };
 
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "עכשיו";
+  if (mins < 60) return `לפני ${mins} דקות`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `לפני ${hours} שעות`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `לפני ${days} ימים`;
+  return new Date(iso).toLocaleDateString("he-IL");
+}
+
 export default function SumitSyncPage() {
+  const router = useRouter();
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +64,18 @@ export default function SumitSyncPage() {
         </Link>
       </div>
 
-      {loading && <p className={styles.loadingText}>טוען...</p>}
+      {loading && (
+        <div className={styles.skeletonTable}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className={styles.skeletonRow}>
+              <div className={styles.skeletonCell} />
+              <div className={styles.skeletonCell} />
+              <div className={styles.skeletonCellShort} />
+              <div className={styles.skeletonCell} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className={styles.errorBanner}>
@@ -61,8 +86,8 @@ export default function SumitSyncPage() {
 
       {!loading && !error && runs.length === 0 && (
         <EmptyState
-          message={t("common.emptyState.title")}
-          detail={t("common.emptyState.subtitle")}
+          message="עדיין אין הרצות"
+          detail="לחצו על ׳הרצה חדשה׳ כדי להתחיל סנכרון ראשון"
         />
       )}
 
@@ -79,19 +104,27 @@ export default function SumitSyncPage() {
           </thead>
           <tbody>
             {runs.map((run) => (
-              <tr key={run.id}>
+              <tr
+                key={run.id}
+                className={styles.clickableRow}
+                onClick={() => router.push(`/sumit-sync/runs/${run.id}`)}
+              >
                 <td className={styles.numericCell}>{run.year}</td>
                 <td>{TYPE_LABELS[run.report_type] ?? run.report_type}</td>
                 <td>
                   <StatusBadge status={run.status} />
                 </td>
-                <td className={styles.dateCell}>
-                  {new Date(run.created_at).toLocaleDateString("he-IL")}
+                <td
+                  className={styles.dateCell}
+                  title={new Date(run.created_at).toLocaleString("he-IL")}
+                >
+                  {relativeTime(run.created_at)}
                 </td>
                 <td>
                   <Link
                     href={`/sumit-sync/runs/${run.id}`}
                     className={styles.detailLink}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     פרטים
                   </Link>

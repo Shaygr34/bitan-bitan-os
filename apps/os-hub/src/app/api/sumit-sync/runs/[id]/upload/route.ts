@@ -15,7 +15,7 @@ export async function POST(
   } catch (err) {
     return NextResponse.json(
       {
-        error: "Sumit Sync service unreachable",
+        error: "שירות Sumit Sync לא זמין",
         target: `${BASE_URL}/runs/${id}/upload`,
         detail: String(err),
       },

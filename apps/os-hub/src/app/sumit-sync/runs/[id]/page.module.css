@@ -181,12 +181,51 @@
   text-overflow: ellipsis;
 }
 
-/* ——— Loading / Error ——— */
-.loadingText {
-  color: var(--text-caption);
-  font-size: var(--font-size-sm);
-  padding: var(--space-xl) 0;
+/* ——— Loading skeleton ——— */
+.skeletonInfoRow {
+  display: flex;
+  gap: var(--space-2xl);
+  margin-bottom: var(--space-2xl);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
 }
+
+.skeletonBlock {
+  height: var(--space-2xl);
+  width: 100px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeletonBlockWide {
+  height: var(--space-2xl);
+  width: 180px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeletonMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-lg);
+}
+
+.skeletonMetricCard {
+  height: 80px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ——— Loading / Error ——— */
 
 .errorBanner {
   display: flex;

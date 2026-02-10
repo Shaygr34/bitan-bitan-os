@@ -24,7 +24,12 @@ jobs:
           restore-keys: pnpm-
 
       - run: pnpm install
-      - run: pnpm --filter os-hub build
+
+      - name: TypeScript type check
+        run: pnpm --filter os-hub exec tsc --noEmit
+
+      - name: Build
+        run: pnpm --filter os-hub build
 
   test-sumit-sync:
     runs-on: ubuntu-latest
