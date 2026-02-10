@@ -1,0 +1,21 @@
+.header {
+  margin-bottom: var(--space-3xl);
+  padding-bottom: var(--space-xl);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.title {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text);
+}
+
+.description {
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-body);
+  color: var(--color-muted);
+  line-height: var(--line-height-relaxed);
+  max-width: 520px;
+}

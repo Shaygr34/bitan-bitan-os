@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import styles from "./SideNav.module.css";
 
 const channels = [
   { name: "OS Hub", href: "/" },
@@ -13,19 +14,22 @@ export default function SideNav() {
   const pathname = usePathname();
 
   return (
-    <nav style={styles.nav}>
-      <div style={styles.logo}>B&B OS</div>
-      <ul style={styles.list}>
+    <nav className={styles.nav}>
+      <div className={styles.brand}>
+        <div className={styles.brandName}>B&amp;B</div>
+        <div className={styles.brandLabel}>Operating System</div>
+      </div>
+
+      <div className={styles.divider} />
+
+      <ul className={styles.list}>
         {channels.map((ch) => {
           const isActive = pathname === ch.href;
           return (
             <li key={ch.href}>
               <Link
                 href={ch.href}
-                style={{
-                  ...styles.link,
-                  ...(isActive ? styles.activeLink : {}),
-                }}
+                className={`${styles.link} ${isActive ? styles.linkActive : ""}`}
               >
                 {ch.name}
               </Link>
@@ -33,46 +37,10 @@ export default function SideNav() {
           );
         })}
       </ul>
+
+      <div className={styles.navFooter}>
+        <span className={styles.version}>v0.1.0</span>
+      </div>
     </nav>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  nav: {
-    width: "var(--nav-width)",
-    minHeight: "100vh",
-    background: "var(--color-nav-bg)",
-    color: "var(--color-nav-text)",
-    display: "flex",
-    flexDirection: "column",
-    padding: "var(--space-lg) 0",
-    position: "fixed",
-    top: 0,
-    left: 0,
-  },
-  logo: {
-    fontSize: "var(--font-size-lg)",
-    fontWeight: 700,
-    color: "var(--color-nav-active)",
-    padding: "0 var(--space-lg)",
-    marginBottom: "var(--space-xl)",
-  },
-  list: {
-    listStyle: "none",
-    display: "flex",
-    flexDirection: "column",
-    gap: "var(--space-xs)",
-  },
-  link: {
-    display: "block",
-    padding: "var(--space-sm) var(--space-lg)",
-    borderRadius: "0 var(--radius-sm) var(--radius-sm) 0",
-    transition: "background 0.15s",
-    color: "var(--color-nav-text)",
-  },
-  activeLink: {
-    background: "var(--color-nav-hover-bg)",
-    color: "var(--color-nav-active)",
-    fontWeight: 600,
-  },
-};

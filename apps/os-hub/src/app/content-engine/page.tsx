@@ -1,10 +1,17 @@
+import PageHeader from "@/components/PageHeader";
+import EmptyState from "@/components/EmptyState";
+
 export default function ContentEnginePage() {
   return (
     <div>
-      <h1 style={{ fontSize: "var(--font-size-h1)", fontWeight: 700, marginBottom: "var(--space-sm)" }}>
-        Content Engine
-      </h1>
-      <p style={{ color: "var(--color-muted)" }}>Content pipeline — coming soon.</p>
+      <PageHeader
+        title="Content Engine"
+        description="Content pipeline and publishing engine."
+      />
+      <EmptyState
+        message="No content pipelines"
+        detail="Content workflows will appear here once configured."
+      />
     </div>
   );
 }

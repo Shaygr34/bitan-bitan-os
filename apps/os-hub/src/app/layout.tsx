@@ -3,8 +3,8 @@ import "./globals.css";
 import SideNav from "@/components/SideNav";
 
 export const metadata: Metadata = {
-  title: "Bitan & Bitan OS Hub",
-  description: "Operational hub for Bitan & Bitan",
+  title: "Bitan & Bitan OS",
+  description: "Operational system for Bitan & Bitan",
 };
 
 export default function RootLayout({
@@ -15,17 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div style={{ display: "flex" }}>
+        <div className="app-shell">
           <SideNav />
-          <main
-            style={{
-              marginLeft: "var(--nav-width)",
-              flex: 1,
-              padding: "var(--space-xl)",
-            }}
-          >
-            {children}
-          </main>
+          <main className="main-content">{children}</main>
         </div>
       </body>
     </html>

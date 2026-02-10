@@ -1,3 +1,21 @@
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/Card";
+import Link from "next/link";
+import styles from "./page.module.css";
+
+const modules = [
+  {
+    name: "Sumit Sync",
+    href: "/sumit-sync",
+    description: "Synchronization workflows and data management.",
+  },
+  {
+    name: "Content Engine",
+    href: "/content-engine",
+    description: "Content pipeline and publishing engine.",
+  },
+];
+
 export default function Home() {
   const commit =
     process.env.RAILWAY_GIT_COMMIT_SHA ??
@@ -7,23 +25,29 @@ export default function Home() {
 
   return (
     <div>
-      <h1 style={{ fontSize: "var(--font-size-h1)", fontWeight: 700, marginBottom: "var(--space-sm)" }}>
-        Bitan &amp; Bitan OS Hub
-      </h1>
-      <p style={{ color: "var(--color-muted)", maxWidth: "480px", lineHeight: 1.6 }}>
-        Welcome to the operational hub. Use the sidebar to navigate between
-        channels.
-      </p>
-      <footer
-        style={{
-          marginTop: "var(--space-2xl)",
-          fontSize: "var(--font-size-sm)",
-          color: "var(--color-subtle)",
-          lineHeight: 1.8,
-        }}
-      >
-        <div>Commit: {commit.slice(0, 7)}</div>
-        <div>Built: {buildTime}</div>
+      <PageHeader
+        title="OS Hub"
+        description="Central operations for Bitan &amp; Bitan. Manage workflows, content, and system tools from one place."
+      />
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionLabel}>Modules</h2>
+        <div className={styles.moduleGrid}>
+          {modules.map((mod) => (
+            <Link key={mod.href} href={mod.href} className={styles.moduleLink}>
+              <Card>
+                <h3 className={styles.moduleName}>{mod.name}</h3>
+                <p className={styles.moduleDescription}>{mod.description}</p>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <footer className={styles.buildInfo}>
+        <span>{commit.slice(0, 7)}</span>
+        <span className={styles.buildSeparator}>&middot;</span>
+        <span>Built {buildTime}</span>
       </footer>
     </div>
   );
