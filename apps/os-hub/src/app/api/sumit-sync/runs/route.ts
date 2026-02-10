@@ -10,7 +10,7 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json(
       {
-        error: "Sumit Sync service unreachable",
+        error: "שירות Sumit Sync לא זמין",
         target: `${BASE_URL}/runs`,
         detail: String(err),
       },
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       {
-        error: "Sumit Sync service unreachable",
+        error: "שירות Sumit Sync לא זמין",
         target: `${BASE_URL}/runs`,
         detail: String(err),
       },

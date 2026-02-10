@@ -48,14 +48,71 @@ export const strings: Record<string, string> = {
   // Sumit Sync
   // ═══════════════════════════════════════
   "sumitSync.title": "Sumit Sync",
-  "sumitSync.subtitle": "סנכרון נתוני סומיט",
+  "sumitSync.subtitle": "סנכרון IDOM-SUMIT — התאמה, חריגים ויצוא",
   "sumitSync.status.synced": "מסונכרן",
   "sumitSync.status.syncing": "מסנכרן...",
   "sumitSync.status.error": "שגיאה בסנכרון",
   "sumitSync.status.lastSync": "סנכרון אחרון",
   "sumitSync.actions.syncNow": "סנכרון עכשיו",
+  "sumitSync.actions.newRun": "הרצה חדשה",
   "sumitSync.syncComplete": "סנכרון Sumit Sync הושלם",
   "sumitSync.syncError": "שגיאה בסנכרון Sumit Sync. נסו שנית.",
+
+  // Run list
+  "sumitSync.runs.empty": "עדיין אין הרצות",
+  "sumitSync.runs.emptyDetail": "לחצו על ׳הרצה חדשה׳ כדי להתחיל סנכרון ראשון",
+  "sumitSync.runs.colYear": "שנת מס",
+  "sumitSync.runs.colType": "סוג דוח",
+  "sumitSync.runs.colStatus": "סטטוס",
+  "sumitSync.runs.colDate": "תאריך",
+  "sumitSync.runs.detail": "פרטים",
+  "sumitSync.runs.typeFinancial": "דוחות כספיים",
+  "sumitSync.runs.typeAnnual": "דוחות שנתיים",
+
+  // Run detail
+  "sumitSync.detail.title": "פרטי הרצה",
+  "sumitSync.detail.status": "סטטוס",
+  "sumitSync.detail.createdAt": "תאריך יצירה",
+  "sumitSync.detail.processingTime": "זמן עיבוד",
+  "sumitSync.detail.seconds": "שניות",
+  "sumitSync.detail.completeRun": "סמן הרצה כהושלמה",
+  "sumitSync.detail.completing": "מסיים...",
+  "sumitSync.detail.backToList": "חזרה לרשימה",
+  "sumitSync.detail.completedBanner": "ההרצה הושלמה ונעולה לעריכה.",
+  "sumitSync.detail.notFound": "הרצה לא נמצאה",
+
+  // Metrics
+  "sumitSync.metrics.title": "מדדים",
+  "sumitSync.metrics.idomRecords": "רשומות IDOM",
+  "sumitSync.metrics.sumitRecords": "רשומות SUMIT",
+  "sumitSync.metrics.matched": "התאמות",
+  "sumitSync.metrics.unmatched": "ללא התאמה",
+  "sumitSync.metrics.changes": "שינויים",
+  "sumitSync.metrics.statusCompleted": "סטטוס הושלם",
+  "sumitSync.metrics.regressions": "נסיגות סטטוס",
+
+  // Files
+  "sumitSync.files.output": "קבצי פלט",
+  "sumitSync.files.input": "קבצי קלט",
+
+  // Exceptions
+  "sumitSync.exceptions.title": "חריגים",
+  "sumitSync.exceptions.pending": "ממתינים",
+  "sumitSync.exceptions.reviewed": "נבדקו",
+  "sumitSync.exceptions.bulkAck": "סמן הכל כנבדק",
+  "sumitSync.exceptions.updating": "מעדכן...",
+  "sumitSync.exceptions.colType": "סוג",
+  "sumitSync.exceptions.colRef": "מספר תיק",
+  "sumitSync.exceptions.colName": "שם",
+  "sumitSync.exceptions.colDesc": "תיאור",
+  "sumitSync.exceptions.colStatus": "סטטוס",
+  "sumitSync.exceptions.colActions": "פעולות",
+  "sumitSync.exceptions.ack": "נבדק",
+  "sumitSync.exceptions.dismiss": "דחייה",
+
+  // Confirm dialog
+  "sumitSync.confirm.completeTitle": "השלמת הרצה",
+  "sumitSync.confirm.completeBody": "יש {n} חריגים שטרם נבדקו. לאחר השלמה ההרצה תינעל לעריכה. להמשיך?",
 
   // ═══════════════════════════════════════
   // Documents

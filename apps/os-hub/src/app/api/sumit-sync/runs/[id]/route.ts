@@ -14,7 +14,7 @@ export async function GET(
   } catch (err) {
     return NextResponse.json(
       {
-        error: "Sumit Sync service unreachable",
+        error: "שירות Sumit Sync לא זמין",
         target: `${BASE_URL}/runs/${id}`,
         detail: String(err),
       },

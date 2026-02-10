@@ -18,7 +18,7 @@ export async function POST(
     console.error(`[sumit-sync proxy] Execute failed for run ${id}:`, err);
     return NextResponse.json(
       {
-        error: "Sumit Sync service unreachable",
+        error: "שירות Sumit Sync לא זמין",
         target: `${BASE_URL}/runs/${id}/execute`,
         detail: String(err),
       },

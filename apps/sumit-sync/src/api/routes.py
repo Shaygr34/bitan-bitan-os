@@ -45,7 +45,7 @@ router = APIRouter(prefix="/runs", tags=["runs"])
 def _run_or_404(run_id: str, db: Session) -> models.Run:
     run = db.query(models.Run).filter(models.Run.id == run_id).first()
     if not run:
-        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        raise HTTPException(status_code=404, detail=f"הרצה {run_id} לא נמצאה")
     return run
 
 
@@ -166,7 +166,7 @@ async def upload_file(
         raise HTTPException(400, "לא ניתן להעלות קבצים בסטטוס הנוכחי")
 
     if file_role not in VALID_FILE_ROLES:
-        raise HTTPException(400, f"Invalid file_role. Must be one of: {VALID_FILE_ROLES}")
+        raise HTTPException(400, f"תפקיד קובץ לא תקין. יש לבחור מתוך: {VALID_FILE_ROLES}")
 
     # Check for duplicate role
     existing = (
@@ -175,7 +175,7 @@ async def upload_file(
         .first()
     )
     if existing:
-        raise HTTPException(409, f"File with role '{file_role}' already uploaded for this run")
+        raise HTTPException(409, f"קובץ בתפקיד '{file_role}' כבר הועלה להרצה זו")
 
     content = await file.read()
     stored_path = file_store.store_upload(str(run.id), file.filename, content)
@@ -211,14 +211,14 @@ def execute_run(run_id: str, db: Session = Depends(get_db)):
     run = _run_or_404(run_id, db)
 
     if run.status != "uploading":
-        raise HTTPException(400, f"Run must be in 'uploading' status to execute (current: {run.status})")
+        raise HTTPException(400, f"ניתן להריץ רק בסטטוס 'העלאה' (סטטוס נוכחי: {run.status})")
 
     # Verify both files are uploaded
     files_by_role = {f.file_role: f for f in run.files}
     if "idom_upload" not in files_by_role:
-        raise HTTPException(400, "IDOM file not yet uploaded")
+        raise HTTPException(400, "קובץ IDOM טרם הועלה")
     if "sumit_upload" not in files_by_role:
-        raise HTTPException(400, "SUMIT file not yet uploaded")
+        raise HTTPException(400, "קובץ SUMIT טרם הועלה")
 
     # Transition to processing
     run.status = "processing"
@@ -240,7 +240,7 @@ def execute_run(run_id: str, db: Session = Depends(get_db)):
         run.completed_at = datetime.now(timezone.utc)
         db.commit()
         logger.exception("Reconciliation failed for run %s", run_id)
-        raise HTTPException(500, f"Reconciliation failed: {exc}")
+        raise HTTPException(500, f"הסנכרון נכשל: {exc}")
 
     elapsed = time.monotonic() - t0
 
@@ -527,7 +527,7 @@ def _run_reconciliation(
     all_warnings = idom_warnings + sumit_warnings + result.warnings
     if not idom_conflicts.empty:
         all_warnings.append(
-            f"{len(idom_conflicts)} IDOM duplicate conflicts detected"
+            f"{len(idom_conflicts)} כפילויות IDOM זוהו"
         )
 
     return result, output_paths, all_warnings

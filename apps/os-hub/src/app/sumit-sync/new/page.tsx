@@ -36,7 +36,7 @@ export default function NewRunPage() {
       setRunId(run.id);
       setStep("upload");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create run");
+      setError(err instanceof Error ? err.message : "שגיאה ביצירת הרצה");
     }
   }
 
@@ -57,7 +57,7 @@ export default function NewRunPage() {
       });
       if (!idomRes.ok) {
         const data = await idomRes.json().catch(() => ({}));
-        throw new Error(data.detail || data.error || "IDOM upload failed");
+        throw new Error(data.detail || data.error || "העלאת קובץ IDOM נכשלה");
       }
 
       // Upload SUMIT
@@ -71,7 +71,7 @@ export default function NewRunPage() {
       });
       if (!sumitRes.ok) {
         const data = await sumitRes.json().catch(() => ({}));
-        throw new Error(data.detail || data.error || "SUMIT upload failed");
+        throw new Error(data.detail || data.error || "העלאת קובץ SUMIT נכשלה");
       }
 
       // Execute
@@ -81,13 +81,13 @@ export default function NewRunPage() {
       });
       if (!execRes.ok) {
         const data = await execRes.json().catch(() => ({}));
-        throw new Error(data.detail || data.error || "Execution failed");
+        throw new Error(data.detail || data.error || "הרצת הסנכרון נכשלה");
       }
 
       // Success → redirect to run detail
       router.push(`/sumit-sync/runs/${runId}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Pipeline failed");
+      setError(err instanceof Error ? err.message : "התהליך נכשל");
       setStep("error");
     }
   }

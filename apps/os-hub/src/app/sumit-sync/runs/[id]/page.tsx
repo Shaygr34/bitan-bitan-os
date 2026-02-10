@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { showToast } from "@/components/Toast";
 import styles from "./page.module.css";
 
 interface RunMetrics {
@@ -91,6 +93,7 @@ export default function RunDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const fetchRun = useCallback(() => {
     fetch(`/api/sumit-sync/runs/${id}`)
@@ -127,8 +130,9 @@ export default function RunDetailPage() {
           ),
         };
       });
+      showToast({ type: "success", message: `חריג סומן כ${resolution === "acknowledged" ? "נבדק" : "נדחה"}` });
     } catch {
-      setError("שגיאה בעדכון חריג");
+      showToast({ type: "error", message: "שגיאה בעדכון חריג" });
     } finally {
       setActionLoading(null);
     }
@@ -144,25 +148,30 @@ export default function RunDetailPage() {
         body: JSON.stringify({ resolution: "acknowledged" }),
       });
       if (!res.ok) throw new Error("עדכון נכשל");
+      const result = await res.json();
+      showToast({ type: "success", message: `${result.updated_count} חריגים סומנו כנבדק` });
       fetchRun();
     } catch {
-      setError("שגיאה בעדכון חריגים");
+      showToast({ type: "error", message: "שגיאה בעדכון חריגים" });
     } finally {
       setActionLoading(null);
     }
   };
 
-  const completeRun = async () => {
+  const handleCompleteClick = () => {
     if (!run) return;
     const pendingCount = run.exceptions.filter(
       (e) => e.resolution === "pending"
     ).length;
     if (pendingCount > 0) {
-      const ok = window.confirm(
-        `יש ${pendingCount} חריגים שטרם נבדקו. להשלים בכל זאת?`
-      );
-      if (!ok) return;
+      setConfirmOpen(true);
+    } else {
+      doCompleteRun();
     }
+  };
+
+  const doCompleteRun = async () => {
+    setConfirmOpen(false);
     setActionLoading("complete");
     try {
       const res = await fetch(`/api/sumit-sync/runs/${id}/complete`, {
@@ -172,9 +181,10 @@ export default function RunDetailPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || "השלמה נכשלה");
       }
+      showToast({ type: "success", message: "ההרצה הושלמה ונעולה" });
       fetchRun();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "השלמה נכשלה");
+      showToast({ type: "error", message: err instanceof Error ? err.message : "השלמה נכשלה" });
     } finally {
       setActionLoading(null);
     }
@@ -184,7 +194,16 @@ export default function RunDetailPage() {
     return (
       <div>
         <PageHeader title="פרטי הרצה" />
-        <p className={styles.loadingText}>טוען...</p>
+        <div className={styles.skeletonInfoRow}>
+          <div className={styles.skeletonBlock} />
+          <div className={styles.skeletonBlock} />
+          <div className={styles.skeletonBlockWide} />
+        </div>
+        <div className={styles.skeletonMetrics}>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className={styles.skeletonMetricCard} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -267,7 +286,7 @@ export default function RunDetailPage() {
           {isReview && (
             <button
               className="btn-primary"
-              onClick={completeRun}
+              onClick={handleCompleteClick}
               disabled={actionLoading === "complete"}
             >
               {actionLoading === "complete"
@@ -276,7 +295,7 @@ export default function RunDetailPage() {
             </button>
           )}
           <Link href="/sumit-sync" className="btn-ghost">
-            ← חזרה לרשימה
+            חזרה לרשימה
           </Link>
         </div>
       </div>
@@ -467,6 +486,17 @@ export default function RunDetailPage() {
           </table>
         </section>
       )}
+
+      {/* Completion confirmation dialog */}
+      <ConfirmDialog
+        open={confirmOpen}
+        title="השלמת הרצה"
+        body={`יש ${pendingExc} חריגים שטרם נבדקו. לאחר השלמה ההרצה תינעל לעריכה. להמשיך?`}
+        cancelLabel="ביטול"
+        confirmLabel="השלם"
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={doCompleteRun}
+      />
     </div>
   );
 }
