@@ -1,0 +1,60 @@
+/* ——— Home / dashboard ——— */
+
+.section {
+  margin-bottom: var(--space-3xl);
+}
+
+.sectionLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-subtle);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin-bottom: var(--space-lg);
+}
+
+.moduleGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-xl);
+}
+
+.moduleLink {
+  display: block;
+  transition: transform var(--transition-fast);
+}
+
+.moduleLink:hover {
+  transform: translateY(-1px);
+}
+
+.moduleName {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin-bottom: var(--space-xs);
+}
+
+.moduleDescription {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ——— Build footer ——— */
+
+.buildInfo {
+  margin-top: var(--space-6xl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-xs);
+  color: var(--color-subtle);
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.buildSeparator {
+  color: var(--color-border);
+}

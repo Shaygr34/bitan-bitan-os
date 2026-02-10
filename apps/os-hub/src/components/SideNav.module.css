@@ -1,0 +1,86 @@
+.nav {
+  width: var(--nav-width);
+  min-height: 100vh;
+  background: var(--color-nav-bg);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10;
+}
+
+/* ——— Brand ——— */
+
+.brand {
+  padding: var(--space-2xl) var(--space-xl) var(--space-xl);
+}
+
+.brandName {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-nav-active);
+  letter-spacing: 0.02em;
+}
+
+.brandLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-nav-muted);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  margin-top: var(--space-xs);
+}
+
+/* ——— Divider ——— */
+
+.divider {
+  height: 1px;
+  background: var(--color-nav-border);
+  margin: 0 var(--space-xl);
+}
+
+/* ——— Nav list ——— */
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-lg) 0;
+  gap: 2px;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  padding: var(--space-sm) var(--space-xl);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-nav-text);
+  border-left: 2px solid transparent;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.link:hover {
+  color: var(--color-nav-active);
+  background: var(--color-nav-hover-bg);
+}
+
+.linkActive {
+  color: var(--color-nav-active);
+  border-left-color: var(--color-accent);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ——— Footer ——— */
+
+.navFooter {
+  margin-top: auto;
+  padding: var(--space-lg) var(--space-xl);
+  border-top: 1px solid var(--color-nav-border);
+}
+
+.version {
+  font-size: var(--font-size-xs);
+  color: var(--color-nav-muted);
+  font-family: var(--font-mono);
+}
