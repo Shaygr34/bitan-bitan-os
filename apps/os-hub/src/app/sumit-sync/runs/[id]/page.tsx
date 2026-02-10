@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
-import Card from "@/components/Card";
 import StatusBadge from "@/components/StatusBadge";
 import styles from "./page.module.css";
 
@@ -35,6 +34,8 @@ interface RunException {
   client_name: string | null;
   description: string;
   resolution: string;
+  resolution_note: string | null;
+  resolved_at: string | null;
 }
 
 interface RunDetail {
@@ -60,14 +61,20 @@ const FILE_ROLE_LABELS: Record<string, string> = {
   idom_upload: "קובץ IDOM (קלט)",
   sumit_upload: "קובץ SUMIT (קלט)",
   import_output: "קובץ ייבוא (פלט)",
-  diff_report: "דו״ח שינויים",
-  exceptions_report: "דו״ח חריגים",
+  diff_report: 'דו"ח שינויים',
+  exceptions_report: 'דו"ח חריגים',
 };
 
 const EXCEPTION_TYPE_LABELS: Record<string, string> = {
   no_sumit_match: "ללא התאמה ב-SUMIT",
   idom_duplicate: "כפילות IDOM",
   status_regression: "נסיגת סטטוס",
+};
+
+const RESOLUTION_LABELS: Record<string, string> = {
+  pending: "ממתין",
+  acknowledged: "נבדק",
+  dismissed: "נדחה",
 };
 
 function formatBytes(bytes: number): string {
@@ -83,8 +90,9 @@ export default function RunDetailPage() {
   const [run, setRun] = useState<RunDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchRun = useCallback(() => {
     fetch(`/api/sumit-sync/runs/${id}`)
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -94,6 +102,83 @@ export default function RunDetailPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    fetchRun();
+  }, [fetchRun]);
+
+  const patchException = async (exId: string, resolution: string) => {
+    if (!run) return;
+    setActionLoading(exId);
+    try {
+      const res = await fetch(`/api/sumit-sync/runs/${id}/exceptions/${exId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolution }),
+      });
+      if (!res.ok) throw new Error("עדכון נכשל");
+      const updated = await res.json();
+      setRun((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          exceptions: prev.exceptions.map((e) =>
+            e.id === exId ? { ...e, ...updated } : e
+          ),
+        };
+      });
+    } catch {
+      setError("שגיאה בעדכון חריג");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const bulkAcknowledge = async () => {
+    if (!run) return;
+    setActionLoading("bulk");
+    try {
+      const res = await fetch(`/api/sumit-sync/runs/${id}/exceptions/bulk`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolution: "acknowledged" }),
+      });
+      if (!res.ok) throw new Error("עדכון נכשל");
+      fetchRun();
+    } catch {
+      setError("שגיאה בעדכון חריגים");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const completeRun = async () => {
+    if (!run) return;
+    const pendingCount = run.exceptions.filter(
+      (e) => e.resolution === "pending"
+    ).length;
+    if (pendingCount > 0) {
+      const ok = window.confirm(
+        `יש ${pendingCount} חריגים שטרם נבדקו. להשלים בכל זאת?`
+      );
+      if (!ok) return;
+    }
+    setActionLoading("complete");
+    try {
+      const res = await fetch(`/api/sumit-sync/runs/${id}/complete`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "השלמה נכשלה");
+      }
+      fetchRun();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "השלמה נכשלה");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -119,6 +204,8 @@ export default function RunDetailPage() {
     );
   }
 
+  const isCompleted = run.status === "completed";
+  const isReview = run.status === "review";
   const matchRate =
     run.metrics && run.metrics.total_idom_records > 0
       ? (
@@ -132,11 +219,29 @@ export default function RunDetailPage() {
   );
   const inputFiles = run.files.filter((f) => f.file_role.endsWith("_upload"));
 
+  const pendingExc = run.exceptions.filter(
+    (e) => e.resolution === "pending"
+  ).length;
+  const reviewedExc = run.exceptions.length - pendingExc;
+
   return (
     <div>
       <PageHeader
         title={`הרצה — ${TYPE_LABELS[run.report_type] ?? run.report_type} ${run.year}`}
       />
+
+      {/* Completed banner */}
+      {isCompleted && (
+        <div className={styles.completedBanner}>
+          ההרצה הושלמה ונעולה לעריכה.
+          {run.completed_at && (
+            <span className={styles.completedDate}>
+              {" "}
+              ({new Date(run.completed_at).toLocaleString("he-IL")})
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Header info row */}
       <div className={styles.infoRow}>
@@ -158,7 +263,18 @@ export default function RunDetailPage() {
             </span>
           </div>
         )}
-        <div className={styles.backLink}>
+        <div className={styles.infoActions}>
+          {isReview && (
+            <button
+              className="btn-primary"
+              onClick={completeRun}
+              disabled={actionLoading === "complete"}
+            >
+              {actionLoading === "complete"
+                ? "מסיים..."
+                : "סמן הרצה כהושלמה"}
+            </button>
+          )}
           <Link href="/sumit-sync" className="btn-ghost">
             ← חזרה לרשימה
           </Link>
@@ -208,15 +324,23 @@ export default function RunDetailPage() {
           <h2 className={styles.sectionTitle}>קבצי פלט</h2>
           <div className={styles.fileList}>
             {outputFiles.map((f) => (
-              <div key={f.id} className={styles.fileItem}>
+              <a
+                key={f.id}
+                href={`/api/sumit-sync/runs/${id}/files/${f.id}/download`}
+                download
+                className={styles.fileItem}
+              >
                 <span className={styles.fileRole}>
                   {FILE_ROLE_LABELS[f.file_role] ?? f.file_role}
                 </span>
-                <span className={styles.fileNameDisplay}>{f.original_name}</span>
+                <span className={styles.fileNameDisplay}>
+                  {f.original_name}
+                </span>
                 <span className={styles.fileSize}>
                   {formatBytes(f.size_bytes)}
                 </span>
-              </div>
+                <span className={styles.downloadIcon}>↓</span>
+              </a>
             ))}
           </div>
         </section>
@@ -228,26 +352,55 @@ export default function RunDetailPage() {
           <h2 className={styles.sectionTitle}>קבצי קלט</h2>
           <div className={styles.fileList}>
             {inputFiles.map((f) => (
-              <div key={f.id} className={styles.fileItem}>
+              <a
+                key={f.id}
+                href={`/api/sumit-sync/runs/${id}/files/${f.id}/download`}
+                download
+                className={styles.fileItem}
+              >
                 <span className={styles.fileRole}>
                   {FILE_ROLE_LABELS[f.file_role] ?? f.file_role}
                 </span>
-                <span className={styles.fileNameDisplay}>{f.original_name}</span>
+                <span className={styles.fileNameDisplay}>
+                  {f.original_name}
+                </span>
                 <span className={styles.fileSize}>
                   {formatBytes(f.size_bytes)}
                 </span>
-              </div>
+                <span className={styles.downloadIcon}>↓</span>
+              </a>
             ))}
           </div>
         </section>
       )}
 
-      {/* Exceptions summary */}
+      {/* Exceptions with review */}
       {run.exceptions.length > 0 && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>
-            חריגים ({run.exceptions.length})
-          </h2>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>
+              חריגים ({run.exceptions.length})
+            </h2>
+            <div className={styles.exceptionCounters}>
+              <span className={styles.counterPending}>
+                {pendingExc} ממתינים
+              </span>
+              <span className={styles.counterReviewed}>
+                {reviewedExc} נבדקו
+              </span>
+            </div>
+            {isReview && pendingExc > 0 && (
+              <button
+                className="btn-secondary"
+                onClick={bulkAcknowledge}
+                disabled={actionLoading === "bulk"}
+              >
+                {actionLoading === "bulk"
+                  ? "מעדכן..."
+                  : "סמן הכל כנבדק"}
+              </button>
+            )}
+          </div>
           <table className={styles.exceptionsTable}>
             <thead>
               <tr>
@@ -256,6 +409,7 @@ export default function RunDetailPage() {
                 <th>שם</th>
                 <th>תיאור</th>
                 <th>סטטוס</th>
+                {!isCompleted && <th>פעולות</th>}
               </tr>
             </thead>
             <tbody>
@@ -269,8 +423,44 @@ export default function RunDetailPage() {
                   <td>{exc.client_name || "—"}</td>
                   <td className={styles.descCell}>{exc.description}</td>
                   <td>
-                    <StatusBadge status={exc.resolution === "pending" ? "review" : "completed"} />
+                    <span
+                      className={`${styles.resolutionBadge} ${
+                        styles[`resolution_${exc.resolution}`] || ""
+                      }`}
+                    >
+                      {RESOLUTION_LABELS[exc.resolution] ?? exc.resolution}
+                    </span>
                   </td>
+                  {!isCompleted && (
+                    <td className={styles.actionsCell}>
+                      {exc.resolution === "pending" ? (
+                        <>
+                          <button
+                            className={styles.actionBtn}
+                            onClick={() =>
+                              patchException(exc.id, "acknowledged")
+                            }
+                            disabled={actionLoading === exc.id}
+                            title="סמן כנבדק"
+                          >
+                            נבדק
+                          </button>
+                          <button
+                            className={`${styles.actionBtn} ${styles.actionDismiss}`}
+                            onClick={() =>
+                              patchException(exc.id, "dismissed")
+                            }
+                            disabled={actionLoading === exc.id}
+                            title="דחה חריג"
+                          >
+                            דחייה
+                          </button>
+                        </>
+                      ) : (
+                        <span className={styles.resolvedMark}>—</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

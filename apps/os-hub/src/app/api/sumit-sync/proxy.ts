@@ -49,6 +49,17 @@ export async function proxyPost(
   });
 }
 
+export async function proxyPatch(
+  path: string,
+  body: Record<string, unknown>
+): Promise<Response> {
+  return proxyFetch(`${BASE_URL}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function proxyFormData(
   path: string,
   formData: FormData
