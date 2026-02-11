@@ -155,13 +155,12 @@ def _extract_table(tbl_el: ET.Element) -> list[list[str]]:
 def _classify_heading_level(text: str) -> int:
     """
     Determine heading level:
-      1 = major section
-      2 = sub-section
-      3 = sub-sub-section (rare)
+      1 = major section  (→ rendered as navy section-bar)
+      2 = sub-section    (→ rendered as h3)
     """
     clean = text.rstrip(":").strip()
 
-    # Check against known major keywords
+    # Check against known major keywords — only these get section-bar treatment
     for kw in MAJOR_SECTION_KEYWORDS:
         if clean.startswith(kw):
             return 1
@@ -170,16 +169,13 @@ def _classify_heading_level(text: str) -> int:
     if clean in SUB_SECTION_KEYWORDS:
         return 2
 
-    # Heuristic: very short bold text → level 2
-    if len(clean) < 20:
+    # Sentence-like text (commas, terminal punctuation) → never a section-bar.
+    # These are "key point" sentences, not structural headings.
+    if "," in clean or clean.endswith(".") or clean.endswith("?") or clean.endswith("!"):
         return 2
 
-    # Medium-length bold text → level 2
-    if len(clean) < 40:
-        return 2
-
-    # Default for ambiguous long headers
-    return 1
+    # Everything else → level 2 (safer default — only known keywords get level 1)
+    return 2
 
 
 # ── Main parser ──

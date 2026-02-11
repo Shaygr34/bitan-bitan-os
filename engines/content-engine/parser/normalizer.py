@@ -17,6 +17,7 @@ def normalize(blocks: list[ContentBlock]) -> list[ContentBlock]:
     blocks = _validate_title(blocks)
     blocks = _validate_doc_type(blocks)
     blocks = _deduplicate_headings(blocks)
+    blocks = _ensure_trailing_periods(blocks)
     return blocks
 
 
@@ -178,3 +179,27 @@ def _deduplicate_headings(blocks: list[ContentBlock]) -> list[ContentBlock]:
             continue
         result.append(b)
     return result
+
+
+# ── Operation 8: Ensure trailing periods on sentence-length bullets ──
+
+_TERMINAL_CHARS = frozenset(".!?:)")
+
+def _ensure_trailing_periods(blocks: list[ContentBlock]) -> list[ContentBlock]:
+    """
+    Bullet items that look like sentences (>15 chars) but lack terminal
+    punctuation get a period appended. Short items (labels/terms) are
+    left untouched.
+    """
+    for b in blocks:
+        if b.block_type != BlockType.BULLET_LIST:
+            continue
+        fixed = []
+        for item in b.content:
+            stripped = item.rstrip()
+            if len(stripped) > 15 and stripped[-1] not in _TERMINAL_CHARS:
+                fixed.append(stripped + ".")
+            else:
+                fixed.append(item)
+        b.content = fixed
+    return blocks
