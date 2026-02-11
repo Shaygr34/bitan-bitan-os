@@ -1,8 +1,26 @@
 .toolbar {
   display: flex;
-  align-items: center;
-  gap: var(--space-lg);
+  flex-direction: column;
+  gap: var(--space-md);
   margin-bottom: var(--space-xl);
+}
+
+.searchInput {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-body);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  width: 100%;
+  max-width: 360px;
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
 }
 
 .filterSelect {
@@ -16,14 +34,20 @@
   cursor: pointer;
 }
 
-.runsTable {
+.fileCount {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  margin-bottom: var(--space-sm);
+}
+
+.filesTable {
   width: 100%;
   border-collapse: collapse;
   direction: rtl;
   font-variant-numeric: tabular-nums;
 }
 
-.runsTable thead th {
+.filesTable thead th {
   background: var(--table-header-bg);
   color: var(--table-header-text);
   font-weight: var(--font-weight-semibold);
@@ -33,27 +57,22 @@
   font-size: var(--font-size-sm);
 }
 
-.runsTable tbody tr:nth-child(even) {
+.filesTable tbody tr:nth-child(even) {
   background: var(--table-row-alt);
 }
 
-.runsTable tbody td {
+.filesTable tbody td {
   border-bottom: 1px solid var(--border-subtle);
   padding: var(--space-sm) var(--space-lg);
   font-size: var(--font-size-sm);
 }
 
-.clickableRow {
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.clickableRow:hover {
-  background: var(--status-info-bg);
-}
-
-.numericCell {
-  font-variant-numeric: tabular-nums;
+.fileNameCell {
+  font-weight: var(--font-weight-medium);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dateCell {
@@ -61,15 +80,25 @@
   color: var(--text-caption);
 }
 
-.detailLink {
-  color: var(--brand-navy);
-  font-weight: var(--font-weight-medium);
-  font-size: var(--font-size-sm);
-  transition: color var(--transition-fast);
+.sizeCell {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-caption);
 }
 
-.detailLink:hover {
-  color: var(--brand-gold);
+.downloadLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-2xl);
+  height: var(--space-2xl);
+  border-radius: var(--radius-sm);
+  color: var(--brand-navy);
+  font-size: var(--font-size-lg);
+  transition: background var(--transition-fast);
+}
+
+.downloadLink:hover {
+  background: var(--status-info-bg);
 }
 
 /* ——— Loading skeleton ——— */

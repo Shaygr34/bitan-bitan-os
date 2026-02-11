@@ -23,7 +23,7 @@ export default function SideNav() {
   return (
     <nav className={styles.nav}>
       <div className={styles.brand}>
-        <div className={styles.brandName}>B&amp;B</div>
+        <div className={styles.brandName}>Bitan &amp; Bitan</div>
         <div className={styles.brandLabel}>Operating System</div>
       </div>
 
