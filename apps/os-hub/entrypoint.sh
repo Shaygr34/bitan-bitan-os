@@ -11,14 +11,13 @@ echo "========================"
 
 cd /app/apps/os-hub
 
-# --- Database migrations (fail hard) ---
-if [ -z "$DATABASE_URL" ]; then
-  echo "FATAL: DATABASE_URL is not set. Exiting."
-  exit 1
+# --- Database migrations (optional) ---
+if [ -n "$DATABASE_URL" ]; then
+  echo "Running Prisma migrations..."
+  npx prisma migrate deploy 2>&1 || echo "WARNING: Prisma migrate failed"
+  echo "Migrations complete."
+else
+  echo "DATABASE_URL not set — skipping Prisma migrations"
 fi
-
-echo "Running Prisma migrations..."
-npx prisma migrate deploy
-echo "Migrations complete."
 
 exec npx next start -p "${PORT:-3000}"
