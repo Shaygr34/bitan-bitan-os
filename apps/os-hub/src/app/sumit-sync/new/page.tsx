@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
+import { loadSyncPrefs } from "@/lib/syncPrefs";
 import styles from "./page.module.css";
 
 type Step = "config" | "upload" | "executing" | "error";
@@ -14,6 +15,12 @@ export default function NewRunPage() {
   const [step, setStep] = useState<Step>("config");
   const [year, setYear] = useState(new Date().getFullYear());
   const [reportType, setReportType] = useState("financial");
+
+  useEffect(() => {
+    const prefs = loadSyncPrefs();
+    setYear(prefs.defaultYear);
+    setReportType(prefs.defaultReportType);
+  }, []);
   const [runId, setRunId] = useState<string | null>(null);
   const [idomFile, setIdomFile] = useState<File | null>(null);
   const [sumitFile, setSumitFile] = useState<File | null>(null);

@@ -7,6 +7,7 @@ import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
 import StatusBadge from "@/components/StatusBadge";
 import { t } from "@/lib/strings";
+import { TYPE_LABELS, relativeTime } from "@/lib/formatters";
 import styles from "./page.module.css";
 
 interface RunSummary {
@@ -17,28 +18,12 @@ interface RunSummary {
   created_at: string;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  financial: "דוחות כספיים",
-  annual: "דוחות שנתיים",
-};
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "עכשיו";
-  if (mins < 60) return `לפני ${mins} דקות`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `לפני ${hours} שעות`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `לפני ${days} ימים`;
-  return new Date(iso).toLocaleDateString("he-IL");
-}
-
 export default function SumitSyncPage() {
   const router = useRouter();
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     fetch("/api/sumit-sync/runs")
@@ -51,6 +36,11 @@ export default function SumitSyncPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const filteredRuns =
+    statusFilter === "all"
+      ? runs
+      : runs.filter((r) => r.status === statusFilter);
+
   return (
     <div>
       <PageHeader
@@ -62,6 +52,18 @@ export default function SumitSyncPage() {
         <Link href="/sumit-sync/new" className="btn-primary">
           הרצה חדשה
         </Link>
+        <select
+          className={styles.filterSelect}
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="all">כל הסטטוסים</option>
+          <option value="uploading">העלאה</option>
+          <option value="processing">מעבד</option>
+          <option value="review">בבדיקה</option>
+          <option value="completed">הושלם</option>
+          <option value="failed">נכשל</option>
+        </select>
       </div>
 
       {loading && (
@@ -84,14 +86,14 @@ export default function SumitSyncPage() {
         </div>
       )}
 
-      {!loading && !error && runs.length === 0 && (
+      {!loading && !error && filteredRuns.length === 0 && (
         <EmptyState
-          message="עדיין אין הרצות"
-          detail="לחצו על ׳הרצה חדשה׳ כדי להתחיל סנכרון ראשון"
+          message={statusFilter === "all" ? "עדיין אין הרצות" : "אין הרצות בסטטוס זה"}
+          detail={statusFilter === "all" ? "לחצו על ׳הרצה חדשה׳ כדי להתחיל סנכרון ראשון" : "נסו לשנות את הסינון"}
         />
       )}
 
-      {!loading && !error && runs.length > 0 && (
+      {!loading && !error && filteredRuns.length > 0 && (
         <table className={styles.runsTable}>
           <thead>
             <tr>
@@ -103,7 +105,7 @@ export default function SumitSyncPage() {
             </tr>
           </thead>
           <tbody>
-            {runs.map((run) => (
+            {filteredRuns.map((run) => (
               <tr
                 key={run.id}
                 className={styles.clickableRow}

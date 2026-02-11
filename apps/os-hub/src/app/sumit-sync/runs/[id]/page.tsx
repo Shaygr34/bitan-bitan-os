@@ -55,18 +55,7 @@ interface RunDetail {
   exceptions: RunException[];
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  financial: "דוחות כספיים",
-  annual: "דוחות שנתיים",
-};
-
-const FILE_ROLE_LABELS: Record<string, string> = {
-  idom_upload: "קובץ IDOM (קלט)",
-  sumit_upload: "קובץ SUMIT (קלט)",
-  import_output: "קובץ ייבוא (פלט)",
-  diff_report: 'דו"ח שינויים',
-  exceptions_report: 'דו"ח חריגים',
-};
+import { TYPE_LABELS, FILE_ROLE_LABELS, formatBytes } from "@/lib/formatters";
 
 const EXCEPTION_TYPE_LABELS: Record<string, string> = {
   no_sumit_match: "ללא התאמה ב-SUMIT",
@@ -79,12 +68,6 @@ const RESOLUTION_LABELS: Record<string, string> = {
   acknowledged: "נבדק",
   dismissed: "נדחה",
 };
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export default function RunDetailPage() {
   const params = useParams();

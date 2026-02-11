@@ -1,7 +1,12 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
+import StatusBadge from "@/components/StatusBadge";
 import { t } from "@/lib/strings";
+import { TYPE_LABELS, relativeTime } from "@/lib/formatters";
 import styles from "./page.module.css";
 
 interface Module {
@@ -9,6 +14,14 @@ interface Module {
   descKey: string;
   href: string;
   comingSoon?: boolean;
+}
+
+interface RunSummary {
+  id: string;
+  year: number;
+  report_type: string;
+  status: string;
+  created_at: string;
 }
 
 const modules: Module[] = [
@@ -42,6 +55,26 @@ const modules: Module[] = [
 ];
 
 export default function Home() {
+  const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [totalArticles, setTotalArticles] = useState<number | null>(null);
+  const [statsLoaded, setStatsLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/sumit-sync/runs")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setRuns(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setStatsLoaded(true));
+
+    fetch("/api/content-factory/articles")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setTotalArticles(Array.isArray(data) ? data.length : 0))
+      .catch(() => setTotalArticles(0));
+  }, []);
+
+  const recentRuns = runs.slice(0, 5);
+  const runsInReview = runs.filter((r) => r.status === "review").length;
+
   return (
     <div>
       <PageHeader
@@ -49,6 +82,78 @@ export default function Home() {
         description={t("dashboard.subtitle")}
       />
 
+      {/* Quick Actions */}
+      <section className={styles.quickActions}>
+        <Link href="/sumit-sync/new" className="btn-primary">
+          הרצה חדשה
+        </Link>
+        <Link href="/documents" className="btn-secondary">
+          מרכז קבצים
+        </Link>
+      </section>
+
+      {/* Stats Grid */}
+      <section className={styles.statsSection}>
+        <div className={styles.statsGrid}>
+          <div className={styles.statCard}>
+            <span className={styles.statLabel}>סה״כ הרצות</span>
+            <span className={styles.statValue}>
+              {statsLoaded ? runs.length : "—"}
+            </span>
+          </div>
+          <div className={styles.statCard}>
+            <span className={styles.statLabel}>בבדיקה</span>
+            <span className={styles.statValue}>
+              {statsLoaded ? runsInReview : "—"}
+            </span>
+          </div>
+          <div className={styles.statCard}>
+            <span className={styles.statLabel}>מאמרים</span>
+            <span className={styles.statValue}>
+              {totalArticles !== null ? totalArticles : "—"}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Recent Runs */}
+      {statsLoaded && recentRuns.length > 0 && (
+        <section className={styles.recentSection}>
+          <div className={styles.recentHeader}>
+            <h2 className={styles.sectionTitle}>הרצות אחרונות</h2>
+            <Link href="/sumit-sync" className={styles.viewAllLink}>
+              הצג הכל
+            </Link>
+          </div>
+          <div className={styles.goldSeparator} />
+          <table className={styles.miniTable}>
+            <thead>
+              <tr>
+                <th>שנת מס</th>
+                <th>סוג דוח</th>
+                <th>סטטוס</th>
+                <th>תאריך</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentRuns.map((run) => (
+                <tr key={run.id}>
+                  <td className={styles.numericCell}>{run.year}</td>
+                  <td>{TYPE_LABELS[run.report_type] ?? run.report_type}</td>
+                  <td>
+                    <StatusBadge status={run.status} />
+                  </td>
+                  <td className={styles.dateCell}>
+                    {relativeTime(run.created_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* Module Cards */}
       <section className={styles.modulesSection}>
         <h2 className={styles.sectionTitle}>{t("dashboard.modules.title")}</h2>
         <div className={styles.goldSeparator} />
@@ -74,12 +179,6 @@ export default function Home() {
             )
           )}
         </div>
-      </section>
-
-      <section className={styles.comingSoonSection}>
-        <p className={styles.comingSoonText}>
-          {t("dashboard.comingSoonDetail")}
-        </p>
       </section>
     </div>
   );
