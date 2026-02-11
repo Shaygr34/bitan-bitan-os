@@ -57,8 +57,18 @@ export async function DELETE(
     return errorJson(404, "NOT_FOUND", "Article not found");
   }
 
-  // Cascade: delete publish jobs → assets → article
+  // Cascade: delete artifacts → publish jobs → assets → article
+  // Artifacts have optional FKs to article, asset, and publishJob — must go first.
   await prisma.$transaction([
+    prisma.artifact.deleteMany({
+      where: {
+        OR: [
+          { articleId: id },
+          { asset: { articleId: id } },
+          { publishJob: { asset: { articleId: id } } },
+        ],
+      },
+    }),
     prisma.publishJob.deleteMany({
       where: { asset: { articleId: id } },
     }),
