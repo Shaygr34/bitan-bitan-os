@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     // Clean up job dir (PDF now lives in history)
     scheduleCleanup(jobDir, 30_000);
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
