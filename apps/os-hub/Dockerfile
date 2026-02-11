@@ -83,21 +83,9 @@ RUN mkdir -p engines/content-engine/output && \
     mkdir -p /tmp/content-engine-history && \
     chown nextjs:nodejs /tmp/content-engine-history
 
-# Startup diagnostics + migrations + next start
-RUN printf '#!/bin/sh\n\
-echo "=== DEPLOY DIAGNOSTICS ==="\n\
-echo "Next.js: $(ls /app/apps/os-hub/.next/BUILD_ID 2>/dev/null && echo FOUND || echo MISSING)"\n\
-echo "Engine:  $(ls /app/engines/content-engine/engine.py 2>/dev/null && echo FOUND || echo MISSING)"\n\
-echo "Python:  $(python3 --version 2>&1 || echo MISSING)"\n\
-echo "Chrome:  $(chromium-browser --version 2>&1 || echo MISSING)"\n\
-echo "PORT=${PORT:-3000} NODE_ENV=${NODE_ENV}"\n\
-echo "========================"\n\
-cd /app/apps/os-hub\n\
-echo "Running Prisma migrations..."\n\
-npx prisma migrate deploy 2>&1 || echo "WARNING: Prisma migrate failed (DATABASE_URL may not be set)"\n\
-echo "Migrations complete."\n\
-exec npx next start -p ${PORT:-3000}\n' > /app/entrypoint.sh && \
-    chmod +x /app/entrypoint.sh
+# Entrypoint: diagnostics + migrations (fail hard) + next start
+COPY apps/os-hub/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 USER nextjs
 
