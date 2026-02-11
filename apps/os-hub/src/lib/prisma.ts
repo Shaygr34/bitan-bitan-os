@@ -12,7 +12,9 @@ function createPrismaClient(): PrismaClient | undefined {
   return new PrismaClient();
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+// API routes execute at runtime where DATABASE_URL is required.
+// The assertion avoids redundant undefined-checks in every route handler.
+export const prisma = (globalForPrisma.prisma ?? createPrismaClient()) as PrismaClient;
 
 if (process.env.NODE_ENV !== "production" && prisma) {
   globalForPrisma.prisma = prisma;
