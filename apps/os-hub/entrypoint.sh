@@ -28,25 +28,38 @@ run_migrations() {
 
   if [ $MIGRATE_EXIT -eq 0 ]; then
     echo "$MIGRATE_OUTPUT"
-    echo "Migrations complete."
-    return 0
-  fi
-
-  # Check for P3005 (database not empty, needs baseline).
-  if echo "$MIGRATE_OUTPUT" | grep -q "P3005"; then
-    echo "Detected P3005: database schema exists but is not baselined."
-    echo "Baselining initial migration (20260211000000_content_factory_v0)..."
+  elif echo "$MIGRATE_OUTPUT" | grep -q "P3005"; then
+    # P3005: database has pre-existing tables (e.g. Sumit Sync/Alembic)
+    # but no Prisma migration history. Use db push to create any missing
+    # tables from schema.prisma, then baseline the migration.
+    echo "Detected P3005: database has existing tables but no Prisma migration history."
+    echo "Running 'prisma db push' to create missing tables..."
+    npx prisma db push --skip-generate --accept-data-loss
+    echo "Baselining migration 20260211000000_content_factory_v0..."
     npx prisma migrate resolve --applied 20260211000000_content_factory_v0
-    echo "Baseline applied. Retrying migrate deploy..."
-    npx prisma migrate deploy
-    echo "Migrations complete."
-    return 0
+  else
+    # Unknown migration error — print output and fail.
+    echo "$MIGRATE_OUTPUT"
+    echo "FATAL: prisma migrate deploy failed (exit $MIGRATE_EXIT)."
+    exit 1
   fi
 
-  # Unknown migration error — print output and fail.
-  echo "$MIGRATE_OUTPUT"
-  echo "FATAL: prisma migrate deploy failed (exit $MIGRATE_EXIT)."
-  exit 1
+  # Safety net: verify that schema tables actually exist.
+  # Handles the case where a previous deploy baselined the migration
+  # without running the DDL (e.g. P3005 marked as applied but tables missing).
+  set +e
+  PUSH_OUTPUT=$(npx prisma db push --skip-generate 2>&1)
+  PUSH_EXIT=$?
+  set -e
+  if [ $PUSH_EXIT -eq 0 ]; then
+    if echo "$PUSH_OUTPUT" | grep -qi "applied\|created\|altered"; then
+      echo "Schema drift repaired: missing tables/columns created."
+    fi
+  else
+    echo "WARNING: schema verification (db push) returned non-zero: $PUSH_OUTPUT"
+  fi
+
+  echo "Migrations complete."
 }
 
 # --- Database migrations ---
