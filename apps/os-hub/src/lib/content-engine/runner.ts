@@ -84,7 +84,7 @@ export async function runDocxToPdf(opts: {
         timeout: ENGINE_TIMEOUT_MS,
         maxBuffer: 1024 * 1024, // 1MB stdout/stderr
         cwd: engineDir,
-        env: cleanEnvForEngine(),
+        env: cleanEnvForEngine() as NodeJS.ProcessEnv,
       },
       (error, stdout, stderr) => {
         const durationMs = Date.now() - start;
