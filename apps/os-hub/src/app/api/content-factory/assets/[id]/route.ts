@@ -17,17 +17,22 @@ export async function GET(
     return errorJson(400, "INVALID_ID", "id must be a valid UUID");
   }
 
-  const asset = await prisma.asset.findUnique({
-    where: { id },
-    include: {
-      publishJobs: { orderBy: { createdAt: "desc" } },
-      article: { select: { id: true, title: true, status: true, distributionStatus: true } },
-    },
-  });
+  try {
+    const asset = await prisma.asset.findUnique({
+      where: { id },
+      include: {
+        publishJobs: { orderBy: { createdAt: "desc" } },
+        article: { select: { id: true, title: true, status: true, distributionStatus: true } },
+      },
+    });
 
-  if (!asset) {
-    return errorJson(404, "NOT_FOUND", "Asset not found");
+    if (!asset) {
+      return errorJson(404, "NOT_FOUND", "Asset not found");
+    }
+
+    return NextResponse.json(asset);
+  } catch (e) {
+    console.error(`GET /api/content-factory/assets/${id} failed:`, e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to load asset");
   }
-
-  return NextResponse.json(asset);
 }

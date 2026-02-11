@@ -94,64 +94,69 @@ async function handleArticleApproval(
   comment: string | null,
   approvedByUserId: string,
 ) {
-  const article = await prisma.article.findUnique({ where: { id: entityId } });
-  if (!article) {
-    return errorJson(404, "NOT_FOUND", "Article not found");
-  }
+  try {
+    const article = await prisma.article.findUnique({ where: { id: entityId } });
+    if (!article) {
+      return errorJson(404, "NOT_FOUND", "Article not found");
+    }
 
-  if (article.version !== entityVersion) {
-    return errorJson(409, "VERSION_MISMATCH", `Article is at version ${article.version}, caller sent ${entityVersion}`);
-  }
+    if (article.version !== entityVersion) {
+      return errorJson(409, "VERSION_MISMATCH", `Article is at version ${article.version}, caller sent ${entityVersion}`);
+    }
 
-  if (article.status !== "IN_REVIEW") {
-    return errorJson(409, "NOT_IN_REVIEW", `Article is ${article.status}, must be IN_REVIEW for approval`);
-  }
+    if (article.status !== "IN_REVIEW") {
+      return errorJson(409, "NOT_IN_REVIEW", `Article is ${article.status}, must be IN_REVIEW for approval`);
+    }
 
-  const targetStatus: ArticleStatus =
-    decision === "APPROVE" ? "APPROVED" : "DRAFT";
+    const targetStatus: ArticleStatus =
+      decision === "APPROVE" ? "APPROVED" : "DRAFT";
 
-  const transitionErr = validateArticleTransition(article.status, targetStatus);
-  if (transitionErr) {
-    return errorJson(409, transitionErr.code, transitionErr.message);
-  }
+    const transitionErr = validateArticleTransition(article.status, targetStatus);
+    if (transitionErr) {
+      return errorJson(409, transitionErr.code, transitionErr.message);
+    }
 
-  const approval = await prisma.$transaction(async (tx) => {
-    const created = await tx.approval.create({
-      data: {
+    const approval = await prisma.$transaction(async (tx) => {
+      const created = await tx.approval.create({
+        data: {
+          entityType: "ARTICLE",
+          entityId,
+          entityVersion: article.version,
+          decision,
+          comment,
+          approvedByUserId,
+        },
+      });
+
+      await tx.article.update({
+        where: { id: entityId },
+        data: { status: targetStatus },
+      });
+
+      await logEvent(tx, {
+        actorUserId: approvedByUserId,
         entityType: "ARTICLE",
         entityId,
-        entityVersion: article.version,
-        decision,
-        comment,
-        approvedByUserId,
-      },
+        action: "APPROVAL_CREATED",
+        metadata: { decision, targetStatus, version: article.version },
+      });
+
+      await logEvent(tx, {
+        actorUserId: approvedByUserId,
+        entityType: "ARTICLE",
+        entityId,
+        action: "ARTICLE_STATUS_CHANGED",
+        metadata: { from: article.status, to: targetStatus, viaApproval: created.id },
+      });
+
+      return created;
     });
 
-    await tx.article.update({
-      where: { id: entityId },
-      data: { status: targetStatus },
-    });
-
-    await logEvent(tx, {
-      actorUserId: approvedByUserId,
-      entityType: "ARTICLE",
-      entityId,
-      action: "APPROVAL_CREATED",
-      metadata: { decision, targetStatus, version: article.version },
-    });
-
-    await logEvent(tx, {
-      actorUserId: approvedByUserId,
-      entityType: "ARTICLE",
-      entityId,
-      action: "ARTICLE_STATUS_CHANGED",
-      metadata: { from: article.status, to: targetStatus, viaApproval: created.id },
-    });
-
-    return created;
-  });
-
-  return NextResponse.json(approval, { status: 201 });
+    return NextResponse.json(approval, { status: 201 });
+  } catch (e) {
+    console.error(`POST /api/content-factory/approvals (article ${entityId}) failed:`, e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to process article approval");
+  }
 }
 
 // ── Asset approval ──────────────────────────────────────────────────────────
@@ -163,71 +168,76 @@ async function handleAssetApproval(
   comment: string | null,
   approvedByUserId: string,
 ) {
-  const asset = await prisma.asset.findUnique({ where: { id: entityId } });
-  if (!asset) {
-    return errorJson(404, "NOT_FOUND", "Asset not found");
-  }
+  try {
+    const asset = await prisma.asset.findUnique({ where: { id: entityId } });
+    if (!asset) {
+      return errorJson(404, "NOT_FOUND", "Asset not found");
+    }
 
-  if (asset.version !== entityVersion) {
-    return errorJson(409, "VERSION_MISMATCH", `Asset is at version ${asset.version}, caller sent ${entityVersion}`);
-  }
+    if (asset.version !== entityVersion) {
+      return errorJson(409, "VERSION_MISMATCH", `Asset is at version ${asset.version}, caller sent ${entityVersion}`);
+    }
 
-  if (asset.status !== "IN_REVIEW") {
-    return errorJson(409, "NOT_IN_REVIEW", `Asset is ${asset.status}, must be IN_REVIEW for approval`);
-  }
+    if (asset.status !== "IN_REVIEW") {
+      return errorJson(409, "NOT_IN_REVIEW", `Asset is ${asset.status}, must be IN_REVIEW for approval`);
+    }
 
-  const targetStatus: AssetStatus =
-    decision === "APPROVE" ? "APPROVED" : "DRAFT";
+    const targetStatus: AssetStatus =
+      decision === "APPROVE" ? "APPROVED" : "DRAFT";
 
-  const transitionErr = validateAssetTransition(asset.status, targetStatus);
-  if (transitionErr) {
-    return errorJson(409, transitionErr.code, transitionErr.message);
-  }
+    const transitionErr = validateAssetTransition(asset.status, targetStatus);
+    if (transitionErr) {
+      return errorJson(409, transitionErr.code, transitionErr.message);
+    }
 
-  const approval = await prisma.$transaction(async (tx) => {
-    const created = await tx.approval.create({
-      data: {
+    const approval = await prisma.$transaction(async (tx) => {
+      const created = await tx.approval.create({
+        data: {
+          entityType: "ASSET",
+          entityId,
+          entityVersion: asset.version,
+          decision,
+          comment,
+          approvedByUserId,
+        },
+      });
+
+      await tx.asset.update({
+        where: { id: entityId },
+        data: { status: targetStatus },
+      });
+
+      await logEvent(tx, {
+        actorUserId: approvedByUserId,
         entityType: "ASSET",
         entityId,
-        entityVersion: asset.version,
-        decision,
-        comment,
-        approvedByUserId,
-      },
+        action: "APPROVAL_CREATED",
+        metadata: {
+          decision,
+          targetStatus,
+          version: asset.version,
+          articleId: asset.articleId,
+        },
+      });
+
+      await logEvent(tx, {
+        actorUserId: approvedByUserId,
+        entityType: "ASSET",
+        entityId,
+        action: "ASSET_STATUS_CHANGED",
+        metadata: {
+          from: asset.status,
+          to: targetStatus,
+          viaApproval: created.id,
+        },
+      });
+
+      return created;
     });
 
-    await tx.asset.update({
-      where: { id: entityId },
-      data: { status: targetStatus },
-    });
-
-    await logEvent(tx, {
-      actorUserId: approvedByUserId,
-      entityType: "ASSET",
-      entityId,
-      action: "APPROVAL_CREATED",
-      metadata: {
-        decision,
-        targetStatus,
-        version: asset.version,
-        articleId: asset.articleId,
-      },
-    });
-
-    await logEvent(tx, {
-      actorUserId: approvedByUserId,
-      entityType: "ASSET",
-      entityId,
-      action: "ASSET_STATUS_CHANGED",
-      metadata: {
-        from: asset.status,
-        to: targetStatus,
-        viaApproval: created.id,
-      },
-    });
-
-    return created;
-  });
-
-  return NextResponse.json(approval, { status: 201 });
+    return NextResponse.json(approval, { status: 201 });
+  } catch (e) {
+    console.error(`POST /api/content-factory/approvals (asset ${entityId}) failed:`, e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to process asset approval");
+  }
 }
