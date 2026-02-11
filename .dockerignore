@@ -1,0 +1,27 @@
+# Build artifacts & dependencies
+node_modules
+.next
+dist
+.git
+__pycache__
+*.pyc
+
+# Documentation (not needed in image)
+.gitignore
+README.md
+CLAUDE.md
+docs/
+
+# Content Engine — exclude test/build artifacts, keep runtime files
+engines/content-engine/output/
+engines/content-engine/tests/
+engines/content-engine/test-inputs/
+engines/content-engine/fonts/
+engines/content-engine/download_fonts.sh
+
+# Other apps not needed in os-hub image
+apps/sumit-sync/
+apps/content-engine/
+
+# Prompts (not needed in image)
+prompts/
