@@ -418,9 +418,9 @@ VALID_METRICS = {
 }
 
 METRIC_FILE_MAP = {
-    "matched": ("import_output", "Import"),
-    "changed": ("diff_report", "Changes"),
-    "status_completed": ("diff_report", "Status Changes"),
+    "matched": ("import_output", "ייבוא"),
+    "changed": ("diff_report", "שינויים"),
+    "status_completed": ("diff_report", "שינויי סטטוס"),
     "idom_records": ("idom_upload", None),
     "sumit_records": ("sumit_upload", None),
 }
