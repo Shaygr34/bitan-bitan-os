@@ -94,9 +94,13 @@ echo "Chrome:  $(chromium-browser --version 2>&1 || echo MISSING)"\n\
 echo "PORT=${PORT:-3000} NODE_ENV=${NODE_ENV}"\n\
 echo "========================"\n\
 cd /app/apps/os-hub\n\
-echo "Running Prisma migrations..."\n\
-npx prisma migrate deploy 2>&1 || echo "WARNING: Prisma migrate failed (DATABASE_URL may not be set)"\n\
-echo "Migrations complete."\n\
+if [ -n "$DATABASE_URL" ]; then\n\
+  echo "Running Prisma migrations..."\n\
+  npx prisma migrate deploy 2>&1 || echo "WARNING: Prisma migrate failed"\n\
+  echo "Migrations complete."\n\
+else\n\
+  echo "DATABASE_URL not set — skipping Prisma migrations"\n\
+fi\n\
 exec npx next start -p ${PORT:-3000}\n' > /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh
 
