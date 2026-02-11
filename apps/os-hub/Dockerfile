@@ -5,6 +5,7 @@ WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/os-hub/package.json apps/os-hub/
+COPY apps/os-hub/prisma/ apps/os-hub/prisma/
 
 RUN pnpm install --frozen-lockfile || pnpm install
 
