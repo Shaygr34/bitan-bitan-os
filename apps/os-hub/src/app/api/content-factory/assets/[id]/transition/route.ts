@@ -44,35 +44,40 @@ export async function PATCH(
     return errorJson(400, "MISSING_FIELD", "actorUserId is required");
   }
 
-  const asset = await prisma.asset.findUnique({ where: { id } });
-  if (!asset) {
-    return errorJson(404, "NOT_FOUND", "Asset not found");
-  }
+  try {
+    const asset = await prisma.asset.findUnique({ where: { id } });
+    if (!asset) {
+      return errorJson(404, "NOT_FOUND", "Asset not found");
+    }
 
-  const validationError = validateAssetTransition(
-    asset.status,
-    to as AssetStatus,
-  );
-  if (validationError) {
-    return errorJson(409, validationError.code, validationError.message);
-  }
+    const validationError = validateAssetTransition(
+      asset.status,
+      to as AssetStatus,
+    );
+    if (validationError) {
+      return errorJson(409, validationError.code, validationError.message);
+    }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const result = await tx.asset.update({
-      where: { id },
-      data: { status: to as AssetStatus },
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.asset.update({
+        where: { id },
+        data: { status: to as AssetStatus },
+      });
+
+      await logEvent(tx, {
+        actorUserId,
+        entityType: "ASSET",
+        entityId: id,
+        action: "ASSET_STATUS_CHANGED",
+        metadata: { from: asset.status, to, articleId: asset.articleId },
+      });
+
+      return result;
     });
 
-    await logEvent(tx, {
-      actorUserId,
-      entityType: "ASSET",
-      entityId: id,
-      action: "ASSET_STATUS_CHANGED",
-      metadata: { from: asset.status, to, articleId: asset.articleId },
-    });
-
-    return result;
-  });
-
-  return NextResponse.json(updated);
+    return NextResponse.json(updated);
+  } catch (e) {
+    console.error(`PATCH /api/content-factory/assets/${id}/transition failed:`, e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to transition asset");
+  }
 }

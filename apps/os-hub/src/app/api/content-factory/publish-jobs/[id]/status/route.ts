@@ -48,52 +48,57 @@ export async function PATCH(
     return errorJson(400, "MISSING_FIELD", "actorUserId is required");
   }
 
-  const publishJob = await prisma.publishJob.findUnique({
-    where: { id },
-    include: { asset: { select: { articleId: true } } },
-  });
-  if (!publishJob) {
-    return errorJson(404, "NOT_FOUND", "PublishJob not found");
-  }
-
-  const validationError = validatePublishJobTransition(
-    publishJob.status,
-    to as PublishJobStatus,
-  );
-  if (validationError) {
-    return errorJson(409, validationError.code, validationError.message);
-  }
-
-  const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.publishJob.update({
+  try {
+    const publishJob = await prisma.publishJob.findUnique({
       where: { id },
-      data: {
-        status: to as PublishJobStatus,
-        errorCode: body.errorCode ?? null,
-        errorMessage: body.errorMessage ?? null,
-      },
+      include: { asset: { select: { articleId: true } } },
     });
+    if (!publishJob) {
+      return errorJson(404, "NOT_FOUND", "PublishJob not found");
+    }
 
-    await logEvent(tx, {
-      actorUserId,
-      entityType: "PUBLISH_JOB",
-      entityId: id,
-      action: "PUBLISH_JOB_STATUS_CHANGED",
-      metadata: {
-        from: publishJob.status,
-        to,
-        assetId: publishJob.assetId,
-      },
-    });
-
-    // Recalculate distribution status
-    const newDistStatus = await updateDistributionStatus(
-      tx,
-      publishJob.asset.articleId,
+    const validationError = validatePublishJobTransition(
+      publishJob.status,
+      to as PublishJobStatus,
     );
+    if (validationError) {
+      return errorJson(409, validationError.code, validationError.message);
+    }
 
-    return { publishJob: updated, distributionStatus: newDistStatus };
-  });
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.publishJob.update({
+        where: { id },
+        data: {
+          status: to as PublishJobStatus,
+          errorCode: body.errorCode ?? null,
+          errorMessage: body.errorMessage ?? null,
+        },
+      });
 
-  return NextResponse.json(result);
+      await logEvent(tx, {
+        actorUserId,
+        entityType: "PUBLISH_JOB",
+        entityId: id,
+        action: "PUBLISH_JOB_STATUS_CHANGED",
+        metadata: {
+          from: publishJob.status,
+          to,
+          assetId: publishJob.assetId,
+        },
+      });
+
+      // Recalculate distribution status
+      const newDistStatus = await updateDistributionStatus(
+        tx,
+        publishJob.asset.articleId,
+      );
+
+      return { publishJob: updated, distributionStatus: newDistStatus };
+    });
+
+    return NextResponse.json(result);
+  } catch (e) {
+    console.error(`PATCH /api/content-factory/publish-jobs/${id}/status failed:`, e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to update publish job status");
+  }
 }

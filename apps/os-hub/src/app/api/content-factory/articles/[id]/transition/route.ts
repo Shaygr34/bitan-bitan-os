@@ -44,35 +44,40 @@ export async function PATCH(
     return errorJson(400, "MISSING_FIELD", "actorUserId is required");
   }
 
-  const article = await prisma.article.findUnique({ where: { id } });
-  if (!article) {
-    return errorJson(404, "NOT_FOUND", "Article not found");
-  }
+  try {
+    const article = await prisma.article.findUnique({ where: { id } });
+    if (!article) {
+      return errorJson(404, "NOT_FOUND", "Article not found");
+    }
 
-  const validationError = validateArticleTransition(
-    article.status,
-    to as ArticleStatus,
-  );
-  if (validationError) {
-    return errorJson(409, validationError.code, validationError.message);
-  }
+    const validationError = validateArticleTransition(
+      article.status,
+      to as ArticleStatus,
+    );
+    if (validationError) {
+      return errorJson(409, validationError.code, validationError.message);
+    }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const result = await tx.article.update({
-      where: { id },
-      data: { status: to as ArticleStatus },
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.article.update({
+        where: { id },
+        data: { status: to as ArticleStatus },
+      });
+
+      await logEvent(tx, {
+        actorUserId,
+        entityType: "ARTICLE",
+        entityId: id,
+        action: "ARTICLE_STATUS_CHANGED",
+        metadata: { from: article.status, to },
+      });
+
+      return result;
     });
 
-    await logEvent(tx, {
-      actorUserId,
-      entityType: "ARTICLE",
-      entityId: id,
-      action: "ARTICLE_STATUS_CHANGED",
-      metadata: { from: article.status, to },
-    });
-
-    return result;
-  });
-
-  return NextResponse.json(updated);
+    return NextResponse.json(updated);
+  } catch (e) {
+    console.error(`PATCH /api/content-factory/articles/${id}/transition failed:`, e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to transition article");
+  }
 }

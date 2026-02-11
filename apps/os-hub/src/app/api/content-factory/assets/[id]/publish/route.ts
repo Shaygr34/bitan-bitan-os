@@ -46,66 +46,71 @@ export async function POST(
     return errorJson(400, "MISSING_FIELD", "createdByUserId is required");
   }
 
-  const asset = await prisma.asset.findUnique({ where: { id: assetId } });
-  if (!asset) {
-    return errorJson(404, "NOT_FOUND", "Asset not found");
+  try {
+    const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    if (!asset) {
+      return errorJson(404, "NOT_FOUND", "Asset not found");
+    }
+
+    if (asset.status !== "APPROVED") {
+      return errorJson(409, "NOT_APPROVED", `Asset is ${asset.status}, must be APPROVED to publish`);
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const publishJob = await tx.publishJob.create({
+        data: {
+          assetId,
+          assetVersion: asset.version,
+          platform: asset.platform,
+          method: "MANUAL",
+          status: "SUCCEEDED",
+          externalUrl,
+          createdByUserId,
+        },
+      });
+
+      await logEvent(tx, {
+        actorUserId: createdByUserId,
+        entityType: "PUBLISH_JOB",
+        entityId: publishJob.id,
+        action: "PUBLISH_JOB_CREATED",
+        metadata: {
+          assetId,
+          platform: asset.platform,
+          method: "MANUAL",
+          externalUrl,
+        },
+      });
+
+      await logEvent(tx, {
+        actorUserId: createdByUserId,
+        entityType: "ASSET",
+        entityId: assetId,
+        action: "ASSET_PUBLISHED_MANUALLY",
+        metadata: {
+          publishJobId: publishJob.id,
+          externalUrl,
+          articleId: asset.articleId,
+        },
+      });
+
+      // Recalculate article distribution status
+      const newDistStatus = await updateDistributionStatus(tx, asset.articleId);
+
+      await logEvent(tx, {
+        actorUserId: createdByUserId,
+        entityType: "ARTICLE",
+        entityId: asset.articleId,
+        action: "DISTRIBUTION_STATUS_UPDATED",
+        metadata: { distributionStatus: newDistStatus },
+      });
+
+      return { publishJob, distributionStatus: newDistStatus };
+    });
+
+    return NextResponse.json(result, { status: 201 });
+  } catch (e) {
+    console.error(`POST /api/content-factory/assets/${assetId}/publish failed:`, e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to publish asset");
   }
-
-  if (asset.status !== "APPROVED") {
-    return errorJson(409, "NOT_APPROVED", `Asset is ${asset.status}, must be APPROVED to publish`);
-  }
-
-  const result = await prisma.$transaction(async (tx) => {
-    const publishJob = await tx.publishJob.create({
-      data: {
-        assetId,
-        assetVersion: asset.version,
-        platform: asset.platform,
-        method: "MANUAL",
-        status: "SUCCEEDED",
-        externalUrl,
-        createdByUserId,
-      },
-    });
-
-    await logEvent(tx, {
-      actorUserId: createdByUserId,
-      entityType: "PUBLISH_JOB",
-      entityId: publishJob.id,
-      action: "PUBLISH_JOB_CREATED",
-      metadata: {
-        assetId,
-        platform: asset.platform,
-        method: "MANUAL",
-        externalUrl,
-      },
-    });
-
-    await logEvent(tx, {
-      actorUserId: createdByUserId,
-      entityType: "ASSET",
-      entityId: assetId,
-      action: "ASSET_PUBLISHED_MANUALLY",
-      metadata: {
-        publishJobId: publishJob.id,
-        externalUrl,
-        articleId: asset.articleId,
-      },
-    });
-
-    // Recalculate article distribution status
-    const newDistStatus = await updateDistributionStatus(tx, asset.articleId);
-
-    await logEvent(tx, {
-      actorUserId: createdByUserId,
-      entityType: "ARTICLE",
-      entityId: asset.articleId,
-      action: "DISTRIBUTION_STATUS_UPDATED",
-      metadata: { distributionStatus: newDistStatus },
-    });
-
-    return { publishJob, distributionStatus: newDistStatus };
-  });
-
-  return NextResponse.json(result, { status: 201 });
 }

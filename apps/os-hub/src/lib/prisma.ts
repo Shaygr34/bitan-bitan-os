@@ -15,6 +15,8 @@ function createPrismaClient(): PrismaClient {
 // PrismaClient is always instantiated; it connects lazily on first query.
 export const prisma: PrismaClient = globalForPrisma.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== "production" && prisma) {
+// Cache singleton in dev to survive hot-reload.
+// In production Next.js reuses the module, so caching is harmless.
+if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
