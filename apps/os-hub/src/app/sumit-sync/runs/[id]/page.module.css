@@ -67,6 +67,22 @@
   gap: var(--space-xs);
 }
 
+.metricCardClickable {
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.metricCardClickable:hover {
+  border-color: var(--brand-gold);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.metricCardClickable:focus-visible {
+  border-color: var(--brand-gold);
+  box-shadow: 0 0 0 2px var(--ring);
+  outline: none;
+}
+
 .metricWarning {
   border-color: var(--status-warning);
   background: var(--status-warning-bg);

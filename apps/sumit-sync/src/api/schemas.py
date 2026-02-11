@@ -98,3 +98,10 @@ class ExecuteResultOut(BaseModel):
 
 class BulkPatchResultOut(BaseModel):
     updated_count: int
+
+
+class DrillDownOut(BaseModel):
+    metric: str
+    total_rows: int
+    columns: List[str]
+    rows: List[Dict[str, Any]]
