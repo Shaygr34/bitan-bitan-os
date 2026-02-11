@@ -16,8 +16,8 @@
 /* ── Page setup ── */
 @page {
     size: A4;
-    margin-top: 12mm;
-    margin-bottom: 22mm;
+    margin-top: 10mm;
+    margin-bottom: 0;
     margin-left: {{ brand.page_margin_left }};
     margin-right: {{ brand.page_margin_right }};
 }
@@ -39,17 +39,6 @@ body {
 
 * {
     box-sizing: border-box;
-}
-
-/* ── Header logo (normal flow — page 1 only) ── */
-.header-wrap {
-    text-align: right;
-    margin-bottom: 2mm;
-}
-
-.header-wrap img {
-    width: 160px;
-    height: auto;
 }
 
 .doc-title-bar {
@@ -90,8 +79,8 @@ body {
 .running-footer {
     position: fixed;
     bottom: 0;
-    left: 0;
-    right: 0;
+    left: -{{ brand.page_margin_left }};
+    right: -{{ brand.page_margin_right }};
     height: 20mm;
     z-index: 10;
     overflow: hidden;
@@ -99,17 +88,19 @@ body {
 
 .running-footer img {
     width: 100%;
+    height: 100%;
     display: block;
+    object-fit: fill;
 }
 
 /* ── Fallback text footer (when no footer image) ── */
 .running-footer-text {
     position: fixed;
     bottom: 0;
-    left: 0;
-    right: 0;
+    left: -{{ brand.page_margin_left }};
+    right: -{{ brand.page_margin_right }};
     height: 20mm;
-    padding: 4pt 20mm 4pt 18mm;
+    padding: 4pt 15mm;
     border-top: 1pt solid {{ brand.gold }};
     text-align: center;
     font-size: 8pt;
@@ -265,6 +256,11 @@ table, .callout, ul {
     break-inside: avoid;
 }
 
+/* ── Content area ── */
+.content {
+    padding-bottom: 22mm;  /* Reserve space for the running footer */
+}
+
 /* ── Utility ── */
 .bold-inline {
     font-weight: 700;
@@ -278,13 +274,6 @@ table, .callout, ul {
 </style>
 </head>
 <body>
-
-<!-- Header logo (normal flow — page 1 only, top-right) -->
-{% if logo_base64 %}
-<div class="header-wrap">
-    <img src="data:image/png;base64,{{ logo_base64 }}" alt="ביטן את ביטן רואי חשבון">
-</div>
-{% endif %}
 
 <!-- Document title bar -->
 {% if title or doc_type %}
