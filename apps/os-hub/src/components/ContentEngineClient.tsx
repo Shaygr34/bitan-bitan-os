@@ -96,7 +96,6 @@ export default function ContentEngineClient() {
   const dragCountRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Load history ──
 
@@ -152,25 +151,16 @@ export default function ContentEngineClient() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setState({ step: "uploading", fileName: file.name, fileSize: file.size });
-
-      // Smooth progress bar: increments gradually, caps at 92%
-      let progress = 3;
-      stageTimerRef.current = setInterval(() => {
-        progress = Math.min(progress + Math.random() * 2.5 + 0.8, 92);
-        setState((prev) => {
-          if (prev.step === "processing") {
-            return { ...prev, progress };
-          }
-          return prev;
-        });
-      }, 350);
+      setState({ step: "processing", fileName: file.name, fileSize: file.size, progress: 10 });
 
       try {
         const formData = new FormData();
         formData.append("file", file);
 
-        setState({ step: "processing", fileName: file.name, fileSize: file.size, progress: 3 });
+        // Jump to 50% when request is in-flight
+        setState((prev) =>
+          prev.step === "processing" ? { ...prev, progress: 50 } : prev
+        );
 
         const response = await fetch("/api/content-engine/upload", {
           method: "POST",
@@ -178,7 +168,10 @@ export default function ContentEngineClient() {
           signal: controller.signal,
         });
 
-        if (stageTimerRef.current) clearInterval(stageTimerRef.current);
+        // Jump to 100% when response arrives
+        setState((prev) =>
+          prev.step === "processing" ? { ...prev, progress: 100 } : prev
+        );
 
         const jobId = response.headers.get("X-Job-Id") || "";
         const durationMs = parseInt(
@@ -223,7 +216,6 @@ export default function ContentEngineClient() {
         // Refresh history
         loadHistory();
       } catch (err) {
-        if (stageTimerRef.current) clearInterval(stageTimerRef.current);
         if ((err as Error).name === "AbortError") return;
 
         setState({
@@ -299,7 +291,6 @@ export default function ContentEngineClient() {
       URL.revokeObjectURL(state.pdfUrl);
     }
     abortRef.current?.abort();
-    if (stageTimerRef.current) clearInterval(stageTimerRef.current);
     setState({ step: "idle" });
   }, [state]);
 
