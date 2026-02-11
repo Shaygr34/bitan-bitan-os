@@ -57,7 +57,7 @@ BRAND = {
     "callout_border":     "1.5pt",
     "table_border":       "0.5pt",
     "header_height":      "28mm",
-    "footer_height":      "14mm",
+    "footer_height":      "18mm",
 }
 
 # Font weight → file mapping
