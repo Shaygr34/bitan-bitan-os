@@ -16,8 +16,8 @@
 /* ── Page setup ── */
 @page {
     size: A4;
-    margin-top: 0;
-    margin-bottom: calc({{ brand.page_margin_bottom }} + {{ brand.footer_height }} + 2mm);
+    margin-top: 12mm;
+    margin-bottom: calc({{ brand.page_margin_bottom }} + {{ brand.footer_height }} + 6mm);
     margin-left: 0;
     margin-right: 0;
 }
@@ -33,6 +33,8 @@ body {
     text-align: right;
     margin: 0;
     padding: 0;
+    orphans: 3;
+    widows: 3;
 }
 
 * {
@@ -48,12 +50,17 @@ body {
     padding: 14pt 20mm 14pt 18mm;
     min-height: {{ brand.header_height }};
     width: 100%;
+    margin-top: -12mm;
 }
 
 .header-logo {
-    width: 60px;
-    height: 60px;
+    width: 68px;
+    height: 68px;
     object-fit: contain;
+    border-radius: 8px;
+    border: 2px solid rgba(192, 176, 112, 0.5);
+    background: {{ brand.white }};
+    padding: 3px;
 }
 
 .header-text {
@@ -96,6 +103,7 @@ body {
     font-size: 8pt;
     color: {{ brand.muted_gray }};
     direction: rtl;
+    background: {{ brand.white }};
 }
 
 /* ── Content ── */
@@ -103,6 +111,10 @@ body {
     direction: rtl;
     text-align: right;
     padding: 0 {{ brand.page_margin_right }} 0 {{ brand.page_margin_left }};
+}
+
+.content > :last-child {
+    margin-bottom: 8mm;
 }
 
 /* ── Section bars ── */
@@ -164,19 +176,32 @@ p {
 
 /* ── Bullet lists ── */
 ul {
-    padding-right: 22px;
+    padding-right: 6px;
     padding-left: 0;
     margin-top: 0;
     margin-bottom: {{ brand.paragraph_gap }};
-    list-style-type: disc;
+    list-style: none;
     direction: rtl;
     text-align: right;
+    break-inside: avoid;
 }
 
 ul li {
     margin-bottom: 2pt;
     line-height: {{ brand.line_height }};
-    padding-right: 4px;
+    padding-right: 16px;
+    position: relative;
+}
+
+ul li::before {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0.55em;
+    width: 6px;
+    height: 6px;
+    background: {{ brand.gold }};
+    border-radius: 1px;
 }
 
 /* ── Tables ── */
@@ -196,14 +221,14 @@ thead tr {
 }
 
 th {
-    padding: 6pt 8pt;
+    padding: 6pt 10pt;
     text-align: right;
     font-weight: {{ brand.h3_weight }};
     border: {{ brand.table_border }} solid {{ brand.navy }};
 }
 
 td {
-    padding: 5pt 8pt;
+    padding: 6pt 10pt;
     text-align: right;
     border: {{ brand.table_border }} solid #ddd;
     vertical-align: top;
@@ -235,7 +260,7 @@ tbody tr:nth-child(even) {
     break-after: avoid;
 }
 
-table, .callout {
+table, .callout, ul {
     break-inside: avoid;
 }
 
@@ -255,15 +280,15 @@ table, .callout {
 
 <!-- Header (in normal flow — appears once on page 1) -->
 <div class="header">
+    {% if logo_base64 %}
+    <img class="header-logo" src="data:image/png;base64,{{ logo_base64 }}" alt="Bitan & Bitan">
+    {% endif %}
     <div class="header-text">
         {% if doc_type %}
         <div class="header-doc-type">{{ doc_type }}</div>
         {% endif %}
         <div class="header-title">{{ title }}</div>
     </div>
-    {% if logo_base64 %}
-    <img class="header-logo" src="data:image/png;base64,{{ logo_base64 }}" alt="Bitan & Bitan">
-    {% endif %}
 </div>
 <div class="header-gold-line"></div>
 
