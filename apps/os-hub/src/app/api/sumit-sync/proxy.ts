@@ -60,6 +60,10 @@ export async function proxyPatch(
   });
 }
 
+export async function proxyDelete(path: string): Promise<Response> {
+  return proxyFetch(`${BASE_URL}${path}`, { method: "DELETE" });
+}
+
 export async function proxyFormData(
   path: string,
   formData: FormData

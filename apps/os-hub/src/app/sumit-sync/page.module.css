@@ -61,6 +61,13 @@
   color: var(--text-caption);
 }
 
+.actionsCell {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .detailLink {
   color: var(--brand-navy);
   font-weight: var(--font-weight-medium);
@@ -70,6 +77,23 @@
 
 .detailLink:hover {
   color: var(--brand-gold);
+}
+
+.deleteBtn {
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--destructive);
+  color: var(--destructive);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.deleteBtn:hover {
+  background: var(--status-error-bg);
 }
 
 /* ——— Loading skeleton ——— */

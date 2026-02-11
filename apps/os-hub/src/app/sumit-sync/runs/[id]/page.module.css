@@ -35,6 +35,28 @@
   gap: var(--space-sm);
 }
 
+.deleteBtnDetail {
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  padding: var(--space-sm) var(--space-lg);
+  border: 1px solid var(--destructive);
+  color: var(--destructive);
+  background: transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.deleteBtnDetail:hover {
+  background: var(--status-error-bg);
+}
+
+.deleteBtnDetail:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ——— Sections ——— */
 .section {
   margin-bottom: var(--space-2xl);

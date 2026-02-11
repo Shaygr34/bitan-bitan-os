@@ -85,6 +85,13 @@
   color: var(--text-caption);
 }
 
+.fileActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  white-space: nowrap;
+}
+
 .downloadLink {
   display: inline-flex;
   align-items: center;
@@ -99,6 +106,25 @@
 
 .downloadLink:hover {
   background: var(--status-info-bg);
+}
+
+.deleteBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-2xl);
+  height: var(--space-2xl);
+  border-radius: var(--radius-sm);
+  color: var(--destructive);
+  font-size: var(--font-size-lg);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.deleteBtn:hover {
+  background: var(--status-error-bg);
 }
 
 /* ——— Loading skeleton ——— */
