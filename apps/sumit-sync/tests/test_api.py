@@ -313,3 +313,78 @@ def test_complete_locks_mutations(client, golden_idom_file, golden_sumit_file):
     file_id = detail["files"][0]["id"]
     resp = client.get(f"/runs/{run_id}/files/{file_id}/download")
     assert resp.status_code == 200
+
+
+# ------------------------------------------------------------------ #
+#  Drill-down endpoint
+# ------------------------------------------------------------------ #
+
+def test_drill_down_unmatched(client, golden_idom_file, golden_sumit_file):
+    """Drill-down into unmatched returns exception rows."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+
+    resp = client.get(f"/runs/{run_id}/drill-down/unmatched")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["metric"] == "unmatched"
+    assert body["total_rows"] >= 1
+    assert len(body["columns"]) > 0
+    assert len(body["rows"]) == body["total_rows"]
+
+
+def test_drill_down_matched(client, golden_idom_file, golden_sumit_file):
+    """Drill-down into matched reads import_output Excel sheet."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+
+    resp = client.get(f"/runs/{run_id}/drill-down/matched")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["metric"] == "matched"
+    assert body["total_rows"] >= 1
+    assert len(body["columns"]) > 0
+
+
+def test_drill_down_changed(client, golden_idom_file, golden_sumit_file):
+    """Drill-down into changed reads diff_report Changes sheet."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+
+    resp = client.get(f"/runs/{run_id}/drill-down/changed")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["metric"] == "changed"
+
+
+def test_drill_down_idom_records(client, golden_idom_file, golden_sumit_file):
+    """Drill-down into idom_records reads upload file."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+
+    resp = client.get(f"/runs/{run_id}/drill-down/idom_records")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["metric"] == "idom_records"
+    assert body["total_rows"] >= 4
+
+
+def test_drill_down_invalid_metric(client, golden_idom_file, golden_sumit_file):
+    """Invalid metric name returns 400."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+
+    resp = client.get(f"/runs/{run_id}/drill-down/bogus")
+    assert resp.status_code == 400
+
+
+def test_drill_down_pagination(client, golden_idom_file, golden_sumit_file):
+    """Pagination params work for drill-down."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+
+    resp = client.get(f"/runs/{run_id}/drill-down/matched?limit=1&offset=0")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["rows"]) <= 1
+    assert body["total_rows"] >= 1

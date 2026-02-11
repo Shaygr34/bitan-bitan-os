@@ -44,8 +44,8 @@ BRAND = {
     # ── Spacing ──
     "page_margin_top":    "22mm",
     "page_margin_bottom": "18mm",
-    "page_margin_left":   "18mm",
-    "page_margin_right":  "20mm",
+    "page_margin_left":   "15mm",
+    "page_margin_right":  "15mm",
     "section_gap":        "5mm",
     "paragraph_gap":      "3mm",
     "heading_gap_before": "6mm",

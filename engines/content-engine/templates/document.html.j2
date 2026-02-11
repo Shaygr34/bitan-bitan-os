@@ -16,10 +16,10 @@
 /* ── Page setup ── */
 @page {
     size: A4;
-    margin-top: 12mm;
-    margin-bottom: 22mm;
-    margin-left: {{ brand.page_margin_left }};
-    margin-right: {{ brand.page_margin_right }};
+    margin-top: 10mm;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
 }
 
 /* ── Base ── */
@@ -32,7 +32,7 @@ body {
     direction: rtl;
     text-align: right;
     margin: 0;
-    padding: 0;
+    padding: 0 {{ brand.page_margin_right }} 0 {{ brand.page_margin_left }};
     orphans: 3;
     widows: 3;
 }
@@ -41,21 +41,10 @@ body {
     box-sizing: border-box;
 }
 
-/* ── Header logo (normal flow — page 1 only) ── */
-.header-wrap {
-    text-align: right;
-    margin-bottom: 2mm;
-}
-
-.header-wrap img {
-    width: 160px;
-    height: auto;
-}
-
 .doc-title-bar {
     background: {{ brand.navy }};
     color: {{ brand.white }};
-    padding: 10pt 14pt;
+    padding: 10pt {{ brand.page_margin_right }} 10pt {{ brand.page_margin_left }};
     text-align: center;
     direction: rtl;
     margin-top: 2mm;
@@ -99,7 +88,9 @@ body {
 
 .running-footer img {
     width: 100%;
+    height: 100%;
     display: block;
+    object-fit: fill;
 }
 
 /* ── Fallback text footer (when no footer image) ── */
@@ -109,7 +100,7 @@ body {
     left: 0;
     right: 0;
     height: 20mm;
-    padding: 4pt 20mm 4pt 18mm;
+    padding: 4pt {{ brand.page_margin_left }};
     border-top: 1pt solid {{ brand.gold }};
     text-align: center;
     font-size: 8pt;
@@ -124,10 +115,12 @@ body {
     color: {{ brand.white }};
     font-size: {{ brand.h2_size }};
     font-weight: {{ brand.h2_weight }};
-    padding: 6pt 14pt;
+    padding: 6pt {{ brand.page_margin_right }} 6pt {{ brand.page_margin_left }};
     border-radius: {{ brand.section_bar_radius }};
     margin-top: {{ brand.heading_gap_before }};
     margin-bottom: {{ brand.heading_gap_after }};
+    margin-left: -{{ brand.page_margin_left }};
+    margin-right: -{{ brand.page_margin_right }};
     direction: rtl;
     text-align: right;
     break-after: avoid;
@@ -265,6 +258,11 @@ table, .callout, ul {
     break-inside: avoid;
 }
 
+/* ── Content area ── */
+.content {
+    padding-bottom: 22mm;  /* Reserve space for the running footer */
+}
+
 /* ── Utility ── */
 .bold-inline {
     font-weight: 700;
@@ -278,13 +276,6 @@ table, .callout, ul {
 </style>
 </head>
 <body>
-
-<!-- Header logo (normal flow — page 1 only, top-right) -->
-{% if logo_base64 %}
-<div class="header-wrap">
-    <img src="data:image/png;base64,{{ logo_base64 }}" alt="ביטן את ביטן רואי חשבון">
-</div>
-{% endif %}
 
 <!-- Document title bar -->
 {% if title or doc_type %}

@@ -7,6 +7,7 @@ POST  /runs/{id}/execute            — run reconciliation engine
 GET   /runs/{id}                    — get run detail (metrics, exceptions, files)
 GET   /runs                         — list runs
 GET   /runs/{id}/files/{fid}/download — download a file
+GET   /runs/{id}/drill-down/{metric} — drill-down into metric data
 PATCH /runs/{id}/exceptions/{eid}   — update exception resolution
 PATCH /runs/{id}/exceptions/bulk    — bulk update exceptions
 POST  /runs/{id}/complete           — mark run as completed (locks mutations)
@@ -16,9 +17,9 @@ import time
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -36,6 +37,7 @@ from .schemas import (
     ExceptionOut,
     ExecuteResultOut,
     BulkPatchResultOut,
+    DrillDownOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -404,6 +406,132 @@ def download_file(run_id: str, file_id: str, db: Session = Depends(get_db)):
         filename=file_record.original_name or path.name,
         media_type=file_record.mime_type or "application/octet-stream",
     )
+
+
+# ------------------------------------------------------------------ #
+#  GET /runs/{id}/drill-down/{metric}  — metric row-level data
+# ------------------------------------------------------------------ #
+
+VALID_METRICS = {
+    "idom_records", "sumit_records", "matched",
+    "unmatched", "changed", "status_completed", "regressions",
+}
+
+METRIC_FILE_MAP = {
+    "matched": ("import_output", "Import"),
+    "changed": ("diff_report", "Changes"),
+    "status_completed": ("diff_report", "Status Changes"),
+    "idom_records": ("idom_upload", None),
+    "sumit_records": ("sumit_upload", None),
+}
+
+METRIC_EXCEPTION_MAP = {
+    "unmatched": "no_sumit_match",
+    "regressions": "status_regression",
+}
+
+
+def _read_excel_rows(
+    path: str, sheet_name: str | None, limit: int, offset: int
+) -> DrillDownOut:
+    """Read an Excel sheet and return paginated rows for drill-down."""
+    from openpyxl import load_workbook
+
+    wb = load_workbook(path, read_only=True, data_only=True)
+    ws = wb[sheet_name] if sheet_name else wb.worksheets[0]
+
+    all_rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+
+    if not all_rows:
+        return DrillDownOut(metric="", total_rows=0, columns=[], rows=[])
+
+    headers = [
+        str(h) if h is not None else f"col_{i}"
+        for i, h in enumerate(all_rows[0])
+    ]
+    data_rows = all_rows[1:]
+    total = len(data_rows)
+    page = data_rows[offset : offset + limit]
+
+    result_rows: List[Dict[str, Any]] = []
+    for row in page:
+        d: Dict[str, Any] = {}
+        for i, val in enumerate(row):
+            if i >= len(headers):
+                break
+            if val is None:
+                d[headers[i]] = ""
+            elif hasattr(val, "strftime"):
+                d[headers[i]] = val.strftime("%d/%m/%Y")
+            else:
+                d[headers[i]] = val
+        result_rows.append(d)
+
+    return DrillDownOut(metric="", total_rows=total, columns=headers, rows=result_rows)
+
+
+@router.get("/{run_id}/drill-down/{metric}", response_model=DrillDownOut)
+def drill_down(
+    run_id: str,
+    metric: str,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """Return row-level data for a specific metric card."""
+    run = _run_or_404(run_id, db)
+
+    if metric not in VALID_METRICS:
+        raise HTTPException(
+            400, f"מדד לא תקין. אפשרויות: {', '.join(sorted(VALID_METRICS))}"
+        )
+
+    # --- DB-based: query exceptions table ---
+    if metric in METRIC_EXCEPTION_MAP:
+        exc_type = METRIC_EXCEPTION_MAP[metric]
+        query = db.query(models.Exception).filter(
+            models.Exception.run_id == run.id,
+            models.Exception.exception_type == exc_type,
+        )
+        total = query.count()
+        excs = query.offset(offset).limit(limit).all()
+
+        columns = ["סוג", "מספר תיק", "שם", "תיאור", "סטטוס"]
+        rows = [
+            {
+                "סוג": e.exception_type,
+                "מספר תיק": e.idom_ref or "",
+                "שם": e.client_name or "",
+                "תיאור": e.description,
+                "סטטוס": e.resolution,
+            }
+            for e in excs
+        ]
+        return DrillDownOut(
+            metric=metric, total_rows=total, columns=columns, rows=rows
+        )
+
+    # --- File-based: read Excel sheet ---
+    file_role, sheet_name = METRIC_FILE_MAP[metric]
+    file_record = (
+        db.query(models.RunFile)
+        .filter(
+            models.RunFile.run_id == run.id,
+            models.RunFile.file_role == file_role,
+        )
+        .first()
+    )
+    if not file_record:
+        raise HTTPException(404, f"קובץ {file_role} לא נמצא להרצה")
+
+    fpath = Path(file_record.stored_path)
+    if not fpath.exists():
+        raise HTTPException(410, "הקובץ כבר לא קיים בשרת")
+
+    result = _read_excel_rows(str(fpath), sheet_name, limit, offset)
+    result.metric = metric
+    return result
 
 
 # ------------------------------------------------------------------ #
