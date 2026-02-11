@@ -8,6 +8,7 @@ import styles from "./SideNav.module.css";
 const mainNav = [
   { key: "nav.items.dashboard", href: "/" },
   { key: "nav.items.contentEngine", href: "/content-engine" },
+  { key: "nav.items.contentFactory", href: "/content-factory" },
   { key: "nav.items.sumitSync", href: "/sumit-sync" },
 ];
 
