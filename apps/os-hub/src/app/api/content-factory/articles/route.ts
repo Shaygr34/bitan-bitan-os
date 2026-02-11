@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { errorJson, parseBody, requireString } from "@/lib/content-factory/validate";
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
         bodyBlocks: body.bodyBlocks as object,
         bodyText: body.bodyText ?? null,
         ideaId: body.ideaId ?? null,
-        seoMeta: body.seoMeta ?? {},
+        seoMeta: (body.seoMeta ?? {}) as Prisma.InputJsonValue,
         createdByUserId,
       },
     });

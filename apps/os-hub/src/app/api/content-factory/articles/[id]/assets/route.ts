@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { Platform } from "@prisma/client";
+import { Platform, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { errorJson, isValidUuid, parseBody, requireString } from "@/lib/content-factory/validate";
@@ -67,7 +67,7 @@ export async function POST(
         platform: platform as Platform,
         version: nextVersion,
         contentPayload: body.contentPayload as object,
-        platformMeta: body.platformMeta ?? {},
+        platformMeta: (body.platformMeta ?? {}) as Prisma.InputJsonValue,
         createdByUserId,
       },
     });
