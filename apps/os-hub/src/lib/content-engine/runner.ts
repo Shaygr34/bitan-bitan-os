@@ -84,12 +84,7 @@ export async function runDocxToPdf(opts: {
         timeout: ENGINE_TIMEOUT_MS,
         maxBuffer: 1024 * 1024, // 1MB stdout/stderr
         cwd: engineDir,
-        env: {
-          // Strip proxy vars that confuse Chromium (known issue)
-          ...stripProxyEnv(process.env),
-          HOME: process.env.HOME || "/root",
-          PATH: process.env.PATH || "/usr/bin:/usr/local/bin",
-        },
+        env: cleanEnvForEngine(),
       },
       (error, stdout, stderr) => {
         const durationMs = Date.now() - start;
@@ -152,20 +147,29 @@ export async function runDocxToPdf(opts: {
 
 // ── Helpers ──
 
-function stripProxyEnv(
-  env: NodeJS.ProcessEnv
-): Record<string, string | undefined> {
-  const clean: Record<string, string | undefined> = { ...env };
-  const proxyKeys = [
-    "http_proxy", "HTTP_PROXY",
-    "https_proxy", "HTTPS_PROXY",
-    "no_proxy", "NO_PROXY",
-    "all_proxy", "ALL_PROXY",
-  ];
-  for (const key of proxyKeys) {
-    delete clean[key];
+const PROXY_KEYS = [
+  "http_proxy", "HTTP_PROXY",
+  "https_proxy", "HTTPS_PROXY",
+  "no_proxy", "NO_PROXY",
+  "all_proxy", "ALL_PROXY",
+];
+
+/**
+ * Build a clean env for the child process.
+ * Inherits everything from process.env but strips proxy vars
+ * that confuse Chromium's headless shell.
+ */
+function cleanEnvForEngine(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined && !PROXY_KEYS.includes(k)) {
+      out[k] = v;
+    }
   }
-  return clean;
+  // Ensure critical vars are present
+  if (!out.HOME) out.HOME = "/root";
+  if (!out.PATH) out.PATH = "/usr/bin:/usr/local/bin";
+  return out;
 }
 
 function safeFileSize(filePath: string): number {
