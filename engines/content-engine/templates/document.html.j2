@@ -16,10 +16,14 @@
 /* ── Page setup ── */
 @page {
     size: A4;
-    margin-top: 0;
-    margin-bottom: calc({{ brand.footer_height }} + 4mm);
+    margin-top: 10mm;
+    margin-bottom: calc({{ brand.footer_height }} + 2mm);
     margin-left: 0;
     margin-right: 0;
+}
+
+@page :first {
+    margin-top: 0;
 }
 
 /* ── Base ── */
@@ -53,16 +57,23 @@ body {
 }
 
 /* ── Header (block flow, page 1 only) ── */
-.header-image-wrap {
-    width: 100%;
+.header-wrap {
     text-align: center;
-    background: {{ brand.white }};
+    padding-top: 6mm;
+    padding-bottom: 3mm;
 }
 
-.header-image-wrap img {
-    width: 100%;
+.header-wrap img {
+    width: 35%;
+    max-width: 200px;
     height: auto;
-    display: block;
+    display: inline-block;
+}
+
+.header-gold-line {
+    height: {{ brand.gold_line_width }};
+    background: {{ brand.gold }};
+    margin: 0 60px;
 }
 
 .doc-title-bar {
@@ -71,6 +82,7 @@ body {
     padding: 10pt {{ brand.page_margin_right }} 10pt {{ brand.page_margin_left }};
     text-align: center;
     direction: rtl;
+    margin-top: 4mm;
 }
 
 .doc-title-bar .doc-type {
@@ -107,9 +119,8 @@ body {
 
 .running-footer img {
     width: 100%;
-    height: 100%;
-    object-fit: contain;
-    object-position: bottom center;
+    height: {{ brand.footer_height }};
+    object-fit: fill;
     display: block;
 }
 
@@ -305,10 +316,11 @@ table, .callout, ul {
 <div class="page-top-bar"></div>
 
 <!-- Header (in normal flow — appears once on page 1) -->
-{% if header_image_b64 %}
-<div class="header-image-wrap">
-    <img src="data:image/jpeg;base64,{{ header_image_b64 }}" alt="ביטן את ביטן רואי חשבון">
+{% if logo_base64 %}
+<div class="header-wrap">
+    <img src="data:image/png;base64,{{ logo_base64 }}" alt="ביטן את ביטן רואי חשבון">
 </div>
+<div class="header-gold-line"></div>
 {% endif %}
 
 <!-- Document title bar -->
