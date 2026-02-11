@@ -41,6 +41,36 @@
   line-height: var(--line-height-relaxed);
 }
 
+.comingSoonCard {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.comingSoonCard:hover {
+  border-color: var(--border) !important;
+}
+
+.moduleHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-xs);
+}
+
+.moduleHeader .moduleName {
+  margin-bottom: 0;
+}
+
+.comingSoonBadge {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--separator-gold);
+  border: 1px solid var(--separator-gold);
+  border-radius: var(--radius);
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
 .comingSoonSection {
   margin-top: var(--space-3xl);
   padding-top: var(--space-xl);
