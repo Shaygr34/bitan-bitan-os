@@ -274,17 +274,17 @@ def execute_run(run_id: str, db: Session = Depends(get_db)):
             )
             db.add(exc_record)
 
-    # Persist status regression exceptions.
-    # The engine counts regressions (status_regression_flags) but doesn't
-    # emit per-record details in diff_df (status is preserved, not changed).
-    # We create a summary exception record for the count.
-    if result.status_regression_flags > 0:
+    # Persist status regression exceptions — per record
+    for rec in result.regression_records:
         exc_record = models.Exception(
             run_id=run.id,
             exception_type="status_regression",
+            idom_ref=rec.get("idom_ref", ""),
+            sumit_ref=rec.get("sumit_ref", ""),
+            client_name=rec.get("client_name", ""),
             description=(
-                f"{result.status_regression_flags} רשומות עם סטטוס 'הושלם' ב-SUMIT "
-                "אך ללא תאריך הגשה ב-IDOM. הסטטוס נשמר — נדרשת בדיקה."
+                "סטטוס 'הושלם' ב-SUMIT אך ללא תאריך הגשה ב-IDOM. "
+                "הסטטוס נשמר — נדרשת בדיקה."
             ),
         )
         db.add(exc_record)
@@ -430,6 +430,18 @@ METRIC_EXCEPTION_MAP = {
     "regressions": "status_regression",
 }
 
+EXCEPTION_TYPE_LABELS_HE = {
+    "no_sumit_match": "ללא התאמה ב-SUMIT",
+    "idom_duplicate": "כפילות IDOM",
+    "status_regression": "נסיגת סטטוס",
+}
+
+RESOLUTION_LABELS_HE = {
+    "pending": "ממתין",
+    "acknowledged": "נבדק",
+    "dismissed": "נדחה",
+}
+
 
 def _read_excel_rows(
     path: str, sheet_name: str | None, limit: int, offset: int
@@ -500,11 +512,11 @@ def drill_down(
         columns = ["סוג", "מספר תיק", "שם", "תיאור", "סטטוס"]
         rows = [
             {
-                "סוג": e.exception_type,
+                "סוג": EXCEPTION_TYPE_LABELS_HE.get(e.exception_type, e.exception_type),
                 "מספר תיק": e.idom_ref or "",
                 "שם": e.client_name or "",
                 "תיאור": e.description,
-                "סטטוס": e.resolution,
+                "סטטוס": RESOLUTION_LABELS_HE.get(e.resolution, e.resolution),
             }
             for e in excs
         ]
@@ -527,7 +539,14 @@ def drill_down(
 
     fpath = Path(file_record.stored_path)
     if not fpath.exists():
-        raise HTTPException(410, "הקובץ כבר לא קיים בשרת")
+        logger.error(
+            "Drill-down file missing: role=%s, path=%s, run=%s",
+            file_role, fpath, run_id,
+        )
+        raise HTTPException(
+            410,
+            f"הקובץ לא נמצא בשרת (role={file_role}, path={file_record.stored_path})",
+        )
 
     result = _read_excel_rows(str(fpath), sheet_name, limit, offset)
     result.metric = metric

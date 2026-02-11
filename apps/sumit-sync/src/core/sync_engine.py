@@ -38,6 +38,9 @@ class SyncResult:
     diff_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     exceptions_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     
+    # Per-record regression details (populated by engine)
+    regression_records: List[Dict[str, str]] = field(default_factory=list)
+
     # Warnings
     warnings: List[str] = field(default_factory=list)
 
@@ -126,6 +129,8 @@ class SyncEngine:
             
             if flags.get('status_regression'):
                 result.status_regression_flags += 1
+                if 'regression_detail' in flags:
+                    result.regression_records.append(flags['regression_detail'])
             if flags.get('status_completed'):
                 result.status_completed_count += 1
             else:
@@ -173,22 +178,23 @@ class SyncEngine:
         """
         import_row = {}
         changes = []
-        flags = {'status_completed': False, 'status_regression': False}
-        
+        flags: Dict[str, Any] = {'status_completed': False, 'status_regression': False}
+
         sumit_id = str(sumit_row.get('מזהה', ''))
         if sumit_id.endswith('.0'):
             sumit_id = sumit_id[:-2]
-        
+
+        idom_ref = str(idom_row.get('מספר_תיק', ''))
         client_name = self._extract_name(idom_row, sumit_row)
-        
+
         # Get current SUMIT status
         current_status = sumit_row.get('סטטוס', '')
         current_status_str = str(current_status) if pd.notna(current_status) else ''
         is_currently_completed = STATUS_COMPLETED in current_status_str
-        
+
         # Check if IDOM has submission date
         has_submission = pd.notna(idom_row.get('תאריך_הגשה'))
-        
+
         # Derive new status
         if has_submission:
             new_status = STATUS_COMPLETED
@@ -197,6 +203,12 @@ class SyncEngine:
             # Preserve completed status - never downgrade
             new_status = current_status_str
             flags['status_regression'] = True  # Flag for review
+            flags['regression_detail'] = {
+                'idom_ref': idom_ref,
+                'sumit_ref': sumit_id,
+                'client_name': client_name,
+                'status': current_status_str,
+            }
         else:
             # Preserve existing status
             new_status = current_status_str
@@ -265,7 +277,7 @@ class SyncEngine:
             'תאריך_ארכה': idom_row.get('תאריך_ארכה', ''),
             'תאריך_הגשה': idom_row.get('תאריך_הגשה', ''),
             'קוד_שידור': idom_row.get('קוד_שידור', ''),
-            'notes': 'No matching record in SUMIT export. May be new client or filtered export.'
+            'notes': 'רשומת IDOM ללא התאמה בייצוא SUMIT. ייתכן לקוח חדש או סינון ייצוא.'
         }
     
     def _extract_name(self, idom_row: pd.Series, sumit_row: pd.Series) -> str:

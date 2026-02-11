@@ -170,26 +170,36 @@ class OutputWriter:
         # Sheet 2: Status Regression Flags
         ws_regression = wb.create_sheet("Status Review")
         if result.status_regression_flags > 0:
-            # Filter diff for regression flags
-            regression_note = pd.DataFrame([{
-                'Note': f'{result.status_regression_flags} records had "Completed" status in SUMIT but no submission date in IDOM.',
-                'Action': 'Status preserved as Completed. Review if needed.'
-            }])
-            self._write_dataframe_sheet(ws_regression, regression_note, "Status Regression Flags")
+            if result.regression_records:
+                regression_df = pd.DataFrame(result.regression_records)
+                regression_df.columns = [
+                    col.replace("idom_ref", "מספר תיק")
+                       .replace("sumit_ref", "מזהה SUMIT")
+                       .replace("client_name", "שם")
+                       .replace("status", "סטטוס")
+                    for col in regression_df.columns
+                ]
+                self._write_dataframe_sheet(ws_regression, regression_df, "נסיגות סטטוס")
+            else:
+                regression_note = pd.DataFrame([{
+                    'הערה': f'{result.status_regression_flags} רשומות עם סטטוס "הושלם" ב-SUMIT אך ללא תאריך הגשה ב-IDOM.',
+                    'פעולה': 'הסטטוס נשמר כהושלם. נדרשת בדיקה.'
+                }])
+                self._write_dataframe_sheet(ws_regression, regression_note, "נסיגות סטטוס")
         else:
-            ws_regression.cell(row=1, column=1, value="No status regression flags")
+            ws_regression.cell(row=1, column=1, value="אין נסיגות סטטוס")
         
         # Sheet 3: Summary
         ws_summary = wb.create_sheet("Summary")
         summary_data = pd.DataFrame([
-            {'Metric': 'Total IDOM Records', 'Value': result.total_idom_records},
-            {'Metric': 'Total SUMIT Records', 'Value': result.total_sumit_records},
-            {'Metric': 'Matched', 'Value': result.matched_count},
-            {'Metric': 'Unmatched (Exceptions)', 'Value': result.unmatched_count},
-            {'Metric': 'Changed', 'Value': result.changed_count},
-            {'Metric': 'Status Regression Flags', 'Value': result.status_regression_flags},
+            {'מדד': 'רשומות IDOM', 'ערך': result.total_idom_records},
+            {'מדד': 'רשומות SUMIT', 'ערך': result.total_sumit_records},
+            {'מדד': 'התאמות', 'ערך': result.matched_count},
+            {'מדד': 'ללא התאמה (חריגים)', 'ערך': result.unmatched_count},
+            {'מדד': 'שינויים', 'ערך': result.changed_count},
+            {'מדד': 'נסיגות סטטוס', 'ערך': result.status_regression_flags},
         ])
-        self._write_dataframe_sheet(ws_summary, summary_data, "Exception Summary")
+        self._write_dataframe_sheet(ws_summary, summary_data, "סיכום חריגים")
         
         wb.save(filepath)
         logger.info(f"Written exceptions report: {filepath}")

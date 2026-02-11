@@ -34,6 +34,7 @@ export default function DrillDownDrawer({
     if (!runId || !metric) return;
     setLoading(true);
     setError(null);
+    setData(null);
     fetch(`/api/sumit-sync/runs/${runId}/drill-down/${metric}?limit=200`)
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status}`);
