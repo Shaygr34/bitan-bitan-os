@@ -80,24 +80,24 @@ class OutputWriter:
             # Create empty file with headers only
             wb = Workbook()
             ws = wb.active
-            ws.title = "Import"
-            
+            ws.title = "ייבוא"
+
             for col_idx, header in enumerate(self.config.import_schema.columns, 1):
                 cell = ws.cell(row=1, column=col_idx, value=header)
                 cell.font = self.HEADER_FONT
                 cell.fill = self.HEADER_FILL
-            
+
             wb.save(filepath)
             logger.info(f"Written empty import file: {filepath}")
             return filepath
-        
+
         # Clean data for export
         export_df = self._prepare_for_export(df)
-        
+
         # Write to Excel
         wb = Workbook()
         ws = wb.active
-        ws.title = "Import"
+        ws.title = "ייבוא"
         
         # Write headers
         for col_idx, header in enumerate(export_df.columns, 1):
@@ -129,25 +129,25 @@ class OutputWriter:
         
         # Sheet 1: Summary
         ws_summary = wb.active
-        ws_summary.title = "Summary"
+        ws_summary.title = "סיכום"
         self._write_summary_sheet(ws_summary, result, tax_year)
-        
+
         # Sheet 2: All Changes
-        ws_changes = wb.create_sheet("Changes")
+        ws_changes = wb.create_sheet("שינויים")
         self._write_changes_sheet(ws_changes, result.diff_df)
-        
+
         # Sheet 3: Status Changes
-        ws_status = wb.create_sheet("Status Changes")
+        ws_status = wb.create_sheet("שינויי סטטוס")
         status_changes = result.diff_df[result.diff_df['field'] == 'סטטוס'] if not result.diff_df.empty else pd.DataFrame()
         self._write_changes_sheet(ws_status, status_changes)
-        
+
         # Sheet 4: Extension Updates
-        ws_ext = wb.create_sheet("Extension Updates")
+        ws_ext = wb.create_sheet("עדכוני ארכה")
         ext_changes = result.diff_df[result.diff_df['field'] == 'אורכה משרד'] if not result.diff_df.empty else pd.DataFrame()
         self._write_changes_sheet(ws_ext, ext_changes)
-        
+
         # Sheet 5: Warnings
-        ws_warnings = wb.create_sheet("Warnings")
+        ws_warnings = wb.create_sheet("אזהרות")
         self._write_warnings_sheet(ws_warnings, result.warnings)
         
         wb.save(filepath)
@@ -164,11 +164,11 @@ class OutputWriter:
         
         # Sheet 1: Unmatched Records
         ws_unmatched = wb.active
-        ws_unmatched.title = "Unmatched"
-        self._write_dataframe_sheet(ws_unmatched, result.exceptions_df, "Unmatched IDOM Records")
+        ws_unmatched.title = "ללא התאמה"
+        self._write_dataframe_sheet(ws_unmatched, result.exceptions_df, "רשומות IDOM ללא התאמה")
         
         # Sheet 2: Status Regression Flags
-        ws_regression = wb.create_sheet("Status Review")
+        ws_regression = wb.create_sheet("סקירת סטטוס")
         if result.status_regression_flags > 0:
             if result.regression_records:
                 regression_df = pd.DataFrame(result.regression_records)
@@ -190,7 +190,7 @@ class OutputWriter:
             ws_regression.cell(row=1, column=1, value="אין נסיגות סטטוס")
         
         # Sheet 3: Summary
-        ws_summary = wb.create_sheet("Summary")
+        ws_summary = wb.create_sheet("סיכום")
         summary_data = pd.DataFrame([
             {'מדד': 'רשומות IDOM', 'ערך': result.total_idom_records},
             {'מדד': 'רשומות SUMIT', 'ערך': result.total_sumit_records},
@@ -208,44 +208,44 @@ class OutputWriter:
     def _write_summary_sheet(self, ws, result: SyncResult, tax_year: int) -> None:
         """Write summary sheet."""
         # Title
-        ws.cell(row=1, column=1, value="IDOM → SUMIT Sync Report")
+        ws.cell(row=1, column=1, value="דו״ח סנכרון IDOM → SUMIT")
         ws.cell(row=1, column=1).font = Font(bold=True, size=14)
-        
-        ws.cell(row=2, column=1, value=f"Report Type: {self.config.display_name}")
-        ws.cell(row=3, column=1, value=f"Tax Year: {tax_year}")
-        ws.cell(row=4, column=1, value=f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
+
+        ws.cell(row=2, column=1, value=f"סוג דו״ח: {self.config.display_name}")
+        ws.cell(row=3, column=1, value=f"שנת מס: {tax_year}")
+        ws.cell(row=4, column=1, value=f"נוצר: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
         # Stats table
         stats = [
             ("", ""),
-            ("Processing Statistics", ""),
-            ("Total IDOM Records", result.total_idom_records),
-            ("Total SUMIT Records", result.total_sumit_records),
+            ("סטטיסטיקת עיבוד", ""),
+            ("רשומות IDOM", result.total_idom_records),
+            ("רשומות SUMIT", result.total_sumit_records),
             ("", ""),
-            ("Match Results", ""),
-            ("Matched", result.matched_count),
-            ("Unmatched (Exceptions)", result.unmatched_count),
-            ("Match Rate", f"{result.matched_count / max(result.total_idom_records, 1) * 100:.1f}%"),
+            ("תוצאות התאמה", ""),
+            ("התאמות", result.matched_count),
+            ("ללא התאמה (חריגים)", result.unmatched_count),
+            ("אחוז התאמה", f"{result.matched_count / max(result.total_idom_records, 1) * 100:.1f}%"),
             ("", ""),
-            ("Update Statistics", ""),
-            ("Records Changed", result.changed_count),
-            ("Records Unchanged", result.unchanged_count),
-            ("Status → Completed", result.status_completed_count),
-            ("Status Preserved", result.status_preserved_count),
-            ("Status Regression Flags", result.status_regression_flags),
+            ("סטטיסטיקת עדכונים", ""),
+            ("רשומות שהשתנו", result.changed_count),
+            ("רשומות ללא שינוי", result.unchanged_count),
+            ("סטטוס → הושלם", result.status_completed_count),
+            ("סטטוס נשמר", result.status_preserved_count),
+            ("נסיגות סטטוס", result.status_regression_flags),
         ]
-        
+
         for row_idx, (label, value) in enumerate(stats, 6):
             ws.cell(row=row_idx, column=1, value=label)
             ws.cell(row=row_idx, column=2, value=value)
-            
-            if label in ["Processing Statistics", "Match Results", "Update Statistics"]:
+
+            if label in ["סטטיסטיקת עיבוד", "תוצאות התאמה", "סטטיסטיקת עדכונים"]:
                 ws.cell(row=row_idx, column=1).font = Font(bold=True)
-        
+
         # Warnings section
         if result.warnings:
             warning_row = len(stats) + 8
-            ws.cell(row=warning_row, column=1, value="Warnings")
+            ws.cell(row=warning_row, column=1, value="אזהרות")
             ws.cell(row=warning_row, column=1).font = Font(bold=True)
             
             for idx, warning in enumerate(result.warnings, 1):
@@ -257,18 +257,18 @@ class OutputWriter:
     def _write_changes_sheet(self, ws, df: pd.DataFrame) -> None:
         """Write changes DataFrame to sheet."""
         if df.empty:
-            ws.cell(row=1, column=1, value="No changes recorded")
+            ws.cell(row=1, column=1, value="לא נרשמו שינויים")
             return
-        
-        self._write_dataframe_sheet(ws, df, "Changes")
+
+        self._write_dataframe_sheet(ws, df, "שינויים")
     
     def _write_warnings_sheet(self, ws, warnings: List[str]) -> None:
         """Write warnings to sheet."""
-        ws.cell(row=1, column=1, value="Warnings")
+        ws.cell(row=1, column=1, value="אזהרות")
         ws.cell(row=1, column=1).font = Font(bold=True)
-        
+
         if not warnings:
-            ws.cell(row=2, column=1, value="No warnings")
+            ws.cell(row=2, column=1, value="אין אזהרות")
             return
         
         for idx, warning in enumerate(warnings, 2):
@@ -277,7 +277,7 @@ class OutputWriter:
     def _write_dataframe_sheet(self, ws, df: pd.DataFrame, title: str = "") -> None:
         """Write DataFrame to worksheet."""
         if df.empty:
-            ws.cell(row=1, column=1, value=f"No data ({title})" if title else "No data")
+            ws.cell(row=1, column=1, value=f"אין נתונים ({title})" if title else "אין נתונים")
             return
         
         # Headers

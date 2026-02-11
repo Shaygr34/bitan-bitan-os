@@ -109,7 +109,7 @@ class SyncEngine:
                         if sk.lstrip('0') == normalized_key:
                             sumit_row = sr
                             result.warnings.append(
-                                f"Secondary match for {match_key} → {sk} (leading zeros)"
+                                f"התאמה משנית עבור {match_key} → {sk} (אפסים מובילים)"
                             )
                             break
             
@@ -156,8 +156,8 @@ class SyncEngine:
         # Add warning for partial export
         if result.unmatched_count > 0:
             result.warnings.append(
-                f"⚠️ {result.unmatched_count} IDOM records had no SUMIT match. "
-                "This may be caused by a filtered/partial SUMIT export, or genuinely new clients."
+                f"⚠️ {result.unmatched_count} רשומות IDOM ללא התאמה ב-SUMIT. "
+                "ייתכן ייצוא SUMIT חלקי/מסונן, או לקוחות חדשים."
             )
         
         logger.info(f"Sync complete: {result.matched_count} matched, {result.unmatched_count} unmatched")
