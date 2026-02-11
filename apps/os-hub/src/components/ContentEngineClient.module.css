@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   Content Engine Client — Upload flow styles
+   Content Engine Client — Upload flow + History styles
    ═══════════════════════════════════════════════════ */
 
 .hiddenInput {
@@ -93,6 +93,15 @@
   animation: spin 0.8s linear infinite;
 }
 
+.spinnerSmall {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand-navy);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -105,11 +114,44 @@
   color: var(--text-heading);
 }
 
+.processingMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .processingFile {
   font-size: var(--font-size-sm);
   color: var(--text-caption);
   direction: ltr;
   unicode-bidi: isolate;
+}
+
+.processingSize {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  opacity: 0.7;
+}
+
+/* ── Stage indicator dots ── */
+
+.stageIndicator {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.stageDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.stageDotActive {
+  background: var(--brand-navy);
+  transform: scale(1.25);
 }
 
 /* ── Success state ── */
@@ -244,4 +286,147 @@
 .errorActions {
   display: flex;
   gap: var(--space-sm);
+}
+
+/* ═══════════════════════════════════════════════════
+   History section
+   ═══════════════════════════════════════════════════ */
+
+.historySection {
+  margin-top: var(--space-3xl);
+}
+
+.historyTitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-heading);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--brand-gold);
+}
+
+.historyLoading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3xl);
+}
+
+.historyEmpty {
+  text-align: center;
+  padding: var(--space-3xl) var(--space-xl);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+}
+
+.historyEmptyText {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-heading);
+  margin-bottom: var(--space-xs);
+}
+
+.historyEmptyDetail {
+  font-size: var(--font-size-sm);
+  color: var(--text-caption);
+}
+
+.historyTableWrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.historyTable {
+  width: 100%;
+  border-collapse: collapse;
+  direction: rtl;
+  font-variant-numeric: tabular-nums;
+}
+
+.historyTable thead th {
+  background: var(--table-header-bg, var(--surface-muted));
+  color: var(--table-header-text, var(--text-heading));
+  font-weight: var(--font-weight-semibold);
+  border-bottom: 2px solid var(--brand-gold);
+  padding: var(--space-sm) var(--space-lg);
+  text-align: start;
+  font-size: var(--font-size-sm);
+}
+
+.historyTable tbody tr {
+  transition: background var(--transition-fast);
+}
+
+.historyTable tbody tr:nth-child(even) {
+  background: var(--table-row-alt, rgba(16, 32, 64, 0.02));
+}
+
+.historyTable tbody tr:hover {
+  background: rgba(192, 176, 112, 0.06);
+}
+
+.historyTable tbody td {
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-sm);
+}
+
+.fileNameCell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.numericCell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dateCell {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  white-space: nowrap;
+}
+
+.statusSuccess {
+  display: inline-block;
+  padding: 2px var(--space-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: #065F46;
+  background: #D1FAE5;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.statusError {
+  display: inline-block;
+  padding: 2px var(--space-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: #991B1B;
+  background: #FEE2E2;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.historyDownloadBtn {
+  background: none;
+  border: none;
+  color: var(--brand-navy);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  padding: 2px var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.historyDownloadBtn:hover {
+  color: var(--brand-gold);
+  background: rgba(16, 32, 64, 0.04);
 }

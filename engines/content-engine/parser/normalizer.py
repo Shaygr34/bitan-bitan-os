@@ -183,7 +183,7 @@ def _deduplicate_headings(blocks: list[ContentBlock]) -> list[ContentBlock]:
 
 # ── Operation 8: Ensure trailing periods on sentence-length bullets ──
 
-_TERMINAL_CHARS = frozenset(".!?:)")
+_TERMINAL_CHARS = frozenset(".!?:")
 
 def _ensure_trailing_periods(blocks: list[ContentBlock]) -> list[ContentBlock]:
     """

@@ -16,18 +16,18 @@ _ENGINE_DIR = os.path.dirname(_RENDERER_DIR)
 if _ENGINE_DIR not in sys.path:
     sys.path.insert(0, _ENGINE_DIR)
 
-from brand_config import BRAND, LOGO_PATH, get_font_paths
+from brand_config import BRAND, LOGO_PATH, HEADER_IMAGE_PATH, FOOTER_IMAGE_PATH, get_font_paths
 from parser.docx_parser import BlockType, ContentBlock
 
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "templates")
 
 
-def _load_logo_base64() -> str:
-    """Read the logo file and return base64-encoded data."""
-    if not os.path.isfile(LOGO_PATH):
+def _load_image_base64(path: str, mime: str = "image/png") -> str:
+    """Read an image file and return base64-encoded data."""
+    if not os.path.isfile(path):
         return ""
-    with open(LOGO_PATH, "rb") as f:
+    with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("ascii")
 
 
@@ -75,7 +75,9 @@ def build_html(
         blocks=render_blocks,
         title=title,
         doc_type=doc_type,
-        logo_base64=_load_logo_base64(),
+        logo_base64=_load_image_base64(LOGO_PATH),
+        header_image_b64=_load_image_base64(HEADER_IMAGE_PATH, "image/jpeg"),
+        footer_image_b64=_load_image_base64(FOOTER_IMAGE_PATH, "image/jpeg"),
         font_faces=font_faces,
     )
 

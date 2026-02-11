@@ -72,9 +72,11 @@ COPY engines/content-engine/renderer/ engines/content-engine/renderer/
 COPY engines/content-engine/templates/ engines/content-engine/templates/
 COPY engines/content-engine/assets/ engines/content-engine/assets/
 
-# Writable output dir for the non-root nextjs user
+# Writable dirs for the non-root nextjs user
 RUN mkdir -p engines/content-engine/output && \
-    chown -R nextjs:nodejs engines/content-engine/output
+    chown -R nextjs:nodejs engines/content-engine/output && \
+    mkdir -p /tmp/content-engine-history && \
+    chown nextjs:nodejs /tmp/content-engine-history
 
 # Startup diagnostics + next start
 RUN printf '#!/bin/sh\n\

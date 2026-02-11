@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { runDocxToPdf, type RunError } from "@/lib/content-engine/runner";
+import { saveRecord, type HistoryRecord } from "@/lib/content-engine/history";
 
 export const runtime = "nodejs";
 
@@ -123,20 +124,22 @@ export async function POST(request: NextRequest) {
     const pdfBuffer = fs.readFileSync(result.pdfPath);
     const pdfName = safeName.replace(/\.docx$/i, ".pdf");
 
-    // Write run metadata
-    writeRunMeta(jobDir, {
-      jobId,
+    // Save to history (persistent storage for download later)
+    const historyRecord: HistoryRecord = {
+      id: jobId,
       originalName,
+      pdfName,
       inputSize: file.size,
       outputSize: pdfBuffer.length,
-      durationMs: result.durationMs,
       blockCount: result.blockCount,
+      durationMs: result.durationMs,
       status: "success",
       timestamp: new Date().toISOString(),
-    });
+    };
+    saveRecord(historyRecord, pdfBuffer);
 
-    // Schedule cleanup after 5 minutes (keep files briefly for debugging)
-    scheduleCleanup(jobDir, 5 * 60 * 1000);
+    // Clean up job dir (PDF now lives in history)
+    scheduleCleanup(jobDir, 30_000);
 
     return new NextResponse(pdfBuffer, {
       status: 200,
