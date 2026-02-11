@@ -18,8 +18,8 @@
     size: A4;
     margin-top: 10mm;
     margin-bottom: 0;
-    margin-left: {{ brand.page_margin_left }};
-    margin-right: {{ brand.page_margin_right }};
+    margin-left: 0;
+    margin-right: 0;
 }
 
 /* ── Base ── */
@@ -32,7 +32,7 @@ body {
     direction: rtl;
     text-align: right;
     margin: 0;
-    padding: 0;
+    padding: 0 {{ brand.page_margin_right }} 0 {{ brand.page_margin_left }};
     orphans: 3;
     widows: 3;
 }
@@ -44,7 +44,7 @@ body {
 .doc-title-bar {
     background: {{ brand.navy }};
     color: {{ brand.white }};
-    padding: 10pt 14pt;
+    padding: 10pt {{ brand.page_margin_right }} 10pt {{ brand.page_margin_left }};
     text-align: center;
     direction: rtl;
     margin-top: 2mm;
@@ -79,8 +79,8 @@ body {
 .running-footer {
     position: fixed;
     bottom: 0;
-    left: -{{ brand.page_margin_left }};
-    right: -{{ brand.page_margin_right }};
+    left: 0;
+    right: 0;
     height: 20mm;
     z-index: 10;
     overflow: hidden;
@@ -97,10 +97,10 @@ body {
 .running-footer-text {
     position: fixed;
     bottom: 0;
-    left: -{{ brand.page_margin_left }};
-    right: -{{ brand.page_margin_right }};
+    left: 0;
+    right: 0;
     height: 20mm;
-    padding: 4pt 15mm;
+    padding: 4pt {{ brand.page_margin_left }};
     border-top: 1pt solid {{ brand.gold }};
     text-align: center;
     font-size: 8pt;
@@ -115,10 +115,12 @@ body {
     color: {{ brand.white }};
     font-size: {{ brand.h2_size }};
     font-weight: {{ brand.h2_weight }};
-    padding: 6pt 14pt;
+    padding: 6pt {{ brand.page_margin_right }} 6pt {{ brand.page_margin_left }};
     border-radius: {{ brand.section_bar_radius }};
     margin-top: {{ brand.heading_gap_before }};
     margin-bottom: {{ brand.heading_gap_after }};
+    margin-left: -{{ brand.page_margin_left }};
+    margin-right: -{{ brand.page_margin_right }};
     direction: rtl;
     text-align: right;
     break-after: avoid;
