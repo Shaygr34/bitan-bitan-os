@@ -40,42 +40,52 @@ export async function POST(request: NextRequest) {
     return errorJson(400, "MISSING_FIELD", "bodyBlocks is required");
   }
 
-  const article = await prisma.$transaction(async (tx) => {
-    const created = await tx.article.create({
-      data: {
-        title,
-        bodyBlocks: body.bodyBlocks as object,
-        bodyText: body.bodyText ?? null,
-        ideaId: body.ideaId ?? null,
-        seoMeta: (body.seoMeta ?? {}) as Prisma.InputJsonValue,
-        createdByUserId,
-      },
+  try {
+    const article = await prisma.$transaction(async (tx) => {
+      const created = await tx.article.create({
+        data: {
+          title,
+          bodyBlocks: body.bodyBlocks as object,
+          bodyText: body.bodyText ?? null,
+          ideaId: body.ideaId ?? null,
+          seoMeta: (body.seoMeta ?? {}) as Prisma.InputJsonValue,
+          createdByUserId,
+        },
+      });
+
+      await logEvent(tx, {
+        actorUserId: createdByUserId,
+        entityType: "ARTICLE",
+        entityId: created.id,
+        action: "ARTICLE_CREATED",
+        metadata: { title },
+      });
+
+      return created;
     });
 
-    await logEvent(tx, {
-      actorUserId: createdByUserId,
-      entityType: "ARTICLE",
-      entityId: created.id,
-      action: "ARTICLE_CREATED",
-      metadata: { title },
-    });
-
-    return created;
-  });
-
-  return NextResponse.json(article, { status: 201 });
+    return NextResponse.json(article, { status: 201 });
+  } catch (e) {
+    console.error("POST /api/content-factory/articles failed:", e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to create article");
+  }
 }
 
 // ── GET ─────────────────────────────────────────────────────────────────────
 
 export async function GET() {
-  const articles = await prisma.article.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    include: {
-      assets: { select: { id: true, platform: true, status: true, version: true } },
-    },
-  });
+  try {
+    const articles = await prisma.article.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: {
+        assets: { select: { id: true, platform: true, status: true, version: true } },
+      },
+    });
 
-  return NextResponse.json(articles);
+    return NextResponse.json(articles);
+  } catch (e) {
+    console.error("GET /api/content-factory/articles failed:", e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to load articles");
+  }
 }

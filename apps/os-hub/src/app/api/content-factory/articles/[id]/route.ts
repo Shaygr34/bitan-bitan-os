@@ -17,22 +17,27 @@ export async function GET(
     return errorJson(400, "INVALID_ID", "id must be a valid UUID");
   }
 
-  const article = await prisma.article.findUnique({
-    where: { id },
-    include: {
-      assets: {
-        include: {
-          publishJobs: {
-            orderBy: { createdAt: "desc" },
+  try {
+    const article = await prisma.article.findUnique({
+      where: { id },
+      include: {
+        assets: {
+          include: {
+            publishJobs: {
+              orderBy: { createdAt: "desc" },
+            },
           },
         },
       },
-    },
-  });
+    });
 
-  if (!article) {
-    return errorJson(404, "NOT_FOUND", "Article not found");
+    if (!article) {
+      return errorJson(404, "NOT_FOUND", "Article not found");
+    }
+
+    return NextResponse.json(article);
+  } catch (e) {
+    console.error(`GET /api/content-factory/articles/${id} failed:`, e);
+    return errorJson(500, "INTERNAL_ERROR", "Failed to load article");
   }
-
-  return NextResponse.json(article);
 }
