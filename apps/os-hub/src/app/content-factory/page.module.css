@@ -85,6 +85,23 @@
   color: var(--text-caption);
 }
 
+.deleteBtn {
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--destructive);
+  color: var(--destructive);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.deleteBtn:hover {
+  background: var(--status-error-bg);
+}
+
 .assetCount {
   font-variant-numeric: tabular-nums;
   color: var(--text-caption);

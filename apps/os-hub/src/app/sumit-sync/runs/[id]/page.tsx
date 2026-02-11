@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
@@ -71,6 +71,7 @@ const RESOLUTION_LABELS: Record<string, string> = {
 
 export default function RunDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
 
   const [run, setRun] = useState<RunDetail | null>(null);
@@ -78,6 +79,7 @@ export default function RunDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [drillDown, setDrillDown] = useState<{ metric: string; label: string } | null>(null);
 
   const fetchRun = useCallback(() => {
@@ -181,6 +183,25 @@ export default function RunDetailPage() {
     } catch (err) {
       showToast({ type: "error", message: err instanceof Error ? err.message : "השלמה נכשלה" });
     } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const doDeleteRun = async () => {
+    setDeleteConfirmOpen(false);
+    setActionLoading("delete");
+    try {
+      const res = await fetch(`/api/sumit-sync/runs/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || data.error || "מחיקה נכשלה");
+      }
+      showToast({ type: "success", message: "ההרצה נמחקה" });
+      router.push("/sumit-sync");
+    } catch (err) {
+      showToast({ type: "error", message: err instanceof Error ? err.message : "שגיאה במחיקה" });
       setActionLoading(null);
     }
   };
@@ -289,6 +310,13 @@ export default function RunDetailPage() {
                 : "סמן הרצה כהושלמה"}
             </button>
           )}
+          <button
+            className={styles.deleteBtnDetail}
+            onClick={() => setDeleteConfirmOpen(true)}
+            disabled={actionLoading === "delete"}
+          >
+            {actionLoading === "delete" ? "מוחק..." : "מחק הרצה"}
+          </button>
           <Link href="/sumit-sync" className="btn-ghost">
             חזרה לרשימה
           </Link>
@@ -508,6 +536,17 @@ export default function RunDetailPage() {
         confirmLabel="השלם"
         onCancel={() => setConfirmOpen(false)}
         onConfirm={doCompleteRun}
+      />
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="מחיקת הרצה"
+        body="למחוק את ההרצה לצמיתות? כל הקבצים, החריגים והנתונים ייאבדו."
+        cancelLabel="ביטול"
+        confirmLabel="מחק"
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={doDeleteRun}
       />
 
       {/* Drill-down data drawer */}

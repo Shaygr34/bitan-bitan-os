@@ -6,6 +6,8 @@ import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
 import StatusBadge from "@/components/StatusBadge";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { showToast } from "@/components/Toast";
 import { t } from "@/lib/strings";
 import { TYPE_LABELS, relativeTime } from "@/lib/formatters";
 import styles from "./page.module.css";
@@ -24,6 +26,8 @@ export default function SumitSyncPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [deleteTarget, setDeleteTarget] = useState<RunSummary | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetch("/api/sumit-sync/runs")
@@ -35,6 +39,27 @@ export default function SumitSyncPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/sumit-sync/runs/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || data.error || "מחיקה נכשלה");
+      }
+      setRuns((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+      showToast({ type: "success", message: "ההרצה נמחקה" });
+    } catch (err) {
+      showToast({ type: "error", message: err instanceof Error ? err.message : "שגיאה במחיקה" });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   const filteredRuns =
     statusFilter === "all"
@@ -122,7 +147,7 @@ export default function SumitSyncPage() {
                 >
                   {relativeTime(run.created_at)}
                 </td>
-                <td>
+                <td className={styles.actionsCell}>
                   <Link
                     href={`/sumit-sync/runs/${run.id}`}
                     className={styles.detailLink}
@@ -130,12 +155,36 @@ export default function SumitSyncPage() {
                   >
                     פרטים
                   </Link>
+                  <button
+                    className={styles.deleteBtn}
+                    title="מחק הרצה"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(run);
+                    }}
+                  >
+                    מחיקה
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="מחיקת הרצה"
+        body={
+          deleteTarget
+            ? `למחוק את ההרצה ${TYPE_LABELS[deleteTarget.report_type] ?? deleteTarget.report_type} ${deleteTarget.year}? כל הקבצים והנתונים של הרצה זו יימחקו לצמיתות.`
+            : ""
+        }
+        cancelLabel="ביטול"
+        confirmLabel={deleting ? "מוחק..." : "מחק"}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

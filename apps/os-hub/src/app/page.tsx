@@ -82,6 +82,34 @@ export default function Home() {
         description={t("dashboard.subtitle")}
       />
 
+      {/* Module Cards */}
+      <section className={styles.modulesSection}>
+        <h2 className={styles.sectionTitle}>{t("dashboard.modules.title")}</h2>
+        <div className={styles.goldSeparator} />
+        <div className={styles.modulesGrid}>
+          {modules.map((mod) =>
+            mod.comingSoon ? (
+              <div key={mod.key} className={styles.moduleLink}>
+                <Card className={styles.comingSoonCard}>
+                  <div className={styles.moduleHeader}>
+                    <h3 className={styles.moduleName}>{t(mod.key)}</h3>
+                    <span className={styles.comingSoonBadge}>{t("dashboard.comingSoon")}</span>
+                  </div>
+                  <p className={styles.moduleDescription}>{t(mod.descKey)}</p>
+                </Card>
+              </div>
+            ) : (
+              <Link key={mod.href} href={mod.href} className={styles.moduleLink}>
+                <Card>
+                  <h3 className={styles.moduleName}>{t(mod.key)}</h3>
+                  <p className={styles.moduleDescription}>{t(mod.descKey)}</p>
+                </Card>
+              </Link>
+            )
+          )}
+        </div>
+      </section>
+
       {/* Quick Actions */}
       <section className={styles.quickActions}>
         <Link href="/sumit-sync/new" className="btn-primary">
@@ -152,34 +180,6 @@ export default function Home() {
           </table>
         </section>
       )}
-
-      {/* Module Cards */}
-      <section className={styles.modulesSection}>
-        <h2 className={styles.sectionTitle}>{t("dashboard.modules.title")}</h2>
-        <div className={styles.goldSeparator} />
-        <div className={styles.modulesGrid}>
-          {modules.map((mod) =>
-            mod.comingSoon ? (
-              <div key={mod.key} className={styles.moduleLink}>
-                <Card className={styles.comingSoonCard}>
-                  <div className={styles.moduleHeader}>
-                    <h3 className={styles.moduleName}>{t(mod.key)}</h3>
-                    <span className={styles.comingSoonBadge}>{t("dashboard.comingSoon")}</span>
-                  </div>
-                  <p className={styles.moduleDescription}>{t(mod.descKey)}</p>
-                </Card>
-              </div>
-            ) : (
-              <Link key={mod.href} href={mod.href} className={styles.moduleLink}>
-                <Card>
-                  <h3 className={styles.moduleName}>{t(mod.key)}</h3>
-                  <p className={styles.moduleDescription}>{t(mod.descKey)}</p>
-                </Card>
-              </Link>
-            )
-          )}
-        </div>
-      </section>
     </div>
   );
 }

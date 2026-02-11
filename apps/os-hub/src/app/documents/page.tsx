@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { showToast } from "@/components/Toast";
 import { t } from "@/lib/strings";
 import { TYPE_LABELS, FILE_ROLE_LABELS, formatBytes, relativeTime } from "@/lib/formatters";
 import styles from "./page.module.css";
@@ -45,6 +47,8 @@ export default function DocumentsPage() {
   const [filterYear, setFilterYear] = useState("all");
   const [filterType, setFilterType] = useState("all");
   const [filterRole, setFilterRole] = useState("all");
+  const [deleteTarget, setDeleteTarget] = useState<DocumentFile | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     async function loadFiles() {
@@ -89,6 +93,28 @@ export default function DocumentsPage() {
 
     loadFiles();
   }, []);
+
+  const handleDeleteRun = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/sumit-sync/runs/${deleteTarget.runId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || data.error || "מחיקה נכשלה");
+      }
+      // Remove all files belonging to that run
+      setFiles((prev) => prev.filter((f) => f.runId !== deleteTarget.runId));
+      showToast({ type: "success", message: "ההרצה וכל קבציה נמחקו" });
+    } catch (err) {
+      showToast({ type: "error", message: err instanceof Error ? err.message : "שגיאה במחיקה" });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   const years = [...new Set(files.map((f) => f.year))].sort((a, b) => b - a);
   const roles = [...new Set(files.map((f) => f.fileRole))];
@@ -199,7 +225,7 @@ export default function DocumentsPage() {
                 <th>תפקיד</th>
                 <th>תאריך</th>
                 <th>גודל</th>
-                <th>הורדה</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -219,7 +245,7 @@ export default function DocumentsPage() {
                   <td className={styles.sizeCell}>
                     {formatBytes(f.sizeBytes)}
                   </td>
-                  <td>
+                  <td className={styles.fileActions}>
                     <a
                       href={`/api/sumit-sync/runs/${f.runId}/files/${f.fileId}/download`}
                       download
@@ -227,6 +253,13 @@ export default function DocumentsPage() {
                     >
                       ↓
                     </a>
+                    <button
+                      className={styles.deleteBtn}
+                      title="מחק הרצה (כל הקבצים)"
+                      onClick={() => setDeleteTarget(f)}
+                    >
+                      ×
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -234,6 +267,20 @@ export default function DocumentsPage() {
           </table>
         </>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="מחיקת הרצה"
+        body={
+          deleteTarget
+            ? `למחוק את ההרצה ${TYPE_LABELS[deleteTarget.reportType] ?? deleteTarget.reportType} ${deleteTarget.year}? כל הקבצים השייכים להרצה זו יימחקו לצמיתות.`
+            : ""
+        }
+        cancelLabel="ביטול"
+        confirmLabel={deleting ? "מוחק..." : "מחק"}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteRun}
+      />
     </div>
   );
 }

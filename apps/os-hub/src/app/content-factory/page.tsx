@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { showToast } from "@/components/Toast";
 import { t } from "@/lib/strings";
 import styles from "./page.module.css";
@@ -59,6 +60,8 @@ export default function ContentFactoryPage() {
   const [creating, setCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ArticleSummary | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetch("/api/content-factory/articles")
@@ -108,6 +111,27 @@ export default function ContentFactoryPage() {
       });
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/content-factory/articles/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error?.message || "מחיקה נכשלה");
+      }
+      setArticles((prev) => prev.filter((a) => a.id !== deleteTarget.id));
+      showToast({ type: "success", message: "המאמר נמחק" });
+    } catch (err) {
+      showToast({ type: "error", message: err instanceof Error ? err.message : "שגיאה במחיקה" });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
   }
 
@@ -185,6 +209,7 @@ export default function ContentFactoryPage() {
               <th>{t("contentFactory.col.distribution")}</th>
               <th>{t("contentFactory.col.assets")}</th>
               <th>{t("contentFactory.col.updated")}</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -214,11 +239,37 @@ export default function ContentFactoryPage() {
                 >
                   {relativeTime(article.updatedAt)}
                 </td>
+                <td>
+                  <button
+                    className={styles.deleteBtn}
+                    title="מחק מאמר"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(article);
+                    }}
+                  >
+                    מחיקה
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="מחיקת מאמר"
+        body={
+          deleteTarget
+            ? `למחוק את המאמר "${deleteTarget.title}"? כל הנכסים והפרסומים ייאבדו לצמיתות.`
+            : ""
+        }
+        cancelLabel="ביטול"
+        confirmLabel={deleting ? "מוחק..." : "מחק"}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
