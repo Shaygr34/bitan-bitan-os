@@ -6,6 +6,7 @@ import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import DrillDownDrawer from "@/components/DrillDownDrawer";
 import { showToast } from "@/components/Toast";
 import styles from "./page.module.css";
 
@@ -94,6 +95,7 @@ export default function RunDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [drillDown, setDrillDown] = useState<{ metric: string; label: string } | null>(null);
 
   const fetchRun = useCallback(() => {
     fetch(`/api/sumit-sync/runs/${id}`)
@@ -119,7 +121,10 @@ export default function RunDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resolution }),
       });
-      if (!res.ok) throw new Error("עדכון נכשל");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "עדכון נכשל");
+      }
       const updated = await res.json();
       setRun((prev) => {
         if (!prev) return prev;
@@ -131,8 +136,8 @@ export default function RunDetailPage() {
         };
       });
       showToast({ type: "success", message: `חריג סומן כ${resolution === "acknowledged" ? "נבדק" : "נדחה"}` });
-    } catch {
-      showToast({ type: "error", message: "שגיאה בעדכון חריג" });
+    } catch (err) {
+      showToast({ type: "error", message: err instanceof Error ? err.message : "שגיאה בעדכון חריג" });
     } finally {
       setActionLoading(null);
     }
@@ -147,12 +152,15 @@ export default function RunDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resolution: "acknowledged" }),
       });
-      if (!res.ok) throw new Error("עדכון נכשל");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "עדכון נכשל");
+      }
       const result = await res.json();
       showToast({ type: "success", message: `${result.updated_count} חריגים סומנו כנבדק` });
       fetchRun();
-    } catch {
-      showToast({ type: "error", message: "שגיאה בעדכון חריגים" });
+    } catch (err) {
+      showToast({ type: "error", message: err instanceof Error ? err.message : "שגיאה בעדכון חריגים" });
     } finally {
       setActionLoading(null);
     }
@@ -181,6 +189,10 @@ export default function RunDetailPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || "השלמה נכשלה");
       }
+      // Optimistic update: hide action buttons immediately
+      setRun((prev) =>
+        prev ? { ...prev, status: "completed" } : prev
+      );
       showToast({ type: "success", message: "ההרצה הושלמה ונעולה" });
       fetchRun();
     } catch (err) {
@@ -308,30 +320,47 @@ export default function RunDetailPage() {
             <MetricCard
               label="רשומות IDOM"
               value={run.metrics.total_idom_records}
+              metric="idom_records"
+              onClick={setDrillDown}
             />
             <MetricCard
               label="רשומות SUMIT"
               value={run.metrics.total_sumit_records}
+              metric="sumit_records"
+              onClick={setDrillDown}
             />
             <MetricCard
               label="התאמות"
               value={run.metrics.matched_count}
               accent={matchRate ? `${matchRate}%` : undefined}
+              metric="matched"
+              onClick={setDrillDown}
             />
             <MetricCard
               label="ללא התאמה"
               value={run.metrics.unmatched_count}
               warning={run.metrics.unmatched_count > 0}
+              metric="unmatched"
+              onClick={setDrillDown}
             />
-            <MetricCard label="שינויים" value={run.metrics.changed_count} />
+            <MetricCard
+              label="שינויים"
+              value={run.metrics.changed_count}
+              metric="changed"
+              onClick={setDrillDown}
+            />
             <MetricCard
               label="סטטוס → הושלם"
               value={run.metrics.status_completed_count}
+              metric="status_completed"
+              onClick={setDrillDown}
             />
             <MetricCard
               label="נסיגות סטטוס"
               value={run.metrics.status_regression_flags}
               warning={run.metrics.status_regression_flags > 0}
+              metric="regressions"
+              onClick={setDrillDown}
             />
           </div>
         </section>
@@ -497,6 +526,15 @@ export default function RunDetailPage() {
         onCancel={() => setConfirmOpen(false)}
         onConfirm={doCompleteRun}
       />
+
+      {/* Drill-down data drawer */}
+      <DrillDownDrawer
+        open={drillDown !== null}
+        runId={id}
+        metric={drillDown?.metric ?? ""}
+        label={drillDown?.label ?? ""}
+        onClose={() => setDrillDown(null)}
+      />
     </div>
   );
 }
@@ -506,15 +544,33 @@ function MetricCard({
   value,
   accent,
   warning,
+  metric,
+  onClick,
 }: {
   label: string;
   value: number;
   accent?: string;
   warning?: boolean;
+  metric?: string;
+  onClick?: (info: { metric: string; label: string }) => void;
 }) {
+  const clickable = !!(metric && onClick);
   return (
     <div
-      className={`${styles.metricCard} ${warning ? styles.metricWarning : ""}`}
+      className={`${styles.metricCard} ${warning ? styles.metricWarning : ""} ${clickable ? styles.metricCardClickable : ""}`}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? () => onClick({ metric, label }) : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick({ metric, label });
+              }
+            }
+          : undefined
+      }
     >
       <span className={styles.metricLabel}>{label}</span>
       <span className={styles.metricValue}>{value}</span>
