@@ -369,6 +369,40 @@ def test_drill_down_idom_records(client, golden_idom_file, golden_sumit_file):
     assert body["total_rows"] >= 4
 
 
+def test_drill_down_regressions(client, golden_idom_file, golden_sumit_file):
+    """Drill-down into regressions returns per-record data with Hebrew labels."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+
+    resp = client.get(f"/runs/{run_id}/drill-down/regressions")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["metric"] == "regressions"
+    assert body["total_rows"] >= 1
+    # Per-record: each row should have client details, not just a summary
+    row = body["rows"][0]
+    assert "מספר תיק" in row
+    assert "שם" in row
+    # Labels should be Hebrew
+    assert row["סוג"] == "נסיגת סטטוס"
+    assert row["סטטוס"] == "ממתין"
+
+
+def test_drill_down_unmatched_hebrew_labels(client, golden_idom_file, golden_sumit_file):
+    """Drill-down unmatched labels are in Hebrew."""
+    detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
+    run_id = detail["id"]
+
+    resp = client.get(f"/runs/{run_id}/drill-down/unmatched")
+    assert resp.status_code == 200
+    body = resp.json()
+    row = body["rows"][0]
+    assert row["סוג"] == "ללא התאמה ב-SUMIT"
+    assert row["סטטוס"] == "ממתין"
+    # Description should be Hebrew
+    assert "IDOM" in row["תיאור"] or "ייצוא" in row["תיאור"]
+
+
 def test_drill_down_invalid_metric(client, golden_idom_file, golden_sumit_file):
     """Invalid metric name returns 400."""
     detail = _run_full_pipeline(client, golden_idom_file, golden_sumit_file)
