@@ -82,8 +82,9 @@ RUN mkdir -p engines/content-engine/output && \
     mkdir -p /tmp/content-engine-history && \
     chown nextjs:nodejs /tmp/content-engine-history
 
-# Entrypoint: diagnostics + optional migrations + next start
-COPY apps/os-hub/entrypoint.sh /app/entrypoint.sh
+# Entrypoint: diagnostics + environment-aware migrations + next start
+# Use --from=build (not raw context) — Railway BuildKit drops context for later stages
+COPY --from=build /app/apps/os-hub/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 USER nextjs
