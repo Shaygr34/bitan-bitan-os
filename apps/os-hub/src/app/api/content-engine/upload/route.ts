@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       pdfName,
       inputSize: file.size,
       outputSize: pdfBuffer.length,
-      blockCount: result.blockCount,
+      blockCount: result.blockCount ?? null,
       durationMs: result.durationMs,
       status: "success",
       timestamp: new Date().toISOString(),
