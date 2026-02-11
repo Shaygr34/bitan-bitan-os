@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { updateDistributionStatus } from "@/lib/content-factory/distribution";
-import { errorJson, isValidUuid, parseBody, requireString } from "@/lib/content-factory/validate";
+import { errorJson, isValidUuid, isValidUrl, parseBody, requireString } from "@/lib/content-factory/validate";
 
 export const runtime = "nodejs";
 
@@ -35,6 +35,10 @@ export async function POST(
   const externalUrl = requireString(body as Record<string, unknown>, "externalUrl");
   if (!externalUrl) {
     return errorJson(400, "MISSING_FIELD", "externalUrl is required for manual publish");
+  }
+
+  if (!isValidUrl(externalUrl)) {
+    return errorJson(400, "INVALID_URL", "externalUrl must be a valid http or https URL");
   }
 
   const createdByUserId = requireString(body as Record<string, unknown>, "createdByUserId");

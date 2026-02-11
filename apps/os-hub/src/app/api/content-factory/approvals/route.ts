@@ -19,13 +19,14 @@ import { prisma } from "@/lib/prisma";
 import { validateArticleTransition } from "@/lib/content-factory/transitions";
 import { validateAssetTransition } from "@/lib/content-factory/transitions";
 import { logEvent } from "@/lib/content-factory/event-log";
-import { errorJson, isValidUuid, parseBody, requireString } from "@/lib/content-factory/validate";
+import { errorJson, isValidUuid, parseBody, requireString, requirePositiveInt } from "@/lib/content-factory/validate";
 
 export const runtime = "nodejs";
 
 type ApprovalBody = {
   entityType: ApprovalEntityType;
   entityId: string;
+  entityVersion: number;
   decision: ApprovalDecision;
   comment?: string;
   approvedByUserId: string;
@@ -53,6 +54,11 @@ export async function POST(request: NextRequest) {
     return errorJson(400, "INVALID_DECISION", `decision must be one of: ${[...VALID_DECISIONS].join(", ")}`);
   }
 
+  const entityVersion = requirePositiveInt(body as Record<string, unknown>, "entityVersion");
+  if (!entityVersion) {
+    return errorJson(400, "MISSING_FIELD", "entityVersion is required (positive integer)");
+  }
+
   const approvedByUserId = requireString(body as Record<string, unknown>, "approvedByUserId");
   if (!approvedByUserId) {
     return errorJson(400, "MISSING_FIELD", "approvedByUserId is required");
@@ -63,6 +69,7 @@ export async function POST(request: NextRequest) {
   if (entityType === "ARTICLE") {
     return handleArticleApproval(
       entityId,
+      entityVersion,
       decision as ApprovalDecision,
       body.comment ?? null,
       approvedByUserId,
@@ -71,6 +78,7 @@ export async function POST(request: NextRequest) {
 
   return handleAssetApproval(
     entityId,
+    entityVersion,
     decision as ApprovalDecision,
     body.comment ?? null,
     approvedByUserId,
@@ -81,6 +89,7 @@ export async function POST(request: NextRequest) {
 
 async function handleArticleApproval(
   entityId: string,
+  entityVersion: number,
   decision: ApprovalDecision,
   comment: string | null,
   approvedByUserId: string,
@@ -88,6 +97,10 @@ async function handleArticleApproval(
   const article = await prisma.article.findUnique({ where: { id: entityId } });
   if (!article) {
     return errorJson(404, "NOT_FOUND", "Article not found");
+  }
+
+  if (article.version !== entityVersion) {
+    return errorJson(409, "VERSION_MISMATCH", `Article is at version ${article.version}, caller sent ${entityVersion}`);
   }
 
   if (article.status !== "IN_REVIEW") {
@@ -145,6 +158,7 @@ async function handleArticleApproval(
 
 async function handleAssetApproval(
   entityId: string,
+  entityVersion: number,
   decision: ApprovalDecision,
   comment: string | null,
   approvedByUserId: string,
@@ -152,6 +166,10 @@ async function handleAssetApproval(
   const asset = await prisma.asset.findUnique({ where: { id: entityId } });
   if (!asset) {
     return errorJson(404, "NOT_FOUND", "Asset not found");
+  }
+
+  if (asset.version !== entityVersion) {
+    return errorJson(409, "VERSION_MISMATCH", `Asset is at version ${asset.version}, caller sent ${entityVersion}`);
   }
 
   if (asset.status !== "IN_REVIEW") {
