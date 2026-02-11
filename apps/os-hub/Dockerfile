@@ -5,6 +5,8 @@ WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/os-hub/package.json apps/os-hub/
+# Prisma schema needed for postinstall: prisma generate
+COPY apps/os-hub/prisma/ apps/os-hub/prisma/
 
 RUN pnpm install --frozen-lockfile || pnpm install
 
@@ -17,6 +19,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/os-hub/node_modules ./apps/os-hub/node_modules
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/os-hub/ apps/os-hub/
+
+# Copy Content Engine source (single COPY — relies on .dockerignore for exclusions)
+COPY engines/content-engine/ engines/content-engine/
 
 ENV NODE_ENV=production
 # Generate Prisma Client before Next.js build
@@ -68,14 +73,8 @@ COPY --from=build /app/apps/os-hub/public ./apps/os-hub/public
 # Copy Prisma schema + migrations (needed for prisma migrate deploy at runtime)
 COPY --from=build /app/apps/os-hub/prisma ./apps/os-hub/prisma
 
-# Copy Content Engine (Python DOCX→PDF pipeline)
-COPY engines/content-engine/__init__.py engines/content-engine/
-COPY engines/content-engine/engine.py engines/content-engine/
-COPY engines/content-engine/brand_config.py engines/content-engine/
-COPY engines/content-engine/parser/ engines/content-engine/parser/
-COPY engines/content-engine/renderer/ engines/content-engine/renderer/
-COPY engines/content-engine/templates/ engines/content-engine/templates/
-COPY engines/content-engine/assets/ engines/content-engine/assets/
+# Copy Content Engine from build stage (avoids per-subdirectory context issues)
+COPY --from=build /app/engines/content-engine/ engines/content-engine/
 
 # Writable dirs for the non-root nextjs user
 RUN mkdir -p engines/content-engine/output && \
