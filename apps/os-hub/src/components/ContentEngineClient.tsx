@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { showToast } from "@/components/Toast";
 import { t } from "@/lib/strings";
 import styles from "./ContentEngineClient.module.css";
@@ -9,8 +9,8 @@ import styles from "./ContentEngineClient.module.css";
 
 type FlowState =
   | { step: "idle" }
-  | { step: "uploading"; fileName: string; progress: number }
-  | { step: "processing"; fileName: string }
+  | { step: "uploading"; fileName: string; fileSize: number }
+  | { step: "processing"; fileName: string; fileSize: number; stage: number }
   | {
       step: "success";
       fileName: string;
@@ -19,6 +19,7 @@ type FlowState =
       jobId: string;
       durationMs: number;
       blockCount: number | null;
+      outputSize: number;
     }
   | {
       step: "error";
@@ -28,6 +29,19 @@ type FlowState =
       errorCode: string;
     };
 
+interface HistoryRecord {
+  id: string;
+  originalName: string;
+  pdfName: string;
+  inputSize: number;
+  outputSize: number;
+  blockCount: number | null;
+  durationMs: number;
+  status: "success" | "error";
+  errorCode?: string;
+  timestamp: string;
+}
+
 // ── Constants ──
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
@@ -35,14 +49,63 @@ const ACCEPTED_EXTENSION = ".docx";
 const ACCEPTED_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+const PROCESSING_STAGES = [
+  "contentEngine.processing.step1",
+  "contentEngine.processing.step2",
+  "contentEngine.processing.step3",
+];
+
+// ── Helpers ──
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "עכשיו";
+  if (mins < 60) return `לפני ${mins} דקות`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `לפני ${hours} שעות`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `לפני ${days} ימים`;
+  return new Date(iso).toLocaleDateString("he-IL");
+}
+
 // ── Component ──
 
 export default function ContentEngineClient() {
   const [state, setState] = useState<FlowState>({ step: "idle" });
+  const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCountRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Load history ──
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/content-engine/history");
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data);
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   // ── File validation ──
 
@@ -78,19 +141,33 @@ export default function ContentEngineClient() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setState({ step: "uploading", fileName: file.name, progress: 0 });
+      setState({ step: "uploading", fileName: file.name, fileSize: file.size });
+
+      // Animate processing stages
+      let stageIndex = 0;
+      stageTimerRef.current = setInterval(() => {
+        stageIndex = Math.min(stageIndex + 1, PROCESSING_STAGES.length - 1);
+        setState((prev) => {
+          if (prev.step === "processing") {
+            return { ...prev, stage: stageIndex };
+          }
+          return prev;
+        });
+      }, 2500);
 
       try {
         const formData = new FormData();
         formData.append("file", file);
 
-        setState({ step: "processing", fileName: file.name });
+        setState({ step: "processing", fileName: file.name, fileSize: file.size, stage: 0 });
 
         const response = await fetch("/api/content-engine/upload", {
           method: "POST",
           body: formData,
           signal: controller.signal,
         });
+
+        if (stageTimerRef.current) clearInterval(stageTimerRef.current);
 
         const jobId = response.headers.get("X-Job-Id") || "";
         const durationMs = parseInt(
@@ -127,10 +204,15 @@ export default function ContentEngineClient() {
           jobId,
           durationMs,
           blockCount,
+          outputSize: blob.size,
         });
 
         showToast({ type: "success", message: t("contentEngine.upload.success") });
+
+        // Refresh history
+        loadHistory();
       } catch (err) {
+        if (stageTimerRef.current) clearInterval(stageTimerRef.current);
         if ((err as Error).name === "AbortError") return;
 
         setState({
@@ -143,7 +225,7 @@ export default function ContentEngineClient() {
         showToast({ type: "error", message: t("common.messages.networkError") });
       }
     },
-    [validateFile]
+    [validateFile, loadHistory]
   );
 
   // ── Drag & Drop handlers ──
@@ -194,7 +276,6 @@ export default function ContentEngineClient() {
       if (files && files.length > 0) {
         handleUpload(files[0]);
       }
-      // Reset so the same file can be re-selected
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
     [handleUpload]
@@ -207,6 +288,7 @@ export default function ContentEngineClient() {
       URL.revokeObjectURL(state.pdfUrl);
     }
     abortRef.current?.abort();
+    if (stageTimerRef.current) clearInterval(stageTimerRef.current);
     setState({ step: "idle" });
   }, [state]);
 
@@ -220,9 +302,17 @@ export default function ContentEngineClient() {
     a.click();
   }, [state]);
 
+  // ── History download ──
+
+  const handleHistoryDownload = useCallback((id: string, pdfName: string) => {
+    const a = document.createElement("a");
+    a.href = `/api/content-engine/history/${id}/download`;
+    a.download = pdfName;
+    a.click();
+  }, []);
+
   // ── Render ──
 
-  // Hidden file input (shared across all states)
   const fileInput = (
     <input
       ref={fileInputRef}
@@ -232,6 +322,81 @@ export default function ContentEngineClient() {
       className={styles.hiddenInput}
       aria-hidden="true"
     />
+  );
+
+  // ── History panel (shared across all states) ──
+
+  const historyPanel = (
+    <section className={styles.historySection}>
+      <h2 className={styles.historyTitle}>{t("contentEngine.history.title")}</h2>
+      {historyLoading ? (
+        <div className={styles.historyLoading}>
+          <div className={styles.spinnerSmall} />
+        </div>
+      ) : history.length === 0 ? (
+        <div className={styles.historyEmpty}>
+          <p className={styles.historyEmptyText}>{t("contentEngine.history.empty")}</p>
+          <p className={styles.historyEmptyDetail}>{t("contentEngine.history.emptyDetail")}</p>
+        </div>
+      ) : (
+        <div className={styles.historyTableWrap}>
+          <table className={styles.historyTable}>
+            <thead>
+              <tr>
+                <th>{t("contentEngine.history.colFile")}</th>
+                <th>{t("contentEngine.history.colStatus")}</th>
+                <th>{t("contentEngine.history.colSize")}</th>
+                <th>{t("contentEngine.history.colDuration")}</th>
+                <th>{t("contentEngine.history.colDate")}</th>
+                <th>{t("contentEngine.history.colActions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((record) => (
+                <tr key={record.id}>
+                  <td className={styles.fileNameCell} title={record.originalName}>
+                    {record.originalName}
+                  </td>
+                  <td>
+                    <span
+                      className={
+                        record.status === "success"
+                          ? styles.statusSuccess
+                          : styles.statusError
+                      }
+                    >
+                      {record.status === "success" ? t("common.status.completed") : t("common.status.error")}
+                    </span>
+                  </td>
+                  <td className={styles.numericCell}>
+                    {formatBytes(record.outputSize)}
+                  </td>
+                  <td className={styles.numericCell}>
+                    {(record.durationMs / 1000).toFixed(1)}s
+                  </td>
+                  <td className={styles.dateCell}>
+                    {relativeTime(record.timestamp)}
+                  </td>
+                  <td>
+                    {record.status === "success" && (
+                      <button
+                        type="button"
+                        className={styles.historyDownloadBtn}
+                        onClick={() =>
+                          handleHistoryDownload(record.id, record.pdfName)
+                        }
+                      >
+                        {t("contentEngine.history.download")}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 
   // ── IDLE state ──
@@ -271,20 +436,42 @@ export default function ContentEngineClient() {
             {t("contentEngine.upload.button")}
           </button>
         </div>
+        {historyPanel}
       </div>
     );
   }
 
   // ── UPLOADING / PROCESSING state ──
   if (state.step === "uploading" || state.step === "processing") {
+    const stageKey =
+      state.step === "processing"
+        ? PROCESSING_STAGES[state.stage] || PROCESSING_STAGES[0]
+        : PROCESSING_STAGES[0];
+
     return (
-      <div className={styles.processingCard}>
+      <div>
         {fileInput}
-        <div className={styles.spinner} />
-        <p className={styles.processingText}>
-          {t("contentEngine.upload.processing")}
-        </p>
-        <p className={styles.processingFile}>{state.fileName}</p>
+        <div className={styles.processingCard}>
+          <div className={styles.spinner} />
+          <p className={styles.processingText}>{t(stageKey)}</p>
+          <div className={styles.processingMeta}>
+            <span className={styles.processingFile}>{state.fileName}</span>
+            <span className={styles.processingSize}>{formatBytes(state.fileSize)}</span>
+          </div>
+          <div className={styles.stageIndicator}>
+            {PROCESSING_STAGES.map((_, i) => (
+              <div
+                key={i}
+                className={`${styles.stageDot} ${
+                  state.step === "processing" && i <= state.stage
+                    ? styles.stageDotActive
+                    : ""
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+        {historyPanel}
       </div>
     );
   }
@@ -298,7 +485,7 @@ export default function ContentEngineClient() {
           <div className={styles.successInfo}>
             <span className={styles.successBadge}>{t("common.status.completed")}</span>
             <span className={styles.successMeta}>
-              {state.pdfName} &middot; {(state.durationMs / 1000).toFixed(1)}s
+              {state.pdfName} &middot; {formatBytes(state.outputSize)} &middot; {(state.durationMs / 1000).toFixed(1)}s
               {state.blockCount ? ` \u00b7 ${state.blockCount} blocks` : ""}
             </span>
           </div>
@@ -339,6 +526,7 @@ export default function ContentEngineClient() {
             </p>
           </object>
         </div>
+        {historyPanel}
       </div>
     );
   }
@@ -374,6 +562,7 @@ export default function ContentEngineClient() {
             </button>
           </div>
         </div>
+        {historyPanel}
       </div>
     );
   }
