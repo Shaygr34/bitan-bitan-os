@@ -11,3 +11,5 @@ engines/content-engine/tests/
 engines/content-engine/test-inputs/
 engines/content-engine/fonts/
 engines/content-engine/download_fonts.sh
+engines/content-engine/templates/*.pdf
+engines/content-engine/templates/*.jpg
