@@ -1,0 +1,294 @@
+// Content Factory v0 Data Layer
+// Canonical content is Blocks JSON derived from DOCX pipeline (Word-first).
+// Publishing is per-asset manual choice. PDF is Artifact.type only (never a platform).
+// Users referenced by ID string (compatible with existing OS Hub auth).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum IdeaSourceType {
+  MANUAL
+  RSS
+  SCRAPE
+  TREND
+  OTHER
+}
+
+enum IdeaStatus {
+  NEW
+  ENRICHED
+  QUEUED_FOR_DRAFT
+  ARCHIVED
+}
+
+enum ArticleStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+enum DistributionStatus {
+  NOT_PUBLISHED
+  PARTIALLY_PUBLISHED
+  FULLY_PUBLISHED
+}
+
+enum Platform {
+  EMAIL
+  WEBSITE
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+}
+
+enum AssetStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+}
+
+enum ApprovalEntityType {
+  ARTICLE
+  ASSET
+}
+
+enum ApprovalDecision {
+  APPROVE
+  REJECT
+  REQUEST_CHANGES
+}
+
+enum PublishMethod {
+  MANUAL
+  ZAPIER_BUFFER
+  RESEND
+  WEBSITE_DIRECT
+}
+
+enum PublishJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  PARTIAL
+}
+
+enum ArtifactType {
+  PDF
+  HTML
+  IMAGE
+  DOCX
+  JSON
+}
+
+enum AIProposalEntityType {
+  IDEA
+  ARTICLE
+  ASSET
+}
+
+enum AIProposalPrimitive {
+  SUGGEST
+  REWRITE_SELECTION
+  GENERATE_VARIANTS
+}
+
+enum AIProposalStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+/// Capture sourced ideas (manual or automated later).
+model Idea {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String
+  sourceType      IdeaSourceType
+  sourceUrl       String?
+  tags            String[]       @default([])
+  status          IdeaStatus     @default(NEW)
+  createdByUserId String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  articles Article[]
+
+  @@index([status])
+  @@index([createdByUserId])
+  @@map("ideas")
+}
+
+/// Canonical editorial truth. Do not model "published" here.
+/// bodyBlocks is the canonical Blocks JSON from the DOCX pipeline.
+model Article {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ideaId             String?            @db.Uuid
+  title              String
+  bodyBlocks         Json               @db.JsonB
+  bodyText           String?            @db.Text
+  version            Int                @default(1)
+  status             ArticleStatus      @default(DRAFT)
+  distributionStatus DistributionStatus @default(NOT_PUBLISHED)
+  seoMeta            Json               @default("{}") @db.JsonB
+  createdByUserId    String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  idea      Idea?      @relation(fields: [ideaId], references: [id])
+  assets    Asset[]
+  artifacts Artifact[]
+
+  @@index([ideaId])
+  @@index([status])
+  @@index([distributionStatus])
+  @@index([createdByUserId])
+  @@map("articles")
+}
+
+/// Platform-specific content derived from an Article.
+/// contentPayload is structured JSON, not free text only.
+model Asset {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  articleId       String      @db.Uuid
+  platform        Platform
+  version         Int         @default(1)
+  contentPayload  Json        @db.JsonB
+  platformMeta    Json        @default("{}") @db.JsonB
+  status          AssetStatus @default(DRAFT)
+  createdByUserId String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  article     Article      @relation(fields: [articleId], references: [id])
+  publishJobs PublishJob[]
+  artifacts   Artifact[]
+
+  @@unique([articleId, platform, version])
+  @@index([articleId, platform])
+  @@index([articleId, version(sort: Desc)])
+  @@map("assets")
+}
+
+/// Deterministic gates for Article/Asset approval workflow.
+model Approval {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityType       ApprovalEntityType
+  entityId         String           @db.Uuid
+  entityVersion    Int
+  decision         ApprovalDecision
+  comment          String?          @db.Text
+  approvedByUserId String
+  createdAt        DateTime         @default(now())
+
+  @@index([entityType, entityId])
+  @@index([entityType, entityId, entityVersion])
+  @@map("approvals")
+}
+
+/// Each publish attempt for a specific Asset version.
+model PublishJob {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assetId          String          @db.Uuid
+  assetVersion     Int
+  platform         Platform
+  method           PublishMethod
+  status           PublishJobStatus @default(QUEUED)
+  externalId       String?
+  externalUrl      String?
+  schedulerJobId   String?
+  providerReceipt  Json            @default("{}") @db.JsonB
+  errorCode        String?
+  errorMessage     String?         @db.Text
+  createdByUserId  String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  asset     Asset      @relation(fields: [assetId], references: [id])
+  artifacts Artifact[]
+
+  @@index([assetId, assetVersion])
+  @@index([platform, status])
+  @@index([schedulerJobId])
+  @@map("publish_jobs")
+}
+
+/// Any stored file or generated artifact (PDF/HTML/etc) attachable to
+/// Asset, PublishJob, or Article.
+/// Constraint: at least one of (assetId / publishJobId / articleId) must be set.
+/// Enforced at application level (not DB constraint).
+model Artifact {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type            ArtifactType
+  storageKey      String
+  mimeType        String
+  sizeBytes       BigInt
+  sha256          String?
+  assetId         String?      @db.Uuid
+  assetVersion    Int?
+  publishJobId    String?      @db.Uuid
+  articleId       String?      @db.Uuid
+  createdByUserId String
+  createdAt       DateTime     @default(now())
+
+  asset      Asset?      @relation(fields: [assetId], references: [id])
+  publishJob PublishJob? @relation(fields: [publishJobId], references: [id])
+  article    Article?    @relation(fields: [articleId], references: [id])
+
+  @@index([assetId])
+  @@index([publishJobId])
+  @@index([articleId])
+  @@index([type])
+  @@map("artifacts")
+}
+
+/// Audit trail. Generic and lightweight.
+model EventLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId String
+  entityType  String
+  entityId    String   @db.Uuid
+  action      String
+  metadata    Json     @default("{}") @db.JsonB
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("event_logs")
+}
+
+/// Store AI outputs and whether accepted (Phase 1 AI primitives).
+model AIProposal {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityType       AIProposalEntityType
+  entityId         String              @db.Uuid
+  entityVersion    Int?
+  primitive        AIProposalPrimitive
+  input            Json                @db.JsonB
+  output           Json                @db.JsonB
+  status           AIProposalStatus    @default(PROPOSED)
+  reviewedByUserId String?
+  createdByUserId  String
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([status])
+  @@map("ai_proposals")
+}

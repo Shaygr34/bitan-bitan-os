@@ -19,6 +19,8 @@ COPY package.json pnpm-workspace.yaml ./
 COPY apps/os-hub/ apps/os-hub/
 
 ENV NODE_ENV=production
+# Generate Prisma Client before Next.js build
+RUN cd apps/os-hub && npx prisma generate
 RUN pnpm --filter os-hub build
 
 # ---- runner ----
@@ -63,6 +65,9 @@ COPY --from=build /app/apps/os-hub/package.json ./apps/os-hub/
 COPY --from=build /app/apps/os-hub/.next ./apps/os-hub/.next
 COPY --from=build /app/apps/os-hub/public ./apps/os-hub/public
 
+# Copy Prisma schema + migrations (needed for prisma migrate deploy at runtime)
+COPY --from=build /app/apps/os-hub/prisma ./apps/os-hub/prisma
+
 # Copy Content Engine (Python DOCX→PDF pipeline)
 COPY engines/content-engine/__init__.py engines/content-engine/
 COPY engines/content-engine/engine.py engines/content-engine/
@@ -78,7 +83,7 @@ RUN mkdir -p engines/content-engine/output && \
     mkdir -p /tmp/content-engine-history && \
     chown nextjs:nodejs /tmp/content-engine-history
 
-# Startup diagnostics + next start
+# Startup diagnostics + migrations + next start
 RUN printf '#!/bin/sh\n\
 echo "=== DEPLOY DIAGNOSTICS ==="\n\
 echo "Next.js: $(ls /app/apps/os-hub/.next/BUILD_ID 2>/dev/null && echo FOUND || echo MISSING)"\n\
@@ -88,6 +93,9 @@ echo "Chrome:  $(chromium-browser --version 2>&1 || echo MISSING)"\n\
 echo "PORT=${PORT:-3000} NODE_ENV=${NODE_ENV}"\n\
 echo "========================"\n\
 cd /app/apps/os-hub\n\
+echo "Running Prisma migrations..."\n\
+npx prisma migrate deploy 2>&1 || echo "WARNING: Prisma migrate failed (DATABASE_URL may not be set)"\n\
+echo "Migrations complete."\n\
 exec npx next start -p ${PORT:-3000}\n' > /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh
 
