@@ -16,10 +16,10 @@
 /* ── Page setup ── */
 @page {
     size: A4;
-    margin-top: 8mm;
-    margin-bottom: {{ brand.footer_height }};
-    margin-left: 0;
-    margin-right: 0;
+    margin-top: 12mm;
+    margin-bottom: 22mm;
+    margin-left: {{ brand.page_margin_left }};
+    margin-right: {{ brand.page_margin_right }};
 }
 
 /* ── Base ── */
@@ -41,43 +41,26 @@ body {
     box-sizing: border-box;
 }
 
-/* ── Page-top navy bar (repeats on EVERY page via position:fixed) ── */
-.page-top-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4mm;
-    background: {{ brand.navy }};
-    z-index: 10;
-}
-
-/* ── Header (block flow, page 1 only) ── */
+/* ── Header logo (normal flow — page 1 only) ── */
 .header-wrap {
-    text-align: center;
-    padding-top: 1mm;
-    padding-bottom: 1mm;
+    text-align: right;
+    margin-bottom: 2mm;
 }
 
 .header-wrap img {
-    width: 120px;
+    width: 160px;
     height: auto;
-    display: inline-block;
-}
-
-.header-gold-line {
-    height: {{ brand.gold_line_width }};
-    background: {{ brand.gold }};
-    margin: 0 25%;
 }
 
 .doc-title-bar {
     background: {{ brand.navy }};
     color: {{ brand.white }};
-    padding: 10pt {{ brand.page_margin_right }} 10pt {{ brand.page_margin_left }};
+    padding: 10pt 14pt;
     text-align: center;
     direction: rtl;
-    margin-top: 4mm;
+    margin-top: 2mm;
+    margin-left: -{{ brand.page_margin_left }};
+    margin-right: -{{ brand.page_margin_right }};
 }
 
 .doc-title-bar .doc-type {
@@ -99,6 +82,8 @@ body {
     height: {{ brand.gold_line_width }};
     background: {{ brand.gold }};
     margin-bottom: {{ brand.section_gap }};
+    margin-left: -{{ brand.page_margin_left }};
+    margin-right: -{{ brand.page_margin_right }};
 }
 
 /* ── Footer (fixed = repeats every page in Chromium print) ── */
@@ -107,7 +92,7 @@ body {
     bottom: 0;
     left: 0;
     right: 0;
-    height: {{ brand.footer_height }};
+    height: 20mm;
     z-index: 10;
     overflow: hidden;
 }
@@ -123,7 +108,7 @@ body {
     bottom: 0;
     left: 0;
     right: 0;
-    height: {{ brand.footer_height }};
+    height: 20mm;
     padding: 4pt 20mm 4pt 18mm;
     border-top: 1pt solid {{ brand.gold }};
     text-align: center;
@@ -131,17 +116,6 @@ body {
     color: {{ brand.muted_gray }};
     direction: rtl;
     background: {{ brand.white }};
-}
-
-/* ── Content ── */
-.content {
-    direction: rtl;
-    text-align: right;
-    padding: 0 {{ brand.page_margin_right }} 0 {{ brand.page_margin_left }};
-}
-
-.content > :last-child {
-    margin-bottom: 6mm;
 }
 
 /* ── Section bars ── */
@@ -305,15 +279,11 @@ table, .callout, ul {
 </head>
 <body>
 
-<!-- Navy bar at top of every page (fixed = repeats) -->
-<div class="page-top-bar"></div>
-
-<!-- Header (in normal flow — appears once on page 1) -->
+<!-- Header logo (normal flow — page 1 only, top-right) -->
 {% if logo_base64 %}
 <div class="header-wrap">
     <img src="data:image/png;base64,{{ logo_base64 }}" alt="ביטן את ביטן רואי חשבון">
 </div>
-<div class="header-gold-line"></div>
 {% endif %}
 
 <!-- Document title bar -->

@@ -9,7 +9,7 @@ import os
 _ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONTS_DIR = os.path.join(_ENGINE_DIR, "fonts")
 ASSETS_DIR = os.path.join(_ENGINE_DIR, "assets")
-LOGO_PATH = os.path.join(ASSETS_DIR, "improved logo.png")
+LOGO_PATH = os.path.join(ASSETS_DIR, "background less logo.png")
 HEADER_IMAGE_PATH = os.path.join(ASSETS_DIR, "ביטן את ביטן - לוגו ראשי A4.jpg")
 FOOTER_IMAGE_PATH = os.path.join(ASSETS_DIR, "ביטן את ביטן - לוגו תחתית דף A4.jpg")
 
