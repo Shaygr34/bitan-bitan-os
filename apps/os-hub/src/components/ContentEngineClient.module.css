@@ -133,25 +133,39 @@
   opacity: 0.7;
 }
 
-/* ── Stage indicator dots ── */
+/* ── Progress bar (red → green gradient) ── */
 
-.stageIndicator {
+.progressBarWrap {
   display: flex;
-  gap: 6px;
   align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  max-width: 360px;
 }
 
-.stageDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.progressBarTrack {
+  flex: 1;
+  height: 10px;
   background: var(--border);
-  transition: background 0.3s ease, transform 0.3s ease;
+  border-radius: 5px;
+  overflow: hidden;
 }
 
-.stageDotActive {
-  background: var(--brand-navy);
-  transform: scale(1.25);
+.progressBarFill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.4s ease, background-color 0.6s ease;
+}
+
+.progressBarPct {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-heading);
+  min-width: 36px;
+  text-align: left;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Success state ── */

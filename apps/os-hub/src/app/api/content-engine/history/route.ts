@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { listRecords } from "@/lib/content-engine/history";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {

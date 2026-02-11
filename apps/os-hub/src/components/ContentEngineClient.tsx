@@ -10,7 +10,7 @@ import styles from "./ContentEngineClient.module.css";
 type FlowState =
   | { step: "idle" }
   | { step: "uploading"; fileName: string; fileSize: number }
-  | { step: "processing"; fileName: string; fileSize: number; stage: number }
+  | { step: "processing"; fileName: string; fileSize: number; progress: number }
   | {
       step: "success";
       fileName: string;
@@ -55,6 +55,17 @@ const PROCESSING_STAGES = [
   "contentEngine.processing.step3",
 ];
 
+function getStageFromProgress(pct: number): number {
+  if (pct < 20) return 0;
+  if (pct < 65) return 1;
+  return 2;
+}
+
+function getProgressColor(pct: number): string {
+  const hue = Math.round((pct / 100) * 120); // 0=red → 120=green
+  return `hsl(${hue}, 75%, 45%)`;
+}
+
 // ── Helpers ──
 
 function formatBytes(bytes: number): string {
@@ -85,7 +96,6 @@ export default function ContentEngineClient() {
   const dragCountRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Load history ──
 
@@ -141,25 +151,16 @@ export default function ContentEngineClient() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setState({ step: "uploading", fileName: file.name, fileSize: file.size });
-
-      // Animate processing stages
-      let stageIndex = 0;
-      stageTimerRef.current = setInterval(() => {
-        stageIndex = Math.min(stageIndex + 1, PROCESSING_STAGES.length - 1);
-        setState((prev) => {
-          if (prev.step === "processing") {
-            return { ...prev, stage: stageIndex };
-          }
-          return prev;
-        });
-      }, 2500);
+      setState({ step: "processing", fileName: file.name, fileSize: file.size, progress: 10 });
 
       try {
         const formData = new FormData();
         formData.append("file", file);
 
-        setState({ step: "processing", fileName: file.name, fileSize: file.size, stage: 0 });
+        // Jump to 50% when request is in-flight
+        setState((prev) =>
+          prev.step === "processing" ? { ...prev, progress: 50 } : prev
+        );
 
         const response = await fetch("/api/content-engine/upload", {
           method: "POST",
@@ -167,7 +168,10 @@ export default function ContentEngineClient() {
           signal: controller.signal,
         });
 
-        if (stageTimerRef.current) clearInterval(stageTimerRef.current);
+        // Jump to 100% when response arrives
+        setState((prev) =>
+          prev.step === "processing" ? { ...prev, progress: 100 } : prev
+        );
 
         const jobId = response.headers.get("X-Job-Id") || "";
         const durationMs = parseInt(
@@ -212,7 +216,6 @@ export default function ContentEngineClient() {
         // Refresh history
         loadHistory();
       } catch (err) {
-        if (stageTimerRef.current) clearInterval(stageTimerRef.current);
         if ((err as Error).name === "AbortError") return;
 
         setState({
@@ -288,7 +291,6 @@ export default function ContentEngineClient() {
       URL.revokeObjectURL(state.pdfUrl);
     }
     abortRef.current?.abort();
-    if (stageTimerRef.current) clearInterval(stageTimerRef.current);
     setState({ step: "idle" });
   }, [state]);
 
@@ -443,32 +445,30 @@ export default function ContentEngineClient() {
 
   // ── UPLOADING / PROCESSING state ──
   if (state.step === "uploading" || state.step === "processing") {
-    const stageKey =
-      state.step === "processing"
-        ? PROCESSING_STAGES[state.stage] || PROCESSING_STAGES[0]
-        : PROCESSING_STAGES[0];
+    const pct = state.step === "processing" ? Math.round(state.progress) : 2;
+    const stageIdx = getStageFromProgress(pct);
+    const stageKey = PROCESSING_STAGES[stageIdx] || PROCESSING_STAGES[0];
 
     return (
       <div>
         {fileInput}
         <div className={styles.processingCard}>
-          <div className={styles.spinner} />
           <p className={styles.processingText}>{t(stageKey)}</p>
           <div className={styles.processingMeta}>
             <span className={styles.processingFile}>{state.fileName}</span>
             <span className={styles.processingSize}>{formatBytes(state.fileSize)}</span>
           </div>
-          <div className={styles.stageIndicator}>
-            {PROCESSING_STAGES.map((_, i) => (
+          <div className={styles.progressBarWrap}>
+            <div className={styles.progressBarTrack}>
               <div
-                key={i}
-                className={`${styles.stageDot} ${
-                  state.step === "processing" && i <= state.stage
-                    ? styles.stageDotActive
-                    : ""
-                }`}
+                className={styles.progressBarFill}
+                style={{
+                  width: `${pct}%`,
+                  backgroundColor: getProgressColor(pct),
+                }}
               />
-            ))}
+            </div>
+            <span className={styles.progressBarPct}>{pct}%</span>
           </div>
         </div>
         {historyPanel}
