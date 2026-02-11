@@ -44,20 +44,12 @@ run_migrations() {
     exit 1
   fi
 
-  # Safety net: verify that schema tables actually exist.
+  # Safety net: verify Content Factory tables actually exist.
   # Handles the case where a previous deploy baselined the migration
   # without running the DDL (e.g. P3005 marked as applied but tables missing).
-  set +e
-  PUSH_OUTPUT=$(npx prisma db push --skip-generate 2>&1)
-  PUSH_EXIT=$?
-  set -e
-  if [ $PUSH_EXIT -eq 0 ]; then
-    if echo "$PUSH_OUTPUT" | grep -qi "applied\|created\|altered"; then
-      echo "Schema drift repaired: missing tables/columns created."
-    fi
-  else
-    echo "WARNING: schema verification (db push) returned non-zero: $PUSH_OUTPUT"
-  fi
+  # Uses direct SQL execution — bypasses prisma db push which fails silently.
+  echo "Running ensure-tables check..."
+  node /app/apps/os-hub/scripts/ensure-tables.js
 
   echo "Migrations complete."
 }

@@ -73,6 +73,9 @@ COPY --from=build /app/apps/os-hub/public ./apps/os-hub/public
 # Copy Prisma schema + migrations (needed for prisma migrate deploy at runtime)
 COPY --from=build /app/apps/os-hub/prisma ./apps/os-hub/prisma
 
+# Copy runtime scripts (ensure-tables.js — schema verification at startup)
+COPY --from=build /app/apps/os-hub/scripts ./apps/os-hub/scripts
+
 # Copy Content Engine from build stage (avoids per-subdirectory context issues)
 COPY --from=build /app/engines/content-engine/ engines/content-engine/
 
