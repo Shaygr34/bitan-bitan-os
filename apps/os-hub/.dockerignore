@@ -4,3 +4,10 @@ dist
 .git
 .gitignore
 README.md
+__pycache__
+*.pyc
+engines/content-engine/output/
+engines/content-engine/tests/
+engines/content-engine/test-inputs/
+engines/content-engine/fonts/
+engines/content-engine/download_fonts.sh
