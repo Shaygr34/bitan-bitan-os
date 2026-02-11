@@ -18,6 +18,11 @@ const modules: Module[] = [
     href: "/content-engine",
   },
   {
+    key: "nav.items.contentFactory",
+    descKey: "dashboard.modules.contentFactory.description",
+    href: "/content-factory",
+  },
+  {
     key: "nav.items.sumitSync",
     descKey: "dashboard.modules.sumitSync.description",
     href: "/sumit-sync",

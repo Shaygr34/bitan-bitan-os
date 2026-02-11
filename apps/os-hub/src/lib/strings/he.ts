@@ -264,10 +264,98 @@ export const strings: Record<string, string> = {
   "common.time.daysAgo": "לפני {n} ימים",
 
   // ═══════════════════════════════════════
+  // Content Factory
+  // ═══════════════════════════════════════
+  "nav.items.contentFactory": "Content Factory",
+  "contentFactory.title": "Content Factory",
+  "contentFactory.subtitle": "ניהול מאמרים, נכסים והפצה",
+  "contentFactory.newArticle": "Article חדש",
+  "contentFactory.search.placeholder": "חיפוש לפי כותרת...",
+  "contentFactory.filter.all": "הכל",
+
+  // Article statuses
+  "contentFactory.status.DRAFT": "טיוטה",
+  "contentFactory.status.IN_REVIEW": "בבדיקה",
+  "contentFactory.status.APPROVED": "מאושר",
+  "contentFactory.status.ARCHIVED": "בארכיון",
+
+  // Distribution statuses
+  "contentFactory.distribution.NOT_PUBLISHED": "לא פורסם",
+  "contentFactory.distribution.PARTIALLY_PUBLISHED": "פורסם חלקית",
+  "contentFactory.distribution.FULLY_PUBLISHED": "פורסם במלואו",
+
+  // Article detail
+  "contentFactory.article.title": "פרטי מאמר",
+  "contentFactory.article.status": "סטטוס",
+  "contentFactory.article.version": "גרסה",
+  "contentFactory.article.distribution": "הפצה",
+  "contentFactory.article.updatedAt": "עודכן",
+  "contentFactory.article.backToList": "חזרה לרשימה",
+
+  // Transitions
+  "contentFactory.transition.submitReview": "שלח לבדיקה",
+  "contentFactory.transition.approve": "אשר",
+  "contentFactory.transition.reject": "החזר לטיוטה",
+  "contentFactory.transition.archive": "ארכיון",
+
+  // Next action hints
+  "contentFactory.nextAction.DRAFT": "מה השלב הבא? שלח את המאמר לבדיקה.",
+  "contentFactory.nextAction.IN_REVIEW": "מה השלב הבא? אשר או החזר לטיוטה.",
+  "contentFactory.nextAction.APPROVED": "מה השלב הבא? צור נכסים לפלטפורמות והפץ.",
+  "contentFactory.nextAction.ARCHIVED": "המאמר בארכיון.",
+  "contentFactory.nextAction.allPublished": "כל הנכסים פורסמו בהצלחה.",
+
+  // Assets
+  "contentFactory.assets.title": "נכסים",
+  "contentFactory.assets.create": "צור נכס",
+  "contentFactory.assets.platform": "פלטפורמה",
+  "contentFactory.assets.empty": "אין נכסים עדיין",
+  "contentFactory.assets.emptyDetail": "צור נכס חדש לפלטפורמה",
+  "contentFactory.assets.submitReview": "שלח לבדיקה",
+  "contentFactory.assets.approve": "אשר",
+  "contentFactory.assets.reject": "החזר לטיוטה",
+
+  // Publish
+  "contentFactory.publish.title": "פרסום ידני",
+  "contentFactory.publish.urlLabel": "קישור חיצוני",
+  "contentFactory.publish.urlPlaceholder": "https://...",
+  "contentFactory.publish.submit": "פרסם",
+  "contentFactory.publish.success": "הנכס פורסם בהצלחה",
+  "contentFactory.publish.requiresApproval": "נדרש אישור לפני פרסום",
+
+  // Publish jobs
+  "contentFactory.publishJob.SUCCEEDED": "פורסם",
+  "contentFactory.publishJob.FAILED": "נכשל",
+  "contentFactory.publishJob.QUEUED": "בתור",
+  "contentFactory.publishJob.RUNNING": "בפרסום",
+  "contentFactory.publishJob.PARTIAL": "חלקי",
+
+  // Errors
+  "contentFactory.error.loadArticles": "שגיאה בטעינת מאמרים",
+  "contentFactory.error.loadArticle": "שגיאה בטעינת מאמר",
+  "contentFactory.error.createArticle": "שגיאה ביצירת מאמר",
+  "contentFactory.error.transition": "שגיאה בשינוי סטטוס",
+  "contentFactory.error.createAsset": "שגיאה ביצירת נכס",
+  "contentFactory.error.publish": "שגיאה בפרסום",
+  "contentFactory.error.technicalDetails": "פרטים טכניים",
+  "contentFactory.error.notFound": "המאמר לא נמצא",
+
+  // Table columns
+  "contentFactory.col.title": "כותרת",
+  "contentFactory.col.status": "סטטוס",
+  "contentFactory.col.distribution": "הפצה",
+  "contentFactory.col.updated": "עודכן",
+  "contentFactory.col.assets": "נכסים",
+
+  // Dashboard
+  "dashboard.modules.contentFactory.description": "ניהול מאמרים, נכסים והפצה לפלטפורמות.",
+
+  // ═══════════════════════════════════════
   // Module Names (English — never translate)
   // ═══════════════════════════════════════
   "modules.osHub": "OS Hub",
   "modules.contentEngine": "Content Engine",
   "modules.sumitSync": "Sumit Sync",
+  "modules.contentFactory": "Content Factory",
 
 };
