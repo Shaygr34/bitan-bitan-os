@@ -149,12 +149,38 @@
 
 /* ── Resources ── */
 
-.resourcesCard {
-  text-align: center;
-  padding: var(--space-2xl);
+.resourcesGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
 }
 
-.resourcesPlaceholder {
+.resourceLink {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.resourceCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  cursor: pointer;
+}
+
+.resourceCard:hover {
+  border-color: var(--brand-gold);
+  box-shadow: var(--shadow-md);
+}
+
+.resourceLabel {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-heading);
+}
+
+.resourceDesc {
   font-size: var(--font-size-sm);
   color: var(--text-caption);
 }
@@ -167,6 +193,10 @@
   }
 
   .statusGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .resourcesGrid {
     grid-template-columns: 1fr;
   }
 }
