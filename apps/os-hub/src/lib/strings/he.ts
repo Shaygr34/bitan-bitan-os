@@ -351,11 +351,43 @@ export const strings: Record<string, string> = {
   "dashboard.modules.contentFactory.description": "ניהול מאמרים, נכסים והפצה לפלטפורמות.",
 
   // ═══════════════════════════════════════
+  // Bitan Website (Founder Console)
+  // ═══════════════════════════════════════
+  "nav.items.bitanWebsite": "Bitan Website",
+  "bitanWebsite.title": "אתר ביטן את ביטן",
+  "bitanWebsite.subtitle": "ניהול ומעקב אחר האתר — קישורים מהירים וסטטוס",
+
+  // Quick Actions
+  "bitanWebsite.quickActions.title": "פעולות מהירות",
+  "bitanWebsite.quickActions.site": "פתח אתר",
+  "bitanWebsite.quickActions.siteDesc": "אתר ביטן את ביטן — סביבת Staging",
+  "bitanWebsite.quickActions.studio": "עריכת תוכן (Sanity Studio)",
+  "bitanWebsite.quickActions.studioDesc": "ממשק ניהול תוכן — Sanity Studio",
+  "bitanWebsite.quickActions.ga4": "Analytics (GA4)",
+  "bitanWebsite.quickActions.ga4Desc": "Google Analytics 4 — תצוגה בזמן אמת",
+
+  // Status
+  "bitanWebsite.status.title": "סטטוס שירותים",
+  "bitanWebsite.status.site": "סטטוס אתר",
+  "bitanWebsite.status.checking": "בודק...",
+  "bitanWebsite.status.up": "פעיל",
+  "bitanWebsite.status.down": "לא זמין",
+  "bitanWebsite.status.availabilityBasic": "בדיקת זמינות (בסיסית)",
+
+  // Resources
+  "bitanWebsite.resources.title": "משאבים",
+  "bitanWebsite.resources.placeholder": "בקרוב — קישורים ל-GitHub, Railway ועוד",
+
+  // Dashboard module card
+  "dashboard.modules.bitanWebsite.description": "ניהול אתר ביטן את ביטן — קישורים, סטטוס ותוכן.",
+
+  // ═══════════════════════════════════════
   // Module Names (English — never translate)
   // ═══════════════════════════════════════
   "modules.osHub": "OS Hub",
   "modules.contentEngine": "Content Engine",
   "modules.sumitSync": "Sumit Sync",
   "modules.contentFactory": "Content Factory",
+  "modules.bitanWebsite": "Bitan Website",
 
 };
