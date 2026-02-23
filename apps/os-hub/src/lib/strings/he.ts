@@ -359,7 +359,7 @@ export const strings: Record<string, string> = {
 
   // Quick Actions
   "bitanWebsite.quickActions.title": "פעולות מהירות",
-  "bitanWebsite.quickActions.site": "פתח אתר",
+  "bitanWebsite.quickActions.site": "אתר",
   "bitanWebsite.quickActions.siteDesc": "אתר ביטן את ביטן — סביבת Staging",
   "bitanWebsite.quickActions.studio": "עריכת תוכן (Sanity Studio)",
   "bitanWebsite.quickActions.studioDesc": "ממשק ניהול תוכן — Sanity Studio",
@@ -376,7 +376,10 @@ export const strings: Record<string, string> = {
 
   // Resources
   "bitanWebsite.resources.title": "משאבים",
-  "bitanWebsite.resources.placeholder": "בקרוב — קישורים ל-GitHub, Railway ועוד",
+  "bitanWebsite.resources.railway": "Railway",
+  "bitanWebsite.resources.railwayDesc": "ניהול שרת ודיפלוי — Railway",
+  "bitanWebsite.resources.github": "GitHub",
+  "bitanWebsite.resources.githubDesc": "קוד מקור האתר — GitHub",
 
   // Dashboard module card
   "dashboard.modules.bitanWebsite.description": "ניהול אתר ביטן את ביטן — קישורים, סטטוס ותוכן.",

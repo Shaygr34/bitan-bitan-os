@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
 import { t } from "@/lib/strings";
-import { bitanWebsite } from "@/config/integrations";
+import { bitanWebsite, bitanWebsiteResources } from "@/config/integrations";
 import styles from "./page.module.css";
 
 interface HealthStatus {
@@ -126,17 +126,34 @@ export default function BitanWebsitePage() {
         </div>
       </section>
 
-      {/* ── Resources (placeholder) ── */}
+      {/* ── Resources ── */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>
           {t("bitanWebsite.resources.title")}
         </h2>
         <div className={styles.goldSeparator} />
-        <Card className={styles.resourcesCard}>
-          <span className={styles.resourcesPlaceholder}>
-            {t("bitanWebsite.resources.placeholder")}
-          </span>
-        </Card>
+        <div className={styles.resourcesGrid}>
+          {[bitanWebsiteResources.railway, bitanWebsiteResources.github].map(
+            (resource) => (
+              <a
+                key={resource.label}
+                href={resource.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.resourceLink}
+              >
+                <Card className={styles.resourceCard}>
+                  <span className={styles.resourceLabel}>
+                    {resource.label}
+                  </span>
+                  <span className={styles.resourceDesc}>
+                    {resource.description}
+                  </span>
+                </Card>
+              </a>
+            ),
+          )}
+        </div>
       </section>
     </div>
   );

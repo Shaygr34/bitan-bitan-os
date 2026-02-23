@@ -12,7 +12,7 @@ A dedicated page inside **OS Hub** (`/bitan-website`) that gives founders (Avi, 
 |---------|-------------|
 | **Quick Actions** | Three cards linking to: Website (staging), Sanity Studio, GA4 Realtime |
 | **Status** | Basic availability check for the website (server-side HEAD request) |
-| **Resources** | Placeholder for future links (GitHub, Railway, etc.) |
+| **Resources** | Links to Railway dashboard and GitHub repository |
 
 ## How to update links
 
@@ -29,6 +29,8 @@ Each URL can be overridden with environment variables:
 | `NEXT_PUBLIC_BITAN_WEBSITE_URL` | `https://bitan-bitan-website-production.up.railway.app/` |
 | `NEXT_PUBLIC_BITAN_STUDIO_URL` | `https://bitan-bitan-website-production.up.railway.app/studio` |
 | `NEXT_PUBLIC_BITAN_GA4_URL` | GA4 realtime dashboard URL |
+| `NEXT_PUBLIC_BITAN_RAILWAY_URL` | Railway project service URL |
+| `NEXT_PUBLIC_BITAN_GITHUB_URL` | `https://github.com/Shaygr34/bitan-bitan-website` |
 | `BITAN_WEBSITE_HEALTH_URL` | `https://bitan-bitan-website-production.up.railway.app` |
 
 To change a URL:
@@ -44,4 +46,4 @@ The health check runs server-side via `/api/bitan-website/health` to avoid CORS 
 - **Analytics embedding** — GA4 embed inside OS Hub (pending auth)
 - **Content intake** — form in OS Hub → Sanity draft (via Sanity API)
 - **Auth/roles** — restrict pages per founder role
-- **Resource links** — GitHub repo, Railway dashboard, deployment logs
+- **Deployment logs** — surface Railway deploy status directly in the console

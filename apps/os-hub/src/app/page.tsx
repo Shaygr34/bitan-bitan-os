@@ -26,6 +26,11 @@ interface RunSummary {
 
 const modules: Module[] = [
   {
+    key: "nav.items.bitanWebsite",
+    descKey: "dashboard.modules.bitanWebsite.description",
+    href: "/bitan-website",
+  },
+  {
     key: "nav.items.contentEngine",
     descKey: "dashboard.modules.contentEngine.description",
     href: "/content-engine",
