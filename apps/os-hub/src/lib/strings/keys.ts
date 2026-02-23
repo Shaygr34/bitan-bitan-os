@@ -3,6 +3,7 @@ export const KEYS = {
     dashboard: "nav.items.dashboard",
     contentEngine: "nav.items.contentEngine",
     sumitSync: "nav.items.sumitSync",
+    bitanWebsite: "nav.items.bitanWebsite",
     documents: "nav.items.documents",
     settings: "nav.items.settings",
   },
