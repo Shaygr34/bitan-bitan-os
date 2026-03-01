@@ -5,8 +5,10 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
+import ContentBlockRenderer from "@/components/ContentBlockRenderer";
 import { showToast } from "@/components/Toast";
 import { t } from "@/lib/strings";
+import type { ContentBlock } from "@/lib/ai/content-blocks";
 import styles from "./page.module.css";
 
 /* ═══ Types ═══ */
@@ -38,6 +40,9 @@ interface Article {
   distributionStatus: string;
   updatedAt: string;
   assets: Asset[];
+  bodyBlocks?: ContentBlock[] | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
   sanityId?: string | null;
   sanityUrl?: string | null;
   aiGenerated?: boolean;
@@ -468,6 +473,16 @@ export default function ArticleDetailPage() {
           </span>
         </div>
       </div>
+
+      {/* Article body */}
+      {Array.isArray(article.bodyBlocks) && article.bodyBlocks.length > 0 && (
+        <>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>{t("contentFactory.article.body")}</h2>
+          </div>
+          <ContentBlockRenderer blocks={article.bodyBlocks} />
+        </>
+      )}
 
       {/* Article transition actions */}
       {articleTransitions.length > 0 && (

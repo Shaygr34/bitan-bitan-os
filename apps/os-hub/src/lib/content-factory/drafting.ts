@@ -71,36 +71,31 @@ export async function generateDraft(
   });
 
   // 4. Parse response
+  console.log("[DRAFT] Claude response received — length:", response.text.length,
+    "tokens:", response.inputTokens + response.outputTokens,
+    "duration:", response.durationMs, "ms",
+    "preview:", response.text.substring(0, 300));
   let draft = parseDraftResponse(response.text);
 
-  // Retry once if parsing failed
+  // Fallback: if parsing failed, wrap raw text in blocks instead of making
+  // a second Claude API call (which would double generation time to 120-140s).
   if (!draft) {
-    const retryResponse = await complete({
-      systemPrompt,
-      userPrompt: userPrompt + "\n\nחשוב: החזר JSON תקני בלבד, ללא טקסט נוסף לפני או אחרי.",
-      maxTokens: 4096,
-      temperature: 0.2,
-    });
-    draft = parseDraftResponse(retryResponse.text);
-
-    if (!draft) {
-      // Fallback: wrap raw text in a single paragraph block
-      draft = {
-        meta: {
-          seoTitle: idea.title,
-          seoDescription: "",
-          excerpt: "",
-          tldr: "",
-          difficulty: "basic" as const,
-          checklist: [],
-        },
-        blocks: [
-          { type: "heading" as const, text: idea.title, level: 1 },
-          { type: "paragraph" as const, text: response.text.slice(0, 5000) },
-          { type: "paragraph" as const, text: "מאמר זה נוצר אוטומטית ודורש עריכה." },
-        ],
-      };
-    }
+    console.warn("[DRAFT] Parse failed — using raw-text fallback to avoid slow retry");
+    draft = {
+      meta: {
+        seoTitle: idea.title,
+        seoDescription: "",
+        excerpt: "",
+        tldr: "",
+        difficulty: "basic" as const,
+        checklist: [],
+      },
+      blocks: [
+        { type: "heading" as const, text: idea.title, level: 1 },
+        { type: "paragraph" as const, text: response.text.slice(0, 5000) },
+        { type: "paragraph" as const, text: "מאמר זה נוצר אוטומטית ודורש עריכה." },
+      ],
+    };
   }
 
   // 5. Validate blocks

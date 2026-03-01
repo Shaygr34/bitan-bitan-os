@@ -111,22 +111,33 @@ export function validateContentBlocks(blocks: unknown[]): {
 export function parseDraftResponse(text: string): DraftResponse | null {
   try {
     // Try to extract JSON from the response (may be wrapped in markdown code fence)
-    let jsonStr = text;
+    let jsonStr = text.trim();
 
-    // Strip markdown code fence if present
-    const fenceMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    // Strip markdown code fence if present — use greedy match to grab the whole block
+    const fenceMatch = jsonStr.match(/```(?:json)?\s*\n([\s\S]*)\n\s*```/);
     if (fenceMatch) {
-      jsonStr = fenceMatch[1];
+      jsonStr = fenceMatch[1].trim();
+    } else {
+      // Maybe Claude added text before/after the JSON — find the outermost { ... }
+      const firstBrace = jsonStr.indexOf("{");
+      const lastBrace = jsonStr.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+      }
     }
+
+    console.log("[DRAFT] Attempting JSON parse, length:", jsonStr.length, "preview:", jsonStr.substring(0, 200));
 
     const parsed = JSON.parse(jsonStr);
 
     if (parsed.meta && parsed.blocks) {
+      console.log("[DRAFT] Parsed successfully — meta keys:", Object.keys(parsed.meta), "blocks:", parsed.blocks.length);
       return parsed as DraftResponse;
     }
 
     // Maybe the whole response is just blocks array
     if (Array.isArray(parsed)) {
+      console.log("[DRAFT] Parsed as bare blocks array, count:", parsed.length);
       return {
         meta: {
           seoTitle: "",
@@ -140,8 +151,10 @@ export function parseDraftResponse(text: string): DraftResponse | null {
       };
     }
 
+    console.warn("[DRAFT] Parsed JSON but no meta/blocks. Keys:", Object.keys(parsed));
     return null;
-  } catch {
+  } catch (err) {
+    console.error("[DRAFT] JSON parse failed:", (err as Error).message, "— raw preview:", text.substring(0, 500));
     return null;
   }
 }

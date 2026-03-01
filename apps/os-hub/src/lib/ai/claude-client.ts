@@ -21,7 +21,7 @@ const PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
 
 const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
 const MAX_RETRIES = 3;
-const TIMEOUT_MS = 120_000;
+const TIMEOUT_MS = 90_000;
 
 function calculateCost(
   inputTokens: number,
