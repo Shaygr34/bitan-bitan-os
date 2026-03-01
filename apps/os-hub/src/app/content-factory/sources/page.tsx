@@ -111,9 +111,12 @@ export default function SourcesPage() {
       const res = await fetch(`/api/content-factory/sources/${sourceId}/poll`, { method: "POST" });
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
+      const hasErrors = data.errors && data.errors.length > 0;
       showToast({
-        type: "success",
-        message: `נסרק: ${data.created} חדשים, ${data.skipped} כפולים`,
+        type: hasErrors && data.created === 0 ? "error" : "success",
+        message: hasErrors
+          ? `נסרק: ${data.created} חדשים, ${data.skipped} כפולים — שגיאה: ${data.errors[0]}`
+          : `נסרק: ${data.created} חדשים, ${data.skipped} כפולים`,
       });
       await fetchSources();
     } catch (err) {
@@ -129,9 +132,12 @@ export default function SourcesPage() {
       const res = await fetch("/api/content-factory/sources/poll-all", { method: "POST" });
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
+      const errCount = data.errors?.length ?? 0;
       showToast({
-        type: "success",
-        message: `נסרקו ${data.polled} מקורות: ${data.totalCreated} חדשים, ${data.totalSkipped} כפולים`,
+        type: errCount > 0 && data.totalCreated === 0 ? "error" : "success",
+        message: errCount > 0
+          ? `נסרקו ${data.polled} מקורות: ${data.totalCreated} חדשים, ${data.totalSkipped} כפולים (${errCount} שגיאות)`
+          : `נסרקו ${data.polled} מקורות: ${data.totalCreated} חדשים, ${data.totalSkipped} כפולים`,
       });
       await fetchSources();
     } catch (err) {
@@ -227,7 +233,15 @@ export default function SourcesPage() {
                 <td style={{ padding: "0.75rem 0.5rem" }}>{source.weight}</td>
                 <td style={{ padding: "0.75rem 0.5rem" }}>{source.category ?? "—"}</td>
                 <td style={{ padding: "0.75rem 0.5rem" }}>{relativeTime(source.lastPolledAt)}</td>
-                <td style={{ padding: "0.75rem 0.5rem" }}>{source.lastItemCount ?? "—"}</td>
+                <td style={{ padding: "0.75rem 0.5rem" }}>
+                  {source.lastError ? (
+                    <span title={source.lastError} style={{ color: "#ef4444", fontSize: "0.75rem", cursor: "help" }}>
+                      שגיאה
+                    </span>
+                  ) : (
+                    source.lastItemCount ?? "—"
+                  )}
+                </td>
                 <td style={{ padding: "0.75rem 0.5rem" }}>
                   <div style={{ display: "flex", gap: "0.25rem" }}>
                     {source.type === "RSS" && (
