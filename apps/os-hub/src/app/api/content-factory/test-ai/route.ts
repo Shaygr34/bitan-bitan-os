@@ -32,7 +32,7 @@ export async function GET() {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250514",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 50,
         messages: [
           { role: "user", content: 'Say "hello" in Hebrew. One word only.' },
