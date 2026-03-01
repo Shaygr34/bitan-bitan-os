@@ -71,10 +71,15 @@ export async function generateDraft(
   });
 
   // 4. Parse response
+  console.log("[DRAFT] Claude response received — length:", response.text.length,
+    "tokens:", response.inputTokens + response.outputTokens,
+    "duration:", response.durationMs, "ms",
+    "preview:", response.text.substring(0, 300));
   let draft = parseDraftResponse(response.text);
 
   // Retry once if parsing failed
   if (!draft) {
+    console.warn("[DRAFT] First parse attempt failed, retrying with explicit JSON instruction...");
     const retryResponse = await complete({
       systemPrompt,
       userPrompt: userPrompt + "\n\nחשוב: החזר JSON תקני בלבד, ללא טקסט נוסף לפני או אחרי.",
