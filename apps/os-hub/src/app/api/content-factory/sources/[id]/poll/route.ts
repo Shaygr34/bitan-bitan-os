@@ -73,7 +73,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
                 sourceId: source.id,
                 fingerprint,
                 score: breakdown.total,
-                scoreBreakdown: breakdown as unknown as Record<string, unknown>,
+                scoreBreakdown: JSON.parse(JSON.stringify(breakdown)),
                 sourcePublishedAt: publishedAt,
                 tags: source.tags,
                 createdByUserId: "system",

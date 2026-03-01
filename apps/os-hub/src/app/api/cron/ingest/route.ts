@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { cronSecret } from "@/config/integrations";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { isTableOrConnectionError } from "@/lib/content-factory/validate";
 
 export const dynamic = "force-dynamic";

@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { isValidUuid, errorJson, isTableOrConnectionError } from "@/lib/content-factory/validate";
 import { publishToSanity } from "@/lib/content-factory/publishers/sanity-publisher";
 
