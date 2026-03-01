@@ -58,3 +58,25 @@ export const bitanWebsiteResources = {
 export const bitanWebsiteHealthUrl =
   process.env.BITAN_WEBSITE_HEALTH_URL ??
   "https://bitan-bitan-website-production.up.railway.app";
+
+/* ═══════════════════════════════════════════════════
+   AI — Anthropic Claude
+   ═══════════════════════════════════════════════════ */
+
+export const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? "";
+
+/* ═══════════════════════════════════════════════════
+   Sanity CMS — Write client
+   ═══════════════════════════════════════════════════ */
+
+export const sanityConfig = {
+  projectId: process.env.SANITY_PROJECT_ID ?? "",
+  dataset: process.env.SANITY_DATASET ?? "production",
+  apiToken: process.env.SANITY_API_TOKEN ?? "",
+};
+
+/* ═══════════════════════════════════════════════════
+   Cron — Ingestion auth
+   ═══════════════════════════════════════════════════ */
+
+export const cronSecret = process.env.CRON_SECRET ?? "";

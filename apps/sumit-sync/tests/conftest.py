@@ -16,23 +16,40 @@ import pandas as pd
 from openpyxl import Workbook
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.db.models import Base
 
 
 # --------------- Database (in-memory SQLite) ---------------
 
-@pytest.fixture()
-def db_engine():
-    """SQLite in-memory engine for tests."""
-    engine = create_engine("sqlite:///:memory:")
-    # SQLite doesn't enforce CHECK constraints by default
-    @event.listens_for(engine, "connect")
+def _make_test_engine():
+    """Create a thread-safe in-memory SQLite engine for tests.
+
+    Uses StaticPool so every connection shares the same :memory: database,
+    and check_same_thread=False so FastAPI's TestClient (which runs in a
+    different thread) can reuse the same connection.
+    """
+    eng = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    @event.listens_for(eng, "connect")
     def _set_sqlite_pragma(dbapi_conn, connection_record):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
-    Base.metadata.create_all(engine)
+
+    Base.metadata.create_all(eng)
+    return eng
+
+
+@pytest.fixture()
+def db_engine():
+    """SQLite in-memory engine for tests."""
+    engine = _make_test_engine()
     yield engine
     engine.dispose()
 

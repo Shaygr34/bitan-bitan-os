@@ -38,6 +38,11 @@ interface Article {
   distributionStatus: string;
   updatedAt: string;
   assets: Asset[];
+  sanityId?: string | null;
+  sanityUrl?: string | null;
+  aiGenerated?: boolean;
+  category?: string | null;
+  slug?: string | null;
 }
 
 /* ═══ Constants ═══ */
@@ -293,6 +298,7 @@ export default function ArticleDetailPage() {
   const [transitioning, setTransitioning] = useState(false);
   const [creatingAsset, setCreatingAsset] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState(PLATFORMS[0]);
+  const [publishingToSanity, setPublishingToSanity] = useState(false);
   const [errorDetail, setErrorDetail] = useState<{ code: string; message: string } | null>(null);
   const [showError, setShowError] = useState(false);
 
@@ -370,6 +376,31 @@ export default function ArticleDetailPage() {
       });
     } finally {
       setCreatingAsset(false);
+    }
+  }
+
+  async function handlePublishToSanity() {
+    setPublishingToSanity(true);
+    setErrorDetail(null);
+    try {
+      const res = await fetch(`/api/content-factory/articles/${articleId}/publish-website`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setErrorDetail(data?.error ?? null);
+        throw new Error(data?.error?.message ?? `${res.status}`);
+      }
+      showToast({ type: "success", message: t("contentFactory.publish.sanitySuccess") });
+      await fetchArticle();
+    } catch (err) {
+      showToast({
+        type: "error",
+        message: `${t("contentFactory.error.publishSanity")}: ${(err as Error).message}`,
+      });
+    } finally {
+      setPublishingToSanity(false);
     }
   }
 
@@ -451,6 +482,34 @@ export default function ArticleDetailPage() {
               {t(tr.labelKey)}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Publish to Sanity — only for APPROVED articles without sanityId */}
+      {article.status === "APPROVED" && !article.sanityId && (
+        <div className={styles.actions}>
+          <button
+            className="btn-primary"
+            onClick={handlePublishToSanity}
+            disabled={publishingToSanity}
+          >
+            {publishingToSanity ? t("common.status.processing") : t("contentFactory.publish.toSanity")}
+          </button>
+        </div>
+      )}
+
+      {/* Sanity link — show if already published */}
+      {article.sanityId && article.sanityUrl && (
+        <div className={styles.nextAction} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <span>{t("contentFactory.publish.sanityPublished")}</span>
+          <a
+            href={article.sanityUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: "underline" }}
+          >
+            {t("contentFactory.publish.openInSanity")}
+          </a>
         </div>
       )}
 

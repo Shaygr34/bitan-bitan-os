@@ -12,26 +12,47 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.db.models import Base
 from src.db.connection import get_db
 from src.main import app
 
 
-@pytest.fixture()
-def test_db():
-    engine = create_engine("sqlite:///:memory:")
+def _make_test_engine():
+    """Thread-safe in-memory SQLite engine (StaticPool + check_same_thread=False)."""
+    eng = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
 
-    @event.listens_for(engine, "connect")
+    @event.listens_for(eng, "connect")
     def _pragma(dbapi_conn, _):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(eng)
+    return eng
+
+
+@pytest.fixture()
+def test_db():
+    engine = _make_test_engine()
     Session = sessionmaker(bind=engine)
     session = Session()
+
+    # Patch the global engine so code that imports
+    # `from src.db.connection import engine` (e.g. /health)
+    # uses the same in-memory DB with tables already created.
+    import src.db.connection as conn_mod
+    _orig_engine = conn_mod.engine
+    conn_mod.engine = engine
+
     yield session
+
+    conn_mod.engine = _orig_engine
     session.close()
     engine.dispose()
 

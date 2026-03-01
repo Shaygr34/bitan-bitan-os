@@ -15,6 +15,7 @@ POST   /runs/{id}/complete           — mark run as completed (locks mutations)
 """
 
 import time
+import uuid as uuid_mod
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,8 +46,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 
+def _to_uuid(value: str) -> uuid_mod.UUID:
+    """Convert a string to uuid.UUID so SQLAlchemy Uuid columns work on SQLite."""
+    try:
+        return uuid_mod.UUID(value)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=404, detail=f"מזהה לא תקין: {value}")
+
+
 def _run_or_404(run_id: str, db: Session) -> models.Run:
-    run = db.query(models.Run).filter(models.Run.id == run_id).first()
+    run = db.query(models.Run).filter(models.Run.id == _to_uuid(run_id)).first()
     if not run:
         raise HTTPException(status_code=404, detail=f"הרצה {run_id} לא נמצאה")
     return run
@@ -414,7 +423,7 @@ def download_file(run_id: str, file_id: str, db: Session = Depends(get_db)):
     run = _run_or_404(run_id, db)
     file_record = (
         db.query(models.RunFile)
-        .filter(models.RunFile.id == file_id, models.RunFile.run_id == run.id)
+        .filter(models.RunFile.id == _to_uuid(file_id), models.RunFile.run_id == run.id)
         .first()
     )
     if not file_record:
@@ -589,7 +598,7 @@ def patch_exception(
     _ensure_not_completed(run)
     exc = (
         db.query(models.Exception)
-        .filter(models.Exception.id == exception_id, models.Exception.run_id == run.id)
+        .filter(models.Exception.id == _to_uuid(exception_id), models.Exception.run_id == run.id)
         .first()
     )
     if not exc:

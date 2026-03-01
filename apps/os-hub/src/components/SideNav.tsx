@@ -5,10 +5,24 @@ import { usePathname } from "next/navigation";
 import { t } from "@/lib/strings";
 import styles from "./SideNav.module.css";
 
-const mainNav = [
+interface NavItem {
+  key: string;
+  href: string;
+  children?: NavItem[];
+}
+
+const mainNav: NavItem[] = [
   { key: "nav.items.dashboard", href: "/" },
   { key: "nav.items.contentEngine", href: "/content-engine" },
-  { key: "nav.items.contentFactory", href: "/content-factory" },
+  {
+    key: "nav.items.contentFactory",
+    href: "/content-factory",
+    children: [
+      { key: "nav.items.contentFactory.articles", href: "/content-factory" },
+      { key: "nav.items.contentFactory.ideas", href: "/content-factory/ideas" },
+      { key: "nav.items.contentFactory.sources", href: "/content-factory/sources" },
+    ],
+  },
   { key: "nav.items.sumitSync", href: "/sumit-sync" },
   { key: "nav.items.bitanWebsite", href: "/bitan-website" },
 ];
@@ -34,6 +48,7 @@ export default function SideNav() {
             item.href === "/"
               ? pathname === "/"
               : pathname === item.href || pathname.startsWith(item.href + "/");
+          const showChildren = isActive && item.children;
           return (
             <li key={item.href}>
               <Link
@@ -42,6 +57,23 @@ export default function SideNav() {
               >
                 {t(item.key)}
               </Link>
+              {showChildren && (
+                <ul className={styles.subList}>
+                  {item.children!.map((child) => {
+                    const childActive = pathname === child.href;
+                    return (
+                      <li key={child.href}>
+                        <Link
+                          href={child.href}
+                          className={`${styles.subLink} ${childActive ? styles.subLinkActive : ""}`}
+                        >
+                          {t(child.key)}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </li>
           );
         })}

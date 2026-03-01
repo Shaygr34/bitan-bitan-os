@@ -67,6 +67,38 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* ——— Sub-navigation ——— */
+
+.subList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+  gap: 1px;
+}
+
+.subLink {
+  display: flex;
+  align-items: center;
+  padding: var(--space-xs) var(--space-xl);
+  padding-inline-start: calc(var(--space-xl) + var(--space-lg));
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--sidebar-foreground);
+  opacity: 0.55;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.subLink:hover {
+  opacity: 0.85;
+  background: var(--nav-item-hover);
+}
+
+.subLinkActive {
+  opacity: 1;
+  font-weight: var(--font-weight-semibold);
+}
+
 /* ——— Separator ——— */
 
 .separator {
