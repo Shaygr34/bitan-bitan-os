@@ -18,7 +18,7 @@ const mainNav: NavItem[] = [
     key: "nav.items.contentFactory",
     href: "/content-factory",
     children: [
-      { key: "nav.items.contentFactory.articles", href: "/content-factory" },
+      { key: "nav.items.contentFactory.articles", href: "/content-factory/articles" },
       { key: "nav.items.contentFactory.ideas", href: "/content-factory/ideas" },
       { key: "nav.items.contentFactory.sources", href: "/content-factory/sources" },
     ],
