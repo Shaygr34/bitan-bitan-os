@@ -563,6 +563,37 @@ def drill_down(
 
 
 # ------------------------------------------------------------------ #
+#  PATCH /runs/{id}/exceptions/bulk  — bulk update exceptions
+#  (must be defined BEFORE the /{exception_id} route to avoid
+#   FastAPI matching "bulk" as a path parameter)
+# ------------------------------------------------------------------ #
+
+@router.patch("/{run_id}/exceptions/bulk", response_model=BulkPatchResultOut)
+def bulk_patch_exceptions(
+    run_id: str,
+    body: BulkPatchExceptionsRequest,
+    db: Session = Depends(get_db),
+):
+    run = _run_or_404(run_id, db)
+    _ensure_not_completed(run)
+    now = datetime.now(timezone.utc)
+    updated = (
+        db.query(models.Exception)
+        .filter(
+            models.Exception.run_id == run.id,
+            models.Exception.resolution == "pending",
+        )
+        .update({
+            "resolution": body.resolution,
+            "resolved_at": now,
+        })
+    )
+    db.commit()
+    logger.info("Bulk %s %d exceptions (run %s)", body.resolution, updated, run_id)
+    return BulkPatchResultOut(updated_count=updated)
+
+
+# ------------------------------------------------------------------ #
 #  PATCH /runs/{id}/exceptions/{eid}  — update exception resolution
 # ------------------------------------------------------------------ #
 
@@ -590,35 +621,6 @@ def patch_exception(
     db.refresh(exc)
     logger.info("Exception %s → %s (run %s)", exception_id, body.resolution, run_id)
     return _serialize_exception(exc)
-
-
-# ------------------------------------------------------------------ #
-#  PATCH /runs/{id}/exceptions/bulk  — bulk update exceptions
-# ------------------------------------------------------------------ #
-
-@router.patch("/{run_id}/exceptions/bulk", response_model=BulkPatchResultOut)
-def bulk_patch_exceptions(
-    run_id: str,
-    body: BulkPatchExceptionsRequest,
-    db: Session = Depends(get_db),
-):
-    run = _run_or_404(run_id, db)
-    _ensure_not_completed(run)
-    now = datetime.now(timezone.utc)
-    updated = (
-        db.query(models.Exception)
-        .filter(
-            models.Exception.run_id == run.id,
-            models.Exception.resolution == "pending",
-        )
-        .update({
-            "resolution": body.resolution,
-            "resolved_at": now,
-        })
-    )
-    db.commit()
-    logger.info("Bulk %s %d exceptions (run %s)", body.resolution, updated, run_id)
-    return BulkPatchResultOut(updated_count=updated)
 
 
 # ------------------------------------------------------------------ #
