@@ -83,6 +83,9 @@ export default function IdeasPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [creating, setCreating] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+
+  const MIN_DISPLAY_SCORE = 45;
 
   async function fetchIdeas() {
     try {
@@ -99,9 +102,22 @@ export default function IdeasPage() {
   useEffect(() => { fetchIdeas(); }, []);
 
   const filtered = useMemo(() => {
-    if (statusFilter === "ALL") return ideas;
-    return ideas.filter((i) => i.status === statusFilter);
-  }, [ideas, statusFilter]);
+    let result = ideas;
+    if (statusFilter !== "ALL") {
+      result = result.filter((i) => i.status === statusFilter);
+    }
+    if (!showAll) {
+      result = result.filter(
+        (i) => (i.score ?? 0) >= MIN_DISPLAY_SCORE || i.status === "ENRICHED" || i.status === "SELECTED",
+      );
+    }
+    return result;
+  }, [ideas, statusFilter, showAll]);
+
+  const hiddenCount = useMemo(() => {
+    const withStatus = statusFilter === "ALL" ? ideas : ideas.filter((i) => i.status === statusFilter);
+    return withStatus.length - filtered.length;
+  }, [ideas, statusFilter, filtered.length]);
 
   async function handleReject(idea: Idea) {
     try {
@@ -215,8 +231,8 @@ export default function IdeasPage() {
         </div>
       )}
 
-      {/* Status filters */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
+      {/* Status filters + score toggle */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
         {STATUS_FILTERS.map((f) => (
           <button
             key={f.value}
@@ -234,6 +250,23 @@ export default function IdeasPage() {
             {f.label}
           </button>
         ))}
+
+        <span style={{ borderInlineStart: "1px solid var(--border-color, #d1d5db)", height: "1.5rem", marginInline: "0.25rem" }} />
+
+        <button
+          onClick={() => setShowAll(!showAll)}
+          style={{
+            padding: "0.35rem 0.75rem",
+            border: showAll ? "2px solid #f59e0b" : "1px solid var(--border-color, #d1d5db)",
+            borderRadius: "6px",
+            background: showAll ? "#fffbeb" : "transparent",
+            cursor: "pointer",
+            fontSize: "0.85rem",
+            fontWeight: showAll ? 600 : 400,
+          }}
+        >
+          {showAll ? "סינון לפי ציון" : `הצג הכל${hiddenCount > 0 ? ` (+${hiddenCount})` : ""}`}
+        </button>
       </div>
 
       {loading && <div style={{ padding: "2rem", textAlign: "center" }}>טוען...</div>}
