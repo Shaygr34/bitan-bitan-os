@@ -17,9 +17,10 @@ export interface RSSItem {
 }
 
 /**
- * Decode common HTML/XML entities in RSS text content.
+ * Decode HTML/XML entities in RSS text content.
  * Handles named entities (&amp;, &lt;, etc.), decimal (&#8226;),
- * and hex (&#x2022;) numeric references.
+ * hex (&#x2022;), and double-encoded entities (&amp;#8226;).
+ * Runs up to 3 passes to handle multi-layer encoding.
  */
 function decodeEntities(text: string): string {
   const NAMED: Record<string, string> = {
@@ -31,13 +32,24 @@ function decodeEntities(text: string): string {
     rdquo: "\u201D", ldquo: "\u201C",
   };
 
-  return text
-    // Numeric decimal: &#8226; or &#34;
-    .replace(/&#(\d+);/g, (_m, code) => String.fromCodePoint(Number(code)))
-    // Numeric hex: &#x2022;
-    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    // Named entities
-    .replace(/&([a-zA-Z]+);/g, (_m, name) => NAMED[name.toLowerCase()] ?? _m);
+  function decodeOnce(s: string): string {
+    return s
+      // Named entities first (so &amp;#8226; → &#8226; on this pass)
+      .replace(/&([a-zA-Z]+);/g, (_m, name) => NAMED[name.toLowerCase()] ?? _m)
+      // Numeric decimal: &#8226; or &#34;
+      .replace(/&#(\d+);/g, (_m, code) => String.fromCodePoint(Number(code)))
+      // Numeric hex: &#x2022;
+      .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex) => String.fromCodePoint(parseInt(hex, 16)));
+  }
+
+  // Run up to 3 passes to handle double/triple-encoded entities
+  let result = text;
+  for (let i = 0; i < 3; i++) {
+    const decoded = decodeOnce(result);
+    if (decoded === result) break;
+    result = decoded;
+  }
+  return result;
 }
 
 /**

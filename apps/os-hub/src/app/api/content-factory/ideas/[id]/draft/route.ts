@@ -8,6 +8,7 @@ import { errorJson, isValidUuid } from "@/lib/content-factory/validate";
 import { generateDraft } from "@/lib/content-factory/drafting";
 
 export const runtime = "nodejs";
+export const maxDuration = 150; // seconds — allow 2.5 min for Claude API call + retries
 
 type RouteParams = { params: Promise<{ id: string }> };
 

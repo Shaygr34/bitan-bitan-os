@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
@@ -33,6 +33,12 @@ interface Idea {
   source: IdeaSource | null;
   articles: IdeaArticle[];
   createdAt: string;
+}
+
+interface PollSourceError {
+  sourceId: string;
+  name: string;
+  error: string;
 }
 
 type StatusFilter = "ALL" | "NEW" | "SELECTED" | "ENRICHED" | "REJECTED";
@@ -79,6 +85,9 @@ export default function IdeasPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [drafting, setDrafting] = useState<string | null>(null);
+  const [draftElapsed, setDraftElapsed] = useState(0);
+  const [draftResult, setDraftResult] = useState<{ id: string; articleId?: string; error?: string } | null>(null);
+  const draftTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [pollingAll, setPollingAll] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -100,6 +109,13 @@ export default function IdeasPage() {
   }
 
   useEffect(() => { fetchIdeas(); }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (draftTimerRef.current) clearInterval(draftTimerRef.current);
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     let result = ideas;
@@ -134,23 +150,38 @@ export default function IdeasPage() {
     }
   }
 
-  async function handleDraft(idea: Idea) {
+  const handleDraft = useCallback(async (idea: Idea) => {
     setDrafting(idea.id);
+    setDraftElapsed(0);
+    setDraftResult(null);
+
+    // Start elapsed timer
+    draftTimerRef.current = setInterval(() => {
+      setDraftElapsed((prev) => prev + 1);
+    }, 1000);
+
     try {
       const res = await fetch(`/api/content-factory/ideas/${idea.id}/draft`, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error?.message ?? `${res.status}`);
+        throw new Error(data?.error?.message ?? `שגיאה ${res.status}`);
       }
       const data = await res.json();
+      setDraftResult({ id: idea.id, articleId: data.articleId });
       showToast({ type: "success", message: `טיוטה נוצרה — עלות: $${data.costUsd?.toFixed(3) ?? "N/A"}` });
       await fetchIdeas();
     } catch (err) {
-      showToast({ type: "error", message: `שגיאה ביצירת טיוטה: ${(err as Error).message}` });
+      const msg = (err as Error).message;
+      setDraftResult({ id: idea.id, error: msg });
+      showToast({ type: "error", message: `שגיאה ביצירת טיוטה: ${msg}` });
     } finally {
+      if (draftTimerRef.current) {
+        clearInterval(draftTimerRef.current);
+        draftTimerRef.current = null;
+      }
       setDrafting(null);
     }
-  }
+  }, []);
 
   async function handlePollAll() {
     setPollingAll(true);
@@ -158,10 +189,26 @@ export default function IdeasPage() {
       const res = await fetch("/api/content-factory/sources/poll-all", { method: "POST" });
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
-      showToast({
-        type: "success",
-        message: `נסרקו ${data.polled} מקורות: ${data.totalCreated} חדשים`,
-      });
+      const errors = (data.errors ?? []) as PollSourceError[];
+
+      if (errors.length === 0) {
+        showToast({
+          type: "success",
+          message: `נסרקו ${data.polled} מקורות: ${data.totalCreated} חדשים, ${data.totalSkipped} כפולים`,
+        });
+      } else {
+        const failedNames = errors
+          .map((e: PollSourceError) => {
+            const shortErr = e.error.includes("403") ? "403" : e.error.includes("timeout") ? "timeout" : "error";
+            return `${e.name} (${shortErr})`;
+          })
+          .join(", ");
+        const okCount = data.polled - errors.length;
+        showToast({
+          type: "warning",
+          message: `${okCount} מקורות הצליחו (${data.totalCreated} חדשים). נכשלו: ${failedNames}`,
+        });
+      }
       await fetchIdeas();
     } catch (err) {
       showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
@@ -191,6 +238,9 @@ export default function IdeasPage() {
     }
   }
 
+  /** Whether any draft is in progress (disables all action buttons) */
+  const isBusy = drafting !== null;
+
   return (
     <div>
       <PageHeader
@@ -198,10 +248,10 @@ export default function IdeasPage() {
         description="רעיונות ממוינים לפי ציון רלוונטיות — בחרו ליצור טיוטה"
         action={
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button className="btn-secondary" onClick={handlePollAll} disabled={pollingAll}>
+            <button className="btn-secondary" onClick={handlePollAll} disabled={pollingAll || isBusy}>
               {pollingAll ? "סורק..." : "סרוק כל המקורות"}
             </button>
-            <button className="btn-primary" onClick={() => setShowCreate(!showCreate)}>
+            <button className="btn-primary" onClick={() => setShowCreate(!showCreate)} disabled={isBusy}>
               רעיון ידני
             </button>
           </div>
@@ -284,15 +334,25 @@ export default function IdeasPage() {
             const linkedArticle = idea.articles[0] ?? null;
             const isEnriched = idea.status === "ENRICHED";
             const canDraft = idea.status === "NEW" || idea.status === "SELECTED";
+            const isDraftingThis = drafting === idea.id;
+            const result = draftResult?.id === idea.id ? draftResult : null;
 
             return (
               <div
                 key={idea.id}
                 style={{
-                  border: "1px solid var(--border-color, #e5e7eb)",
+                  border: isDraftingThis
+                    ? "2px solid #2563eb"
+                    : "1px solid var(--border-color, #e5e7eb)",
                   borderRadius: "8px",
                   padding: "1rem 1.25rem",
-                  background: idea.status === "REJECTED" ? "#fef2f2" : "#fff",
+                  background: isDraftingThis
+                    ? "#eff6ff"
+                    : idea.status === "REJECTED"
+                      ? "#fef2f2"
+                      : "#fff",
+                  opacity: isBusy && !isDraftingThis ? 0.6 : 1,
+                  transition: "all 0.2s",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
@@ -357,18 +417,59 @@ export default function IdeasPage() {
                         <span>{idea.tags.slice(0, 3).join(", ")}</span>
                       )}
                     </div>
+
+                    {/* Draft result feedback */}
+                    {result?.articleId && (
+                      <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span style={{ color: "#10b981", fontWeight: 600, fontSize: "0.85rem" }}>
+                          טיוטה נוצרה!
+                        </span>
+                        <Link
+                          href={`/content-factory/articles/${result.articleId}`}
+                          style={{ color: "#2563eb", fontSize: "0.85rem" }}
+                        >
+                          צפה במאמר
+                        </Link>
+                      </div>
+                    )}
+                    {result?.error && (
+                      <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span style={{ color: "#ef4444", fontWeight: 600, fontSize: "0.85rem" }}>
+                          נכשל — {result.error.length > 80 ? result.error.slice(0, 80) + "..." : result.error}
+                        </span>
+                        <button
+                          style={{
+                            background: "none",
+                            border: "1px solid #2563eb",
+                            color: "#2563eb",
+                            cursor: "pointer",
+                            fontSize: "0.8rem",
+                            padding: "0.2rem 0.5rem",
+                            borderRadius: "4px",
+                          }}
+                          onClick={() => { setDraftResult(null); handleDraft(idea); }}
+                        >
+                          נסו שוב
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
-                    {canDraft && (
+                  <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, alignItems: "center" }}>
+                    {isDraftingThis && (
+                      <span style={{ fontSize: "0.8rem", color: "#2563eb", fontWeight: 500, whiteSpace: "nowrap" }}>
+                        יוצר טיוטה... ({draftElapsed} שניות)
+                      </span>
+                    )}
+                    {canDraft && !isDraftingThis && (
                       <button
                         className="btn-primary"
                         style={{ fontSize: "0.8rem", padding: "0.4rem 0.75rem" }}
                         onClick={() => handleDraft(idea)}
-                        disabled={drafting === idea.id}
+                        disabled={isBusy}
                       >
-                        {drafting === idea.id ? "יוצר טיוטה..." : "צור טיוטה"}
+                        צור טיוטה
                       </button>
                     )}
                     {linkedArticle && (
@@ -380,18 +481,20 @@ export default function IdeasPage() {
                         צפה במאמר
                       </Link>
                     )}
-                    {canDraft && (
+                    {canDraft && !isDraftingThis && (
                       <button
                         style={{
                           background: "none",
                           border: "1px solid #ef4444",
                           color: "#ef4444",
-                          cursor: "pointer",
+                          cursor: isBusy ? "not-allowed" : "pointer",
                           fontSize: "0.8rem",
                           padding: "0.4rem 0.75rem",
                           borderRadius: "6px",
+                          opacity: isBusy ? 0.5 : 1,
                         }}
                         onClick={() => handleReject(idea)}
+                        disabled={isBusy}
                       >
                         דחה
                       </button>
