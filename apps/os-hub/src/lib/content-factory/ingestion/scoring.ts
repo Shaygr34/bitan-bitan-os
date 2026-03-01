@@ -1,7 +1,7 @@
 /**
  * Scoring rubric for Ideas.
  *
- * score = (sourceWeight × 25) + (recency × 25) + (keywordMatch × 30) + (categoryBonus × 20)
+ * score = (sourceWeight × 25) + (recency × 25) + (keywordMatch × 30) + (categoryBonus × 20) − (negativePenalty)
  * Range: 0–100
  */
 
@@ -12,6 +12,7 @@ export interface ScoreBreakdown {
   recency: number;
   keywordScore: number;
   categoryBonus: number;
+  negativePenalty: number;
   matchedKeywords: string[];
   total: number;
 }
@@ -57,21 +58,26 @@ export function scoreIdea(params: {
   // Recency
   const recency = recencyScore(params.publishedAt);
 
-  // Keyword match
+  // Keyword match (includes high-value signals and negative detection)
   const text = `${params.title} ${params.description ?? ""}`;
-  const { count, matched } = countKeywordMatches(text, KEYWORD_BUCKETS);
+  const { count, matched, negativeCount } = countKeywordMatches(text, KEYWORD_BUCKETS);
   const keywordScore = count >= 3 ? 30 : count === 2 ? 20 : count === 1 ? 10 : 0;
 
   // Category bonus
   const categoryBonus = categoryBonusScore(params.sourceCategory);
 
-  const total = Math.min(100, Math.round(sourceWeightScore + recency + keywordScore + categoryBonus));
+  // Negative penalty: -8 per negative keyword, capped at -25
+  const negativePenalty = Math.min(25, negativeCount * 8);
+
+  const raw = sourceWeightScore + recency + keywordScore + categoryBonus - negativePenalty;
+  const total = Math.max(0, Math.min(100, Math.round(raw)));
 
   return {
     sourceWeight: Math.round(sourceWeightScore * 10) / 10,
     recency,
     keywordScore,
     categoryBonus,
+    negativePenalty,
     matchedKeywords: matched,
     total,
   };
