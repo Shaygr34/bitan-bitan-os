@@ -10,28 +10,29 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from src.db.models import Base
 from src.db.connection import get_db
 from src.main import app
+from conftest import _make_test_engine
 
 
 @pytest.fixture()
 def test_db():
-    engine = create_engine("sqlite:///:memory:")
-
-    @event.listens_for(engine, "connect")
-    def _pragma(dbapi_conn, _):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    Base.metadata.create_all(engine)
+    engine = _make_test_engine()
     Session = sessionmaker(bind=engine)
     session = Session()
+
+    # Patch the global engine so code that imports
+    # `from src.db.connection import engine` (e.g. /health)
+    # uses the same in-memory DB with tables already created.
+    import src.db.connection as conn_mod
+    _orig_engine = conn_mod.engine
+    conn_mod.engine = engine
+
     yield session
+
+    conn_mod.engine = _orig_engine
     session.close()
     engine.dispose()
 
