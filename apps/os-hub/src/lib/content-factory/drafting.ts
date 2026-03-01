@@ -15,6 +15,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { randomBytes } from "crypto";
 import { complete } from "@/lib/ai/claude-client";
 import { loadPrompt } from "@/lib/ai/prompt-loader";
 import { parseDraftResponse, validateContentBlocks } from "@/lib/ai/content-blocks";
@@ -108,8 +109,8 @@ export async function generateDraft(
     console.warn("ContentBlock validation warnings:", validation.errors);
   }
 
-  // 6. Generate slug
-  const slug = slugify(idea.title);
+  // 6. Generate slug (append short random suffix to prevent collisions)
+  const slug = slugify(idea.title) + "-" + randomBytes(3).toString("hex");
   const meta = draft.meta as DraftMeta;
 
   // 7-10. Create article, AIProposal, transition idea, log event — all in transaction
