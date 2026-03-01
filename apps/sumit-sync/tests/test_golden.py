@@ -127,11 +127,11 @@ def test_golden_output_files(golden_idom_file, golden_sumit_file, tmp_path):
     import_df = pd.read_excel(paths["import"])
     assert len(import_df) == 3
 
-    # Verify diff report has expected sheets
+    # Verify diff report has expected sheets (Hebrew names per output_writer)
     diff_xl = pd.ExcelFile(paths["diff"])
-    assert "Summary" in diff_xl.sheet_names
-    assert "Changes" in diff_xl.sheet_names
+    assert "סיכום" in diff_xl.sheet_names
+    assert "שינויים" in diff_xl.sheet_names
 
-    # Verify exceptions report has expected sheets
+    # Verify exceptions report has expected sheets (Hebrew names per output_writer)
     exc_xl = pd.ExcelFile(paths["exceptions"])
-    assert "Unmatched" in exc_xl.sheet_names
+    assert "ללא התאמה" in exc_xl.sheet_names
