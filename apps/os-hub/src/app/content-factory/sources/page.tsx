@@ -45,6 +45,7 @@ export default function SourcesPage() {
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [deduping, setDeduping] = useState(false);
   const [polling, setPolling] = useState<string | null>(null);
   const [pollingAll, setPollingAll] = useState(false);
 
@@ -74,6 +75,25 @@ export default function SourcesPage() {
       showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
     } finally {
       setSeeding(false);
+    }
+  }
+
+  async function handleDedup() {
+    setDeduping(true);
+    try {
+      const res = await fetch("/api/content-factory/sources/dedup", { method: "POST" });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      if (data.deleted > 0) {
+        showToast({ type: "success", message: `נמחקו ${data.deleted} כפילויות` });
+        await fetchSources();
+      } else {
+        showToast({ type: "info", message: "אין כפילויות" });
+      }
+    } catch (err) {
+      showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
+    } finally {
+      setDeduping(false);
     }
   }
 
@@ -154,6 +174,14 @@ export default function SourcesPage() {
         description="ניהול מקורות RSS וסריקה — הזנת רעיונות למפעל התוכן"
         action={
           <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              className="btn-secondary"
+              onClick={handleDedup}
+              disabled={deduping}
+              title="מחק מקורות עם URL זהה (שומר את הישן ביותר)"
+            >
+              {deduping ? "מנקה..." : "נקה כפילויות"}
+            </button>
             <button
               className="btn-secondary"
               onClick={handlePollAll}

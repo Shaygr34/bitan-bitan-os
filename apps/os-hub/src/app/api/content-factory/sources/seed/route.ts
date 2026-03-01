@@ -14,19 +14,23 @@ export async function POST() {
     let created = 0;
     let skipped = 0;
 
-    for (const seed of SEED_SOURCES) {
-      const existing = await prisma.source.findFirst({
-        where: { url: seed.url },
-      });
+    // Bulk-fetch existing URLs for fast lookup
+    const existingUrls = new Set(
+      (await prisma.source.findMany({ select: { url: true } })).map((s) => s.url),
+    );
 
-      if (existing) {
+    for (const seed of SEED_SOURCES) {
+      if (existingUrls.has(seed.url)) {
         skipped++;
         continue;
       }
 
       const source = await prisma.$transaction(async (tx) => {
-        const newSource = await tx.source.create({
-          data: {
+        // Use upsert to handle race conditions (concurrent seed requests)
+        const newSource = await tx.source.upsert({
+          where: { url: seed.url },
+          update: {}, // no-op if already exists
+          create: {
             name: seed.name,
             nameHe: seed.nameHe,
             type: seed.type,
@@ -40,18 +44,23 @@ export async function POST() {
           },
         });
 
-        await logEvent(tx, {
-          actorUserId: "system",
-          entityType: "SOURCE",
-          entityId: newSource.id,
-          action: "SOURCE_CREATED",
-          metadata: { type: seed.type, url: seed.url, weight: seed.weight, viaSeed: true },
-        });
+        // Only log if this was actually a new creation (createdAt ~ now)
+        const isNew = Date.now() - newSource.createdAt.getTime() < 5000;
+        if (isNew) {
+          await logEvent(tx, {
+            actorUserId: "system",
+            entityType: "SOURCE",
+            entityId: newSource.id,
+            action: "SOURCE_CREATED",
+            metadata: { type: seed.type, url: seed.url, weight: seed.weight, viaSeed: true },
+          });
+        }
 
-        return newSource;
+        return { source: newSource, isNew };
       });
 
-      if (source) created++;
+      if (source.isNew) created++;
+      else skipped++;
     }
 
     return NextResponse.json({ created, skipped }, { status: 201 });

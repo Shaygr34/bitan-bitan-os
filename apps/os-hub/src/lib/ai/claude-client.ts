@@ -16,10 +16,10 @@ export interface ClaudeResponse {
 
 // Claude Sonnet 4 pricing (as of 2026-03)
 const PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
-  "claude-sonnet-4-5-20250514": { inputPer1M: 3.0, outputPer1M: 15.0 },
+  "claude-sonnet-4-5-20250929": { inputPer1M: 3.0, outputPer1M: 15.0 },
 };
 
-const DEFAULT_MODEL = "claude-sonnet-4-5-20250514";
+const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
 const MAX_RETRIES = 3;
 const TIMEOUT_MS = 120_000;
 
