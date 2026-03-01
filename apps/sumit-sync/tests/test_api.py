@@ -10,11 +10,31 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+from src.db.models import Base
 from src.db.connection import get_db
 from src.main import app
-from conftest import _make_test_engine
+
+
+def _make_test_engine():
+    """Thread-safe in-memory SQLite engine (StaticPool + check_same_thread=False)."""
+    eng = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    @event.listens_for(eng, "connect")
+    def _pragma(dbapi_conn, _):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    Base.metadata.create_all(eng)
+    return eng
 
 
 @pytest.fixture()
