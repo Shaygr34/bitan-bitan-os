@@ -73,6 +73,9 @@ COPY --from=build /app/apps/os-hub/public ./apps/os-hub/public
 # Copy Prisma schema + migrations (needed for prisma migrate deploy at runtime)
 COPY --from=build /app/apps/os-hub/prisma ./apps/os-hub/prisma
 
+# Copy prompt templates (needed for AI draft generation)
+COPY --from=build /app/apps/os-hub/prompts ./apps/os-hub/prompts
+
 # Copy Content Engine from build stage (avoids per-subdirectory context issues)
 COPY --from=build /app/engines/content-engine/ engines/content-engine/
 

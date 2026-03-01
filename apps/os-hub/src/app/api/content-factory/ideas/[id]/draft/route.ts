@@ -43,7 +43,8 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       return errorJson(504, "TIMEOUT", "AI generation timed out. Please try again.");
     }
 
-    console.error(`POST /api/content-factory/ideas/${id}/draft failed:`, e);
-    return errorJson(500, "INTERNAL_ERROR", "Failed to generate draft");
+    const detail = (e as Error).message ?? "unknown error";
+    console.error(`POST /api/content-factory/ideas/${id}/draft failed:`, detail, e);
+    return errorJson(500, "INTERNAL_ERROR", `Failed to generate draft: ${detail}`);
   }
 }

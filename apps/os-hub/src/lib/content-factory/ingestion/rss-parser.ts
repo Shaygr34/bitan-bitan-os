@@ -17,6 +17,30 @@ export interface RSSItem {
 }
 
 /**
+ * Decode common HTML/XML entities in RSS text content.
+ * Handles named entities (&amp;, &lt;, etc.), decimal (&#8226;),
+ * and hex (&#x2022;) numeric references.
+ */
+function decodeEntities(text: string): string {
+  const NAMED: Record<string, string> = {
+    amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+    nbsp: "\u00A0", laquo: "\u00AB", raquo: "\u00BB",
+    ndash: "\u2013", mdash: "\u2014", bull: "\u2022",
+    hellip: "\u2026", copy: "\u00A9", reg: "\u00AE",
+    trade: "\u2122", rsquo: "\u2019", lsquo: "\u2018",
+    rdquo: "\u201D", ldquo: "\u201C",
+  };
+
+  return text
+    // Numeric decimal: &#8226; or &#34;
+    .replace(/&#(\d+);/g, (_m, code) => String.fromCodePoint(Number(code)))
+    // Numeric hex: &#x2022;
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    // Named entities
+    .replace(/&([a-zA-Z]+);/g, (_m, name) => NAMED[name.toLowerCase()] ?? _m);
+}
+
+/**
  * Extract text content from an XML element.
  */
 function extractTag(xml: string, tag: string): string {
@@ -26,15 +50,15 @@ function extractTag(xml: string, tag: string): string {
     "i",
   );
   const cdataMatch = xml.match(cdataRegex);
-  if (cdataMatch) return cdataMatch[1].trim();
+  if (cdataMatch) return decodeEntities(cdataMatch[1].trim());
 
   // Regular text content
   const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i");
   const match = xml.match(regex);
   if (!match) return "";
 
-  // Strip any remaining HTML tags
-  return match[1].replace(/<[^>]+>/g, "").trim();
+  // Strip any remaining HTML tags, then decode entities
+  return decodeEntities(match[1].replace(/<[^>]+>/g, "").trim());
 }
 
 /**
@@ -141,16 +165,32 @@ export async function fetchRSSFeed(url: string): Promise<RSSItem[]> {
   console.log(`[RSS] Fetching: ${url}`);
 
   try {
+    // Build origin-aware headers to avoid 403 blocks from Israeli news sites
+    let referer = "https://www.google.com/";
+    try {
+      const u = new URL(url);
+      referer = u.origin + "/";
+    } catch { /* keep default */ }
+
     const response = await fetch(url, {
       signal: controller.signal,
       cache: "no-store",
       redirect: "follow",
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         Accept:
           "application/rss+xml, application/xml, text/xml, application/atom+xml, */*",
-        "Accept-Language": "he-IL,he;q=0.9,en;q=0.8",
+        "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        Referer: referer,
+        Connection: "keep-alive",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        DNT: "1",
       },
     });
 
