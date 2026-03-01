@@ -293,6 +293,7 @@ export const strings: Record<string, string> = {
   "contentFactory.article.version": "גרסה",
   "contentFactory.article.distribution": "הפצה",
   "contentFactory.article.updatedAt": "עודכן",
+  "contentFactory.article.body": "תוכן המאמר",
   "contentFactory.article.backToList": "חזרה לרשימה",
 
   // Transitions
