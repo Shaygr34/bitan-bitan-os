@@ -65,11 +65,15 @@ export default function ContentFactoryPage() {
 
   useEffect(() => {
     fetch("/api/content-factory/articles")
-      .then((res) => {
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          const detail = body?.error?.message ?? res.statusText;
+          throw new Error(detail);
+        }
         return res.json();
       })
-      .then(setArticles)
+      .then((data) => setArticles(Array.isArray(data) ? data : []))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
