@@ -13,6 +13,8 @@ import { NextResponse } from "next/server";
 import { cronSecret } from "@/config/integrations";
 import { prisma } from "@/lib/prisma";
 import { isTableOrConnectionError } from "@/lib/content-factory/validate";
+import { fetchRSSFeed } from "@/lib/content-factory/ingestion/rss-parser";
+import { generateFingerprint } from "@/lib/content-factory/ingestion/dedup";
 
 export const dynamic = "force-dynamic";
 
@@ -46,58 +48,48 @@ export async function GET(request: Request) {
       error?: string;
     }> = [];
 
-    // Poll each source
+    // Poll each source using shared modules
     for (const source of sources) {
       try {
-        // Use internal poll-all logic inline to avoid circular deps
-        const response = await fetch(source.url, {
-          signal: AbortSignal.timeout(15_000),
-        });
-
-        if (!response.ok) {
-          results.push({
-            sourceId: source.id,
-            sourceName: source.name,
-            newIdeas: 0,
-            error: `HTTP ${response.status}`,
-          });
-          await prisma.source.update({
-            where: { id: source.id },
-            data: { lastError: `HTTP ${response.status}`, lastPolledAt: new Date() },
-          });
-          continue;
-        }
-
-        const xml = await response.text();
-        const items = parseRssItems(xml);
+        console.log(`[Cron] Polling source: ${source.name} (${source.id})`);
+        const items = await fetchRSSFeed(source.url);
 
         let newCount = 0;
         for (const item of items) {
-          const fingerprint = await hashFingerprint(normalizeTitle(item.title));
+          try {
+            const fingerprint = generateFingerprint(item.title);
 
-          // Dedup check
-          const existing = await prisma.idea.findFirst({
-            where: { fingerprint },
-            select: { id: true },
-          });
+            // Dedup check
+            const existing = await prisma.idea.findFirst({
+              where: {
+                OR: [
+                  { fingerprint },
+                  ...(item.link ? [{ sourceUrl: item.link }] : []),
+                ],
+              },
+              select: { id: true },
+            });
 
-          if (existing) continue;
+            if (existing) continue;
 
-          await prisma.idea.create({
-            data: {
-              title: item.title,
-              description: item.description || null,
-              sourceType: "RSS",
-              sourceUrl: item.link || null,
-              tags: source.tags,
-              status: "NEW",
-              sourceId: source.id,
-              fingerprint,
-              sourcePublishedAt: item.pubDate ? new Date(item.pubDate) : null,
-              createdByUserId: "system",
-            },
-          });
-          newCount++;
+            await prisma.idea.create({
+              data: {
+                title: item.title,
+                description: item.description || null,
+                sourceType: "RSS",
+                sourceUrl: item.link || null,
+                tags: source.tags,
+                status: "NEW",
+                sourceId: source.id,
+                fingerprint,
+                sourcePublishedAt: item.pubDate ? new Date(item.pubDate) : null,
+                createdByUserId: "system",
+              },
+            });
+            newCount++;
+          } catch (itemErr) {
+            console.error(`[Cron] Item error in ${source.name} for "${item.title}":`, (itemErr as Error).message);
+          }
         }
 
         await prisma.source.update({
@@ -114,8 +106,10 @@ export async function GET(request: Request) {
           sourceName: source.name,
           newIdeas: newCount,
         });
+        console.log(`[Cron] Source ${source.name}: ${items.length} items, ${newCount} new ideas`);
       } catch (err) {
         const errMsg = (err as Error).message;
+        console.error(`[Cron] Source ${source.name} failed:`, errMsg);
         results.push({
           sourceId: source.id,
           sourceName: source.name,
@@ -130,6 +124,7 @@ export async function GET(request: Request) {
     }
 
     const totalNew = results.reduce((sum, r) => sum + r.newIdeas, 0);
+    console.log(`[Cron] Done: ${sources.length} sources, ${totalNew} new ideas`);
 
     return NextResponse.json({
       message: `Polled ${sources.length} sources, created ${totalNew} new ideas`,
@@ -148,51 +143,4 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
-}
-
-// ── Inline helpers (same logic as ingestion modules) ──────────────────────
-
-function parseRssItems(xml: string): Array<{ title: string; link?: string; description?: string; pubDate?: string }> {
-  const items: Array<{ title: string; link?: string; description?: string; pubDate?: string }> = [];
-  const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
-  let match;
-  while ((match = itemRegex.exec(xml)) !== null) {
-    const block = match[1];
-    const title = extractTag(block, "title");
-    if (!title) continue;
-    items.push({
-      title,
-      link: extractTag(block, "link") || undefined,
-      description: extractTag(block, "description") || undefined,
-      pubDate: extractTag(block, "pubDate") || undefined,
-    });
-  }
-  return items;
-}
-
-function extractTag(xml: string, tag: string): string | null {
-  const cdataRe = new RegExp(`<${tag}[^>]*>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*</${tag}>`, "i");
-  const cdataMatch = xml.match(cdataRe);
-  if (cdataMatch) return cdataMatch[1].trim();
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i");
-  const m = xml.match(re);
-  return m ? m[1].trim() : null;
-}
-
-function normalizeTitle(title: string): string {
-  return title
-    .trim()
-    .toLowerCase()
-    .replace(/[\u0591-\u05C7]/g, "")
-    .replace(/[\s\-_]+/g, " ")
-    .replace(/[^\u0590-\u05FFa-zA-Z0-9\s]/g, "")
-    .trim();
-}
-
-async function hashFingerprint(normalized: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(normalized);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }

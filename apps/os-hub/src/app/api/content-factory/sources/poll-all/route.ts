@@ -27,7 +27,9 @@ export async function POST() {
       let skipped = 0;
 
       try {
+        console.log(`[PollAll] Polling source: ${source.name} (${source.id}), url: ${source.url}`);
         const items = await fetchRSSFeed(source.url);
+        console.log(`[PollAll] Got ${items.length} items from ${source.name}`);
 
         for (const item of items) {
           try {
@@ -89,8 +91,8 @@ export async function POST() {
             });
 
             created++;
-          } catch {
-            // Skip individual item errors, continue polling
+          } catch (itemErr) {
+            console.error(`[PollAll] Item error in ${source.name} for "${item.title}":`, (itemErr as Error).message);
           }
         }
 
@@ -118,8 +120,10 @@ export async function POST() {
         polled++;
         totalCreated += created;
         totalSkipped += skipped;
+        console.log(`[PollAll] Source ${source.name}: created=${created}, skipped=${skipped}`);
       } catch (e) {
         const errMsg = (e as Error).message;
+        console.error(`[PollAll] Source ${source.name} failed:`, errMsg);
         sourceErrors.push({ sourceId: source.id, name: source.name, error: errMsg });
 
         await prisma.source.update({
@@ -130,6 +134,11 @@ export async function POST() {
         // Continue polling other sources
         polled++;
       }
+    }
+
+    console.log(`[PollAll] Done: polled=${polled}, created=${totalCreated}, skipped=${totalSkipped}, errors=${sourceErrors.length}`);
+    if (sourceErrors.length > 0) {
+      console.warn(`[PollAll] Source errors:`, sourceErrors);
     }
 
     return NextResponse.json({

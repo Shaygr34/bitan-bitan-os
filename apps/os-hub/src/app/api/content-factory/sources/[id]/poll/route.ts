@@ -31,7 +31,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     const errors: string[] = [];
 
     try {
+      console.log(`[Poll] Polling source: ${source.name} (${source.id}), url: ${source.url}`);
       const items = await fetchRSSFeed(source.url);
+      console.log(`[Poll] Got ${items.length} items from ${source.name}`);
 
       for (const item of items) {
         try {
@@ -97,6 +99,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
           created++;
         } catch (itemErr) {
+          console.error(`[Poll] Item error for "${item.title}":`, (itemErr as Error).message);
           errors.push(`Item "${item.title}": ${(itemErr as Error).message}`);
         }
       }
@@ -127,6 +130,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         });
       });
     } catch (fetchErr) {
+      console.error(`[Poll] Fetch/parse error for source ${id}:`, (fetchErr as Error).message);
       // Update source with error
       await prisma.source.update({
         where: { id },
@@ -136,6 +140,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         },
       });
       errors.push((fetchErr as Error).message);
+    }
+
+    console.log(`[Poll] Done: source=${id}, created=${created}, skipped=${skipped}, errors=${errors.length}`);
+    if (errors.length > 0) {
+      console.warn(`[Poll] Errors for source ${id}:`, errors);
     }
 
     return NextResponse.json({
