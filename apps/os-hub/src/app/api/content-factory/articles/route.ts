@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
-import { errorJson, parseBody, requireString } from "@/lib/content-factory/validate";
+import { errorJson, isTableOrConnectionError, parseBody, requireString } from "@/lib/content-factory/validate";
 
 export const runtime = "nodejs";
 
@@ -85,6 +85,12 @@ export async function GET() {
 
     return NextResponse.json(articles);
   } catch (e) {
+    // Table missing or DB unreachable — return empty list so the UI shows
+    // the empty state instead of a 500 error banner.
+    if (isTableOrConnectionError(e)) {
+      console.warn("GET /api/content-factory/articles: DB not ready, returning []", (e as { code: string }).code);
+      return NextResponse.json([]);
+    }
     console.error("GET /api/content-factory/articles failed:", e);
     return errorJson(500, "INTERNAL_ERROR", "Failed to load articles");
   }

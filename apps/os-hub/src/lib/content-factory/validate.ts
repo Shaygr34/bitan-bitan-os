@@ -67,3 +67,18 @@ export function isValidUrl(value: string): boolean {
     return false;
   }
 }
+
+/**
+ * Detect Prisma errors caused by a missing table (P2021) or
+ * an unreachable database (P1001/P1002/P1003).
+ * Used for graceful degradation when the DB isn't ready yet.
+ */
+export function isTableOrConnectionError(error: unknown): boolean {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { code: string }).code;
+    // P2021 = table doesn't exist, P1001 = can't reach DB,
+    // P1002 = timed out, P1003 = DB doesn't exist
+    return ["P2021", "P1001", "P1002", "P1003"].includes(code);
+  }
+  return false;
+}
