@@ -15,13 +15,14 @@ interface HubStats {
   activeSources: number;
 }
 
+// RTL flow: rightmost → leftmost = מקורות → רעיונות → מאמרים
 const NAV_CARDS = [
   {
-    title: "מאמרים",
-    description: "ניהול מאמרים, עריכה והפצה לפלטפורמות",
-    href: "/content-factory/articles",
-    statKey: "articles" as const,
-    statLabel: "מאמרים",
+    title: "מקורות",
+    description: "ניהול מקורות תוכן — RSS, API וגרידה",
+    href: "/content-factory/sources",
+    statKey: "activeSources" as const,
+    statLabel: "מקורות פעילים",
   },
   {
     title: "רעיונות",
@@ -31,11 +32,11 @@ const NAV_CARDS = [
     statLabel: "רעיונות",
   },
   {
-    title: "מקורות",
-    description: "ניהול מקורות תוכן — RSS, API וגרידה",
-    href: "/content-factory/sources",
-    statKey: "activeSources" as const,
-    statLabel: "מקורות פעילים",
+    title: "מאמרים",
+    description: "ניהול מאמרים, עריכה והפצה לפלטפורמות",
+    href: "/content-factory/articles",
+    statKey: "articles" as const,
+    statLabel: "מאמרים",
   },
 ];
 
