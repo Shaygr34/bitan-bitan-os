@@ -141,16 +141,32 @@ export async function fetchRSSFeed(url: string): Promise<RSSItem[]> {
   console.log(`[RSS] Fetching: ${url}`);
 
   try {
+    // Build origin-aware headers to avoid 403 blocks from Israeli news sites
+    let referer = "https://www.google.com/";
+    try {
+      const u = new URL(url);
+      referer = u.origin + "/";
+    } catch { /* keep default */ }
+
     const response = await fetch(url, {
       signal: controller.signal,
       cache: "no-store",
       redirect: "follow",
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         Accept:
           "application/rss+xml, application/xml, text/xml, application/atom+xml, */*",
-        "Accept-Language": "he-IL,he;q=0.9,en;q=0.8",
+        "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        Referer: referer,
+        Connection: "keep-alive",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        DNT: "1",
       },
     });
 
