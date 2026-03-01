@@ -205,7 +205,7 @@ export default function IdeasPage() {
           .join(", ");
         const okCount = data.polled - errors.length;
         showToast({
-          type: "warning",
+          type: "error",
           message: `${okCount} מקורות הצליחו (${data.totalCreated} חדשים). נכשלו: ${failedNames}`,
         });
       }
