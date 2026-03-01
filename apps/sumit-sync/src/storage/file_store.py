@@ -44,6 +44,19 @@ def read_file(path: str) -> Optional[bytes]:
     return None
 
 
+def cleanup_run_files(run_id: str) -> int:
+    """Delete all stored files for a run (uploads + outputs). Returns bytes freed."""
+    freed = 0
+    for subdir in ("uploads", "outputs"):
+        d = DATA_DIR / subdir / run_id
+        if d.exists():
+            for f in d.rglob("*"):
+                if f.is_file():
+                    freed += f.stat().st_size
+            shutil.rmtree(d)
+    return freed
+
+
 def volume_writable() -> bool:
     """Health check — can we write to the data volume?"""
     probe = DATA_DIR / ".probe"

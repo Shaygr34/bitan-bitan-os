@@ -1,16 +1,17 @@
 """
 FastAPI routes for IDOM-SUMIT Sync.
 
-POST  /runs                         — create a new reconciliation run
-POST  /runs/{id}/upload             — upload IDOM or SUMIT file
-POST  /runs/{id}/execute            — run reconciliation engine
-GET   /runs/{id}                    — get run detail (metrics, exceptions, files)
-GET   /runs                         — list runs
-GET   /runs/{id}/files/{fid}/download — download a file
-GET   /runs/{id}/drill-down/{metric} — drill-down into metric data
-PATCH /runs/{id}/exceptions/{eid}   — update exception resolution
-PATCH /runs/{id}/exceptions/bulk    — bulk update exceptions
-POST  /runs/{id}/complete           — mark run as completed (locks mutations)
+POST   /runs                         — create a new reconciliation run
+POST   /runs/{id}/upload             — upload IDOM or SUMIT file
+POST   /runs/{id}/execute            — run reconciliation engine
+GET    /runs/{id}                    — get run detail (metrics, exceptions, files)
+GET    /runs                         — list runs
+DELETE /runs/{id}                    — delete run, its DB records, and stored files
+GET    /runs/{id}/files/{fid}/download — download a file
+GET    /runs/{id}/drill-down/{metric} — drill-down into metric data
+PATCH  /runs/{id}/exceptions/{eid}   — update exception resolution
+PATCH  /runs/{id}/exceptions/bulk    — bulk update exceptions
+POST   /runs/{id}/complete           — mark run as completed (locks mutations)
 """
 
 import time
@@ -362,6 +363,26 @@ def execute_run(run_id: str, db: Session = Depends(get_db)):
 def get_run(run_id: str, db: Session = Depends(get_db)):
     run = _run_or_404(run_id, db)
     return _serialize_run_detail(run)
+
+
+# ------------------------------------------------------------------ #
+#  DELETE /runs/{id}  — delete run + files
+# ------------------------------------------------------------------ #
+
+@router.delete("/{run_id}", status_code=204)
+def delete_run(run_id: str, db: Session = Depends(get_db)):
+    run = _run_or_404(run_id, db)
+
+    # Delete physical files from volume first
+    freed = file_store.cleanup_run_files(str(run.id))
+    logger.info("Cleaned up %d bytes for run %s", freed, run_id)
+
+    # Cascade delete handles run_files, run_metrics, exceptions
+    db.delete(run)
+    db.commit()
+
+    logger.info("Deleted run %s", run_id)
+    return None
 
 
 # ------------------------------------------------------------------ #
