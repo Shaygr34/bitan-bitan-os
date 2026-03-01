@@ -328,6 +328,7 @@ model Source {
 
   ideas Idea[]
 
+  @@unique([url])
   @@index([active])
   @@index([type])
   @@map("sources")
