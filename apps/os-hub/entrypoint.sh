@@ -81,6 +81,20 @@ run_migrations() {
     npx prisma migrate resolve --applied 20260211000000_content_factory_v0
     echo "Re-running prisma migrate deploy after baseline..."
     npx prisma migrate deploy
+  elif echo "$MIGRATE_OUTPUT" | grep -q "P3009"; then
+    # P3009: a previous migration failed and is blocking new migrations.
+    # Extract the failed migration name, resolve it as rolled-back, and re-run.
+    echo "Detected P3009: failed migration found in database."
+    FAILED_MIGRATION=$(echo "$MIGRATE_OUTPUT" | grep 'The `' | sed "s/.*The \`\([^\`]*\)\`.*/\1/" | head -1)
+    if [ -n "$FAILED_MIGRATION" ]; then
+      echo "Resolving failed migration as rolled-back: $FAILED_MIGRATION"
+      npx prisma migrate resolve --rolled-back "$FAILED_MIGRATION"
+      echo "Re-running prisma migrate deploy after resolving..."
+      npx prisma migrate deploy
+    else
+      echo "FATAL: P3009 detected but could not extract failed migration name."
+      exit 1
+    fi
   else
     echo "FATAL: prisma migrate deploy failed (exit $MIGRATE_EXIT)."
     exit 1
