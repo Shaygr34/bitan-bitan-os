@@ -26,9 +26,18 @@ enum IdeaSourceType {
 
 enum IdeaStatus {
   NEW
+  SELECTED
   ENRICHED
   QUEUED_FOR_DRAFT
+  REJECTED
   ARCHIVED
+}
+
+enum SourceType {
+  RSS
+  API
+  SCRAPE
+  MANUAL
 }
 
 enum ArticleStatus {
@@ -118,18 +127,31 @@ enum AIProposalStatus {
 model Idea {
   id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title           String
+  description     String?        @db.Text
   sourceType      IdeaSourceType
   sourceUrl       String?
   tags            String[]       @default([])
   status          IdeaStatus     @default(NEW)
+  priority        Int?
   createdByUserId String
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+
+  // v0 additions — Source relation, scoring, dedup
+  sourceId          String?    @db.Uuid
+  source            Source?    @relation(fields: [sourceId], references: [id])
+  fingerprint       String?
+  score             Float?
+  scoreBreakdown    Json?      @db.JsonB
+  sourcePublishedAt DateTime?
 
   articles Article[]
 
   @@index([status])
   @@index([createdByUserId])
+  @@index([fingerprint])
+  @@index([score])
+  @@index([sourceId])
   @@map("ideas")
 }
 
@@ -139,15 +161,26 @@ model Article {
   id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ideaId             String?            @db.Uuid
   title              String
+  subtitle           String?
   bodyBlocks         Json               @db.JsonB
   bodyText           String?            @db.Text
   version            Int                @default(1)
   status             ArticleStatus      @default(DRAFT)
   distributionStatus DistributionStatus @default(NOT_PUBLISHED)
+  tags               String[]           @default([])
+  category           String?
   seoMeta            Json               @default("{}") @db.JsonB
   createdByUserId    String
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
+
+  // v0 additions — SEO, Sanity integration, AI tracking
+  seoTitle       String?
+  seoDescription String?
+  slug           String?   @unique
+  sanityId       String?
+  sanityUrl      String?
+  aiGenerated    Boolean   @default(false)
 
   idea      Idea?      @relation(fields: [ideaId], references: [id])
   assets    Asset[]
@@ -157,6 +190,7 @@ model Article {
   @@index([status])
   @@index([distributionStatus])
   @@index([createdByUserId])
+  @@index([sanityId])
   @@map("articles")
 }
 
@@ -271,6 +305,32 @@ model EventLog {
   @@index([action])
   @@index([createdAt])
   @@map("event_logs")
+}
+
+/// Content source registry — RSS feeds, scrape targets, API endpoints.
+model Source {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  nameHe          String?
+  type            SourceType @default(RSS)
+  url             String
+  active          Boolean    @default(true)
+  weight          Float      @default(1.0)
+  category        String?
+  tags            String[]   @default([])
+  pollIntervalMin Int        @default(60)
+  lastPolledAt    DateTime?
+  lastItemCount   Int?
+  lastError       String?
+  notes           String?    @db.Text
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  ideas Idea[]
+
+  @@index([active])
+  @@index([type])
+  @@map("sources")
 }
 
 /// Store AI outputs and whether accepted (Phase 1 AI primitives).

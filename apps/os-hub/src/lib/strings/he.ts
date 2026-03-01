@@ -267,6 +267,9 @@ export const strings: Record<string, string> = {
   // Content Factory
   // ═══════════════════════════════════════
   "nav.items.contentFactory": "Content Factory",
+  "nav.items.contentFactory.articles": "מאמרים",
+  "nav.items.contentFactory.ideas": "רעיונות",
+  "nav.items.contentFactory.sources": "מקורות",
   "contentFactory.title": "Content Factory",
   "contentFactory.subtitle": "ניהול מאמרים, נכסים והפצה",
   "contentFactory.newArticle": "Article חדש",
@@ -322,6 +325,10 @@ export const strings: Record<string, string> = {
   "contentFactory.publish.submit": "פרסם",
   "contentFactory.publish.success": "הנכס פורסם בהצלחה",
   "contentFactory.publish.requiresApproval": "נדרש אישור לפני פרסום",
+  "contentFactory.publish.toSanity": "פרסם לאתר (Sanity)",
+  "contentFactory.publish.sanitySuccess": "המאמר פורסם לאתר בהצלחה",
+  "contentFactory.publish.sanityPublished": "המאמר פורסם לאתר.",
+  "contentFactory.publish.openInSanity": "פתח ב-Sanity Studio",
 
   // Publish jobs
   "contentFactory.publishJob.SUCCEEDED": "פורסם",
@@ -337,6 +344,7 @@ export const strings: Record<string, string> = {
   "contentFactory.error.transition": "שגיאה בשינוי סטטוס",
   "contentFactory.error.createAsset": "שגיאה ביצירת נכס",
   "contentFactory.error.publish": "שגיאה בפרסום",
+  "contentFactory.error.publishSanity": "שגיאה בפרסום לאתר",
   "contentFactory.error.technicalDetails": "פרטים טכניים",
   "contentFactory.error.notFound": "המאמר לא נמצא",
 
