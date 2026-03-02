@@ -17,11 +17,12 @@ function normalizeBlocks(raw: unknown): ContentBlock[] {
 
   // If it's a string, try to parse it as JSON
   if (typeof raw === "string") {
+    const rawStr: string = raw;
     try {
-      raw = JSON.parse(raw);
+      raw = JSON.parse(rawStr);
     } catch {
       // If it's just text, wrap it as a paragraph
-      return [{ type: "paragraph", text: raw as string }];
+      return [{ type: "paragraph", text: rawStr }];
     }
   }
 
