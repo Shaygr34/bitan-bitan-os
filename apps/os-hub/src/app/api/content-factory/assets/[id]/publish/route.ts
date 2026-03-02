@@ -14,6 +14,7 @@ import { updateDistributionStatus } from "@/lib/content-factory/distribution";
 import { errorJson, isValidUuid, isValidUrl, parseBody, requireString } from "@/lib/content-factory/validate";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type PublishBody = {
   externalUrl: string;

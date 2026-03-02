@@ -9,6 +9,9 @@ import { prisma } from "@/lib/prisma";
 import { isValidUuid, errorJson, isTableOrConnectionError } from "@/lib/content-factory/validate";
 import { publishToSanity } from "@/lib/content-factory/publishers/sanity-publisher";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },

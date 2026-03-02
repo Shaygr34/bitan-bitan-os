@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
-import ContentBlockRenderer from "@/components/ContentBlockRenderer";
+import ContentBlockRenderer, { normalizeBlocks } from "@/components/ContentBlockRenderer";
 import { showToast } from "@/components/Toast";
 import { t } from "@/lib/strings";
 import type { ContentBlock } from "@/lib/ai/content-blocks";
@@ -54,7 +54,7 @@ interface Article {
   distributionStatus: string;
   updatedAt: string;
   assets: Asset[];
-  bodyBlocks?: ContentBlock[] | null;
+  bodyBlocks?: unknown;
   bodyText?: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
@@ -126,6 +126,24 @@ function getNextActionHint(article: Article): { text: string; success: boolean }
 
 /* ═══ BlockEditor — Inline editing for DRAFT articles ═══ */
 
+const BLOCK_TYPE_LABELS: Record<string, string> = {
+  heading: "כותרת",
+  paragraph: "פסקה",
+  list: "רשימה",
+  quote: "ציטוט",
+  callout: "הערה",
+  divider: "קו הפרדה",
+  table: "טבלה",
+  image: "תמונה",
+};
+
+function autoRows(text: string | undefined, min: number): number {
+  if (!text) return min;
+  const lines = text.split("\n").length;
+  const charLines = Math.ceil(text.length / 70);
+  return Math.max(min, lines, charLines);
+}
+
 function BlockEditor({
   blocks,
   onSave,
@@ -183,14 +201,29 @@ function BlockEditor({
     setDirty(true);
   }
 
+  function moveBlock(index: number, direction: -1 | 1) {
+    setEditBlocks((prev) => {
+      const next = [...prev];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    setDirty(true);
+  }
+
   function addBlock(type: ContentBlock["type"], afterIndex: number) {
     const newBlock: ContentBlock = type === "heading"
       ? { type: "heading", text: "", level: 2 }
       : type === "list"
         ? { type: "list", style: "bullet", items: [""] }
-        : type === "divider"
-          ? { type: "divider" }
-          : { type: "paragraph", text: "" };
+        : type === "quote"
+          ? { type: "quote", text: "" }
+          : type === "callout"
+            ? { type: "callout", text: "", title: "" }
+            : type === "divider"
+              ? { type: "divider" }
+              : { type: "paragraph", text: "" };
 
     setEditBlocks((prev) => {
       const next = [...prev];
@@ -202,100 +235,133 @@ function BlockEditor({
 
   return (
     <div className={styles.editorContainer}>
-      {/* Save bar */}
+      {/* Save bar — sticky */}
       <div className={styles.editorToolbar}>
         <span className={styles.editorLabel}>
-          {dirty ? "יש שינויים שלא נשמרו" : "מצב עריכה"}
+          {dirty ? "* יש שינויים שלא נשמרו" : "מצב עריכה"}
         </span>
-        <button
-          className="btn-primary"
-          disabled={!dirty || saving}
-          onClick={() => onSave(editBlocks)}
-        >
-          {saving ? "שומר..." : "שמור שינויים"}
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button
+            className="btn-primary"
+            disabled={!dirty || saving}
+            onClick={() => onSave(editBlocks)}
+          >
+            {saving ? "שומר..." : "שמור שינויים"}
+          </button>
+        </div>
       </div>
 
       {editBlocks.map((block, i) => (
         <div key={i} className={styles.editorBlock}>
           <div className={styles.editorBlockHeader}>
-            <span className={styles.editorBlockType}>{block.type}</span>
+            <span className={styles.editorBlockType}>
+              {BLOCK_TYPE_LABELS[block.type] ?? block.type}
+              {block.type === "heading" && ` (${block.level ?? 1})`}
+            </span>
             <div className={styles.editorBlockActions}>
-              <button
-                className={styles.editorSmallBtn}
-                title="הוסף פסקה"
-                onClick={() => addBlock("paragraph", i)}
-              >
-                + פסקה
-              </button>
-              <button
-                className={styles.editorSmallBtn}
-                title="הוסף כותרת"
-                onClick={() => addBlock("heading", i)}
-              >
-                + כותרת
-              </button>
-              <button
-                className={styles.editorSmallBtn}
-                title="הוסף רשימה"
-                onClick={() => addBlock("list", i)}
-              >
-                + רשימה
-              </button>
+              {i > 0 && (
+                <button className={styles.editorSmallBtn} onClick={() => moveBlock(i, -1)} title="הזז למעלה">
+                  ↑
+                </button>
+              )}
+              {i < editBlocks.length - 1 && (
+                <button className={styles.editorSmallBtn} onClick={() => moveBlock(i, 1)} title="הזז למטה">
+                  ↓
+                </button>
+              )}
               {editBlocks.length > 1 && (
-                <button
-                  className={styles.editorDeleteBtn}
-                  title="מחק בלוק"
-                  onClick={() => removeBlock(i)}
-                >
+                <button className={styles.editorDeleteBtn} title="מחק בלוק" onClick={() => removeBlock(i)}>
                   מחק
                 </button>
               )}
             </div>
           </div>
 
+          {/* Text-based blocks: heading, paragraph, quote, callout */}
           {(block.type === "heading" || block.type === "paragraph" || block.type === "quote" || block.type === "callout") && (
-            <textarea
-              className={styles.editorTextarea}
-              value={block.text ?? ""}
-              onChange={(e) => updateBlock(i, { text: e.target.value })}
-              rows={block.type === "heading" ? 1 : Math.max(2, Math.ceil((block.text?.length ?? 0) / 80))}
-              placeholder={block.type === "heading" ? "כותרת..." : "תוכן הפסקה..."}
-            />
+            <>
+              {block.type === "callout" && (
+                <input
+                  type="text"
+                  className={styles.editorInput}
+                  value={block.title ?? ""}
+                  onChange={(e) => updateBlock(i, { title: e.target.value })}
+                  placeholder="כותרת ההערה..."
+                  style={{ marginBottom: "0.25rem", fontWeight: 600 }}
+                />
+              )}
+              <textarea
+                className={`${styles.editorTextarea} ${block.type === "heading" ? styles.editorHeadingInput : ""}`}
+                value={block.text ?? ""}
+                onChange={(e) => updateBlock(i, { text: e.target.value })}
+                rows={block.type === "heading" ? 2 : autoRows(block.text, 3)}
+                placeholder={
+                  block.type === "heading" ? "כותרת..."
+                    : block.type === "quote" ? "ציטוט..."
+                      : block.type === "callout" ? "תוכן ההערה..."
+                        : "תוכן הפסקה..."
+                }
+                dir="rtl"
+              />
+              {block.type === "quote" && (
+                <input
+                  type="text"
+                  className={styles.editorInput}
+                  value={block.attribution ?? ""}
+                  onChange={(e) => updateBlock(i, { attribution: e.target.value })}
+                  placeholder="מקור הציטוט (אופציונלי)..."
+                  style={{ marginTop: "0.25rem", fontSize: "0.85rem" }}
+                />
+              )}
+            </>
           )}
 
+          {/* List block */}
           {block.type === "list" && (
             <div className={styles.editorListItems}>
               {(block.items ?? []).map((item, li) => (
                 <div key={li} className={styles.editorListItem}>
+                  <span className={styles.editorListBullet}>
+                    {block.style === "number" ? `${li + 1}.` : "•"}
+                  </span>
                   <input
                     type="text"
                     className={styles.editorInput}
                     value={item}
                     onChange={(e) => updateListItem(i, li, e.target.value)}
                     placeholder="פריט ברשימה..."
+                    dir="rtl"
                   />
                   <button
                     className={styles.editorDeleteBtn}
                     onClick={() => removeListItem(i, li)}
                     title="הסר פריט"
+                    style={{ padding: "0.2rem 0.4rem", fontSize: "0.75rem" }}
                   >
                     ✕
                   </button>
                 </div>
               ))}
-              <button
-                className={styles.editorSmallBtn}
-                onClick={() => addListItem(i)}
-              >
+              <button className={styles.editorSmallBtn} onClick={() => addListItem(i)}>
                 + פריט
               </button>
             </div>
           )}
 
+          {/* Divider */}
           {block.type === "divider" && (
             <hr style={{ border: "none", borderTop: "1px dashed #ccc", margin: "0.5rem 0" }} />
           )}
+
+          {/* Add block row — between blocks */}
+          <div className={styles.editorAddRow}>
+            <button className={styles.editorAddBtn} onClick={() => addBlock("paragraph", i)}>+ פסקה</button>
+            <button className={styles.editorAddBtn} onClick={() => addBlock("heading", i)}>+ כותרת</button>
+            <button className={styles.editorAddBtn} onClick={() => addBlock("list", i)}>+ רשימה</button>
+            <button className={styles.editorAddBtn} onClick={() => addBlock("quote", i)}>+ ציטוט</button>
+            <button className={styles.editorAddBtn} onClick={() => addBlock("callout", i)}>+ הערה</button>
+            <button className={styles.editorAddBtn} onClick={() => addBlock("divider", i)}>+ הפרדה</button>
+          </div>
         </div>
       ))}
     </div>
@@ -672,6 +738,8 @@ export default function ArticleDetailPage() {
   const articleTransitions = ARTICLE_TRANSITIONS[article.status] ?? [];
   const hint = getNextActionHint(article);
   const isDraft = article.status === "DRAFT";
+  const normalizedBlocks = normalizeBlocks(article.bodyBlocks);
+  const hasBlocks = normalizedBlocks.length > 0;
 
   return (
     <div>
@@ -807,7 +875,7 @@ export default function ArticleDetailPage() {
       {/* Article body — read mode vs edit mode */}
       <div className={styles.sectionHeader}>
         <h2 className={styles.sectionTitle}>{t("contentFactory.article.body")}</h2>
-        {isDraft && !editing && Array.isArray(article.bodyBlocks) && article.bodyBlocks.length > 0 && (
+        {isDraft && !editing && hasBlocks && (
           <button
             className="btn-secondary"
             onClick={() => setEditing(true)}
@@ -827,13 +895,13 @@ export default function ArticleDetailPage() {
         )}
       </div>
 
-      {editing && isDraft && Array.isArray(article.bodyBlocks) ? (
+      {editing && isDraft && hasBlocks ? (
         <BlockEditor
-          blocks={article.bodyBlocks}
+          blocks={normalizedBlocks}
           onSave={handleSaveBlocks}
           saving={saving}
         />
-      ) : Array.isArray(article.bodyBlocks) && article.bodyBlocks.length > 0 ? (
+      ) : hasBlocks ? (
         <ContentBlockRenderer blocks={article.bodyBlocks} />
       ) : (
         <EmptyState message="אין תוכן במאמר" detail={isDraft ? "ערכו את המאמר להוספת תוכן" : undefined} />

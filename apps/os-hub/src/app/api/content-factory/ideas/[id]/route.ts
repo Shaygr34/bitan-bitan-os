@@ -10,6 +10,7 @@ import { logEvent } from "@/lib/content-factory/event-log";
 import { errorJson, isValidUuid, parseBody } from "@/lib/content-factory/validate";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

@@ -16,6 +16,7 @@ import { updateDistributionStatus } from "@/lib/content-factory/distribution";
 import { errorJson, isValidUuid, parseBody, requireString } from "@/lib/content-factory/validate";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type StatusBody = {
   to: PublishJobStatus;
