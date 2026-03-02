@@ -21,7 +21,7 @@ function normalizeBlocks(raw: unknown): ContentBlock[] {
       raw = JSON.parse(raw);
     } catch {
       // If it's just text, wrap it as a paragraph
-      return [{ type: "paragraph", text: raw }];
+      return [{ type: "paragraph", text: raw as string }];
     }
   }
 
