@@ -10,7 +10,8 @@ interface Props {
 /**
  * Normalize raw bodyBlocks from the DB into a clean ContentBlock[].
  * Handles edge cases: double-wrapped arrays, {meta, blocks} objects,
- * stringified JSON, unknown types, and missing text fields.
+ * stringified JSON, unknown types, missing text fields, and
+ * paragraphs containing raw JSON (from failed parse fallback).
  */
 export function normalizeBlocks(raw: unknown): ContentBlock[] {
   if (!raw) return [];
@@ -58,10 +59,81 @@ export function normalizeBlocks(raw: unknown): ContentBlock[] {
       continue;
     }
 
+    // Detect paragraph blocks that contain raw JSON (from failed-parse fallback).
+    // The fallback dumps the entire Claude response (JSON with code fences) into
+    // a single paragraph. We detect this and extract the actual blocks.
+    if (block.type === "paragraph" && block.text) {
+      const trimmed = block.text.trim();
+      const looksLikeJson =
+        trimmed.startsWith("```") ||
+        (trimmed.startsWith("{") && trimmed.includes('"blocks"'));
+
+      if (looksLikeJson) {
+        const extracted = tryExtractBlocksFromRawText(trimmed);
+        if (extracted) {
+          blocks.push(...extracted);
+          continue;
+        }
+      }
+    }
+
     blocks.push(block);
   }
 
   return blocks;
+}
+
+/**
+ * Try to extract ContentBlock[] from raw Claude response text that was
+ * accidentally stored as paragraph text. Handles code-fenced JSON,
+ * bare JSON objects, and various formatting quirks.
+ */
+function tryExtractBlocksFromRawText(text: string): ContentBlock[] | null {
+  let jsonStr = text;
+
+  // Strip markdown code fences (various patterns)
+  const fenceMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```\s*$/);
+  if (fenceMatch) {
+    jsonStr = fenceMatch[1].trim();
+  }
+
+  // Try to find outermost { ... }
+  if (!jsonStr.startsWith("{") && !jsonStr.startsWith("[")) {
+    const first = jsonStr.indexOf("{");
+    const last = jsonStr.lastIndexOf("}");
+    if (first !== -1 && last > first) {
+      jsonStr = jsonStr.slice(first, last + 1);
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(jsonStr);
+
+    // Full DraftResponse: { meta: {...}, blocks: [...] }
+    if (parsed && parsed.blocks && Array.isArray(parsed.blocks)) {
+      return normalizeBlocks(parsed.blocks);
+    }
+
+    // Bare blocks array
+    if (Array.isArray(parsed)) {
+      return normalizeBlocks(parsed);
+    }
+  } catch {
+    // JSON parse failed — try to repair common issues
+    try {
+      // Remove trailing commas before } or ]
+      const repaired = jsonStr
+        .replace(/,\s*([\]}])/g, "$1");
+      const parsed = JSON.parse(repaired);
+      if (parsed?.blocks && Array.isArray(parsed.blocks)) {
+        return normalizeBlocks(parsed.blocks);
+      }
+    } catch {
+      // Still failed — give up
+    }
+  }
+
+  return null;
 }
 
 function renderInlineHtml(text: string): string {

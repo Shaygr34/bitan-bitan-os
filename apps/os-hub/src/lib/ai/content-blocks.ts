@@ -107,37 +107,84 @@ export function validateContentBlocks(blocks: unknown[]): {
 /**
  * Parse a Claude response into DraftResponse (meta + blocks).
  * The response should be a JSON object with "meta" and "blocks" fields.
+ *
+ * Multiple extraction strategies for robustness:
+ * 1. Strip markdown code fences (greedy and non-greedy patterns)
+ * 2. Find outermost { ... } braces
+ * 3. Repair common JSON issues (trailing commas)
+ * 4. If all fail, return null
  */
 export function parseDraftResponse(text: string): DraftResponse | null {
-  try {
-    // Try to extract JSON from the response (may be wrapped in markdown code fence)
-    let jsonStr = text.trim();
+  const jsonCandidates: string[] = [];
+  const raw = text.trim();
 
-    // Strip markdown code fence if present — use greedy match to grab the whole block
-    const fenceMatch = jsonStr.match(/```(?:json)?\s*\n([\s\S]*)\n\s*```/);
-    if (fenceMatch) {
-      jsonStr = fenceMatch[1].trim();
-    } else {
-      // Maybe Claude added text before/after the JSON — find the outermost { ... }
-      const firstBrace = jsonStr.indexOf("{");
-      const lastBrace = jsonStr.lastIndexOf("}");
-      if (firstBrace !== -1 && lastBrace > firstBrace) {
-        jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
-      }
+  // Strategy 1: Greedy code fence extraction
+  const fenceGreedy = raw.match(/```(?:json)?\s*\n([\s\S]*)\n\s*```/);
+  if (fenceGreedy) {
+    jsonCandidates.push(fenceGreedy[1].trim());
+  }
+
+  // Strategy 2: Non-greedy code fence extraction (first code block only)
+  const fenceNonGreedy = raw.match(/```(?:json)?\s*\n([\s\S]*?)\n\s*```/);
+  if (fenceNonGreedy && fenceNonGreedy[1].trim() !== jsonCandidates[0]) {
+    jsonCandidates.push(fenceNonGreedy[1].trim());
+  }
+
+  // Strategy 3: Code fence without strict newline requirements
+  const fenceRelaxed = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceRelaxed) {
+    const candidate = fenceRelaxed[1].trim();
+    if (!jsonCandidates.includes(candidate)) {
+      jsonCandidates.push(candidate);
     }
+  }
 
-    console.log("[DRAFT] Attempting JSON parse, length:", jsonStr.length, "preview:", jsonStr.substring(0, 200));
+  // Strategy 4: Find outermost { ... } (no code fence)
+  const firstBrace = raw.indexOf("{");
+  const lastBrace = raw.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = raw.slice(firstBrace, lastBrace + 1);
+    if (!jsonCandidates.includes(candidate)) {
+      jsonCandidates.push(candidate);
+    }
+  }
 
+  // Strategy 5: Full text as-is (maybe it's just JSON)
+  if (!jsonCandidates.includes(raw)) {
+    jsonCandidates.push(raw);
+  }
+
+  console.log("[DRAFT] Attempting parse with", jsonCandidates.length, "strategies, text length:", raw.length);
+
+  for (let i = 0; i < jsonCandidates.length; i++) {
+    const jsonStr = jsonCandidates[i];
+    const result = tryParseDraft(jsonStr, `strategy-${i + 1}`);
+    if (result) return result;
+
+    // Try with trailing comma repair
+    const repaired = jsonStr.replace(/,\s*([\]}])/g, "$1");
+    if (repaired !== jsonStr) {
+      const repairedResult = tryParseDraft(repaired, `strategy-${i + 1}-repaired`);
+      if (repairedResult) return repairedResult;
+    }
+  }
+
+  console.error("[DRAFT] All parse strategies failed — raw preview:", raw.substring(0, 500));
+  return null;
+}
+
+function tryParseDraft(jsonStr: string, label: string): DraftResponse | null {
+  try {
     const parsed = JSON.parse(jsonStr);
 
-    if (parsed.meta && parsed.blocks) {
-      console.log("[DRAFT] Parsed successfully — meta keys:", Object.keys(parsed.meta), "blocks:", parsed.blocks.length);
+    if (parsed.meta && parsed.blocks && Array.isArray(parsed.blocks)) {
+      console.log(`[DRAFT] ${label}: Parsed {meta, blocks} — blocks:`, parsed.blocks.length);
       return parsed as DraftResponse;
     }
 
     // Maybe the whole response is just blocks array
-    if (Array.isArray(parsed)) {
-      console.log("[DRAFT] Parsed as bare blocks array, count:", parsed.length);
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.type) {
+      console.log(`[DRAFT] ${label}: Parsed as bare blocks array, count:`, parsed.length);
       return {
         meta: {
           seoTitle: "",
@@ -151,10 +198,8 @@ export function parseDraftResponse(text: string): DraftResponse | null {
       };
     }
 
-    console.warn("[DRAFT] Parsed JSON but no meta/blocks. Keys:", Object.keys(parsed));
     return null;
-  } catch (err) {
-    console.error("[DRAFT] JSON parse failed:", (err as Error).message, "— raw preview:", text.substring(0, 500));
+  } catch {
     return null;
   }
 }
