@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { fetchRSSFeed } from "@/lib/content-factory/ingestion/rss-parser";
-import { generateFingerprint } from "@/lib/content-factory/ingestion/dedup";
+import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
 
 export const runtime = "nodejs";
@@ -35,12 +35,14 @@ export async function POST() {
         for (const item of items) {
           try {
             const fingerprint = generateFingerprint(item.title);
+            const normalizedLink = item.link ? normalizeUrl(item.link) : null;
 
             const existing = await prisma.idea.findFirst({
               where: {
                 OR: [
                   { fingerprint },
-                  ...(item.link ? [{ sourceUrl: item.link }] : []),
+                  ...(normalizedLink ? [{ sourceUrl: normalizedLink }] : []),
+                  ...(item.link && item.link !== normalizedLink ? [{ sourceUrl: item.link }] : []),
                 ],
               },
             });
@@ -66,7 +68,7 @@ export async function POST() {
                   title: item.title,
                   description: item.description || null,
                   sourceType: "RSS",
-                  sourceUrl: item.link || null,
+                  sourceUrl: normalizedLink || null,
                   sourceId: source.id,
                   fingerprint,
                   score: breakdown.total,

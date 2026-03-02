@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { errorJson, isValidUuid } from "@/lib/content-factory/validate";
 import { fetchRSSFeed } from "@/lib/content-factory/ingestion/rss-parser";
-import { generateFingerprint } from "@/lib/content-factory/ingestion/dedup";
+import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
 
 export const runtime = "nodejs";
@@ -39,13 +39,15 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       for (const item of items) {
         try {
           const fingerprint = generateFingerprint(item.title);
+          const normalizedLink = item.link ? normalizeUrl(item.link) : null;
 
-          // Check for duplicates
+          // Check for duplicates by fingerprint OR normalized URL
           const existing = await prisma.idea.findFirst({
             where: {
               OR: [
                 { fingerprint },
-                ...(item.link ? [{ sourceUrl: item.link }] : []),
+                ...(normalizedLink ? [{ sourceUrl: normalizedLink }] : []),
+                ...(item.link && item.link !== normalizedLink ? [{ sourceUrl: item.link }] : []),
               ],
             },
           });
@@ -72,7 +74,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
                 title: item.title,
                 description: item.description || null,
                 sourceType: "RSS",
-                sourceUrl: item.link || null,
+                sourceUrl: normalizedLink || null,
                 sourceId: source.id,
                 fingerprint,
                 score: breakdown.total,
