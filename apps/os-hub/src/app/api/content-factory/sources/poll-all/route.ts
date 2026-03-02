@@ -1,11 +1,11 @@
 /**
- * POST /api/content-factory/sources/poll-all  — Poll all active RSS sources
+ * POST /api/content-factory/sources/poll-all  — Poll all active pollable sources
  */
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
-import { fetchRSSFeed } from "@/lib/content-factory/ingestion/rss-parser";
+import { fetchSourceItems, isPollableType, toIdeaSourceType } from "@/lib/content-factory/ingestion/poll-dispatcher";
 import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
 
@@ -14,9 +14,11 @@ export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
-    const sources = await prisma.source.findMany({
-      where: { active: true, type: "RSS" },
+    // Fetch all active sources (not just RSS) and filter by pollable type
+    const allActiveSources = await prisma.source.findMany({
+      where: { active: true },
     });
+    const sources = allActiveSources.filter((s: { type: string }) => isPollableType(s.type));
 
     let polled = 0;
     let totalCreated = 0;
@@ -28,8 +30,8 @@ export async function POST() {
       let skipped = 0;
 
       try {
-        console.log(`[PollAll] Polling source: ${source.name} (${source.id}), url: ${source.url}`);
-        const items = await fetchRSSFeed(source.url);
+        console.log(`[PollAll] Polling source: ${source.name} (${source.id}), type=${source.type}, url: ${source.url}`);
+        const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "MANUAL", source.url);
         console.log(`[PollAll] Got ${items.length} items from ${source.name}`);
 
         for (const item of items) {
@@ -67,7 +69,7 @@ export async function POST() {
                 data: {
                   title: item.title,
                   description: item.description || null,
-                  sourceType: "RSS",
+                  sourceType: toIdeaSourceType(source.type),
                   sourceUrl: normalizedLink || null,
                   sourceId: source.id,
                   fingerprint,

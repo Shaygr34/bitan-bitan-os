@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { errorJson, isValidUuid } from "@/lib/content-factory/validate";
-import { fetchRSSFeed } from "@/lib/content-factory/ingestion/rss-parser";
+import { fetchSourceItems, isPollableType, toIdeaSourceType } from "@/lib/content-factory/ingestion/poll-dispatcher";
 import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
 
@@ -22,8 +22,8 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   try {
     const source = await prisma.source.findUnique({ where: { id } });
     if (!source) return errorJson(404, "NOT_FOUND", "Source not found");
-    if (source.type !== "RSS") {
-      return errorJson(400, "NOT_RSS", "Only RSS sources can be polled");
+    if (!isPollableType(source.type)) {
+      return errorJson(400, "NOT_POLLABLE", `Source type ${source.type} cannot be polled yet`);
     }
 
     const startTime = Date.now();
@@ -32,8 +32,8 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     const errors: string[] = [];
 
     try {
-      console.log(`[Poll] Polling source: ${source.name} (${source.id}), url: ${source.url}`);
-      const items = await fetchRSSFeed(source.url);
+      console.log(`[Poll] Polling source: ${source.name} (${source.id}), type=${source.type}, url: ${source.url}`);
+      const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "MANUAL", source.url);
       console.log(`[Poll] Got ${items.length} items from ${source.name}`);
 
       for (const item of items) {
@@ -73,7 +73,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
               data: {
                 title: item.title,
                 description: item.description || null,
-                sourceType: "RSS",
+                sourceType: toIdeaSourceType(source.type),
                 sourceUrl: normalizedLink || null,
                 sourceId: source.id,
                 fingerprint,

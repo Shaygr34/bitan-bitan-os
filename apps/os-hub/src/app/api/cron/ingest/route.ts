@@ -1,8 +1,8 @@
 /**
  * GET /api/cron/ingest
  *
- * Cron-triggered RSS ingestion endpoint.
- * Polls all active RSS sources and creates new Ideas.
+ * Cron-triggered ingestion endpoint.
+ * Polls all active pollable sources and creates new Ideas.
  *
  * Protected by CRON_SECRET header check.
  * Call from Railway cron, Vercel cron, or any scheduler:
@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { cronSecret } from "@/config/integrations";
 import { prisma } from "@/lib/prisma";
 import { isTableOrConnectionError } from "@/lib/content-factory/validate";
-import { fetchRSSFeed } from "@/lib/content-factory/ingestion/rss-parser";
+import { fetchSourceItems, isPollableType, toIdeaSourceType } from "@/lib/content-factory/ingestion/poll-dispatcher";
 import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 
 export const dynamic = "force-dynamic";
@@ -32,27 +32,29 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Get all active RSS sources
-    const sources = await prisma.source.findMany({
-      where: { active: true, type: "RSS" },
+    // Get all active sources and filter by pollable type
+    const allActiveSources = await prisma.source.findMany({
+      where: { active: true },
     });
+    const sources = allActiveSources.filter((s: { type: string }) => isPollableType(s.type));
 
     if (sources.length === 0) {
-      return NextResponse.json({ message: "No active RSS sources", results: [] });
+      return NextResponse.json({ message: "No active pollable sources", results: [] });
     }
 
     const results: Array<{
       sourceId: string;
       sourceName: string;
+      sourceType: string;
       newIdeas: number;
       error?: string;
     }> = [];
 
-    // Poll each source using shared modules
+    // Poll each source using the dispatcher
     for (const source of sources) {
       try {
-        console.log(`[Cron] Polling source: ${source.name} (${source.id})`);
-        const items = await fetchRSSFeed(source.url);
+        console.log(`[Cron] Polling source: ${source.name} (${source.id}), type=${source.type}`);
+        const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "MANUAL", source.url);
 
         let newCount = 0;
         for (const item of items) {
@@ -78,7 +80,7 @@ export async function GET(request: Request) {
               data: {
                 title: item.title,
                 description: item.description || null,
-                sourceType: "RSS",
+                sourceType: toIdeaSourceType(source.type),
                 sourceUrl: normalizedLink || null,
                 tags: source.tags,
                 status: "NEW",
@@ -106,6 +108,7 @@ export async function GET(request: Request) {
         results.push({
           sourceId: source.id,
           sourceName: source.name,
+          sourceType: source.type,
           newIdeas: newCount,
         });
         console.log(`[Cron] Source ${source.name}: ${items.length} items, ${newCount} new ideas`);
@@ -115,6 +118,7 @@ export async function GET(request: Request) {
         results.push({
           sourceId: source.id,
           sourceName: source.name,
+          sourceType: source.type,
           newIdeas: 0,
           error: errMsg,
         });
