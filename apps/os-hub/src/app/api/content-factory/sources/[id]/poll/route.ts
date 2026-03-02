@@ -11,6 +11,7 @@ import { generateFingerprint } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

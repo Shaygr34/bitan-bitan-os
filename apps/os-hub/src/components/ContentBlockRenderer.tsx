@@ -4,7 +4,7 @@ import type { ContentBlock } from "@/lib/ai/content-blocks";
 import styles from "./ContentBlockRenderer.module.css";
 
 interface Props {
-  blocks: ContentBlock[];
+  blocks: unknown;
 }
 
 /**
@@ -12,7 +12,7 @@ interface Props {
  * Handles edge cases: double-wrapped arrays, {meta, blocks} objects,
  * stringified JSON, unknown types, and missing text fields.
  */
-function normalizeBlocks(raw: unknown): ContentBlock[] {
+export function normalizeBlocks(raw: unknown): ContentBlock[] {
   if (!raw) return [];
 
   // If it's a string, try to parse it as JSON
@@ -78,7 +78,12 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
       const level = block.level ?? 1;
       const Tag = level === 3 ? "h3" : level === 2 ? "h2" : "h1";
       const cls = level === 3 ? styles.h3 : level === 2 ? styles.h2 : styles.h1;
-      return <Tag className={cls}>{block.text}</Tag>;
+      return (
+        <Tag
+          className={cls}
+          dangerouslySetInnerHTML={{ __html: renderInlineHtml(block.text ?? "") }}
+        />
+      );
     }
 
     case "paragraph":

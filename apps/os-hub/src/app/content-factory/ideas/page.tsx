@@ -96,12 +96,22 @@ export default function IdeasPage() {
 
   const MIN_DISPLAY_SCORE = 45;
 
-  async function fetchIdeas() {
+  async function fetchIdeas(retries = 2) {
     try {
       const res = await fetch("/api/content-factory/ideas?sort=score:desc");
-      if (!res.ok) throw new Error(`${res.status}`);
+      if (!res.ok) {
+        if (res.status >= 500 && retries > 0) {
+          await new Promise((r) => setTimeout(r, 1000));
+          return fetchIdeas(retries - 1);
+        }
+        throw new Error(`${res.status}`);
+      }
       setIdeas(await res.json());
     } catch (err) {
+      if (retries > 0 && (err as Error).message !== "404") {
+        await new Promise((r) => setTimeout(r, 1000));
+        return fetchIdeas(retries - 1);
+      }
       showToast({ type: "error", message: `שגיאה בטעינת רעיונות: ${(err as Error).message}` });
     } finally {
       setLoading(false);

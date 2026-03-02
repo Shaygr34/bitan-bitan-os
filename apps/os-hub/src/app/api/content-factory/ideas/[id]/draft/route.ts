@@ -8,6 +8,7 @@ import { errorJson, isValidUuid } from "@/lib/content-factory/validate";
 import { generateDraft } from "@/lib/content-factory/drafting";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const maxDuration = 100; // seconds — 90s Claude timeout + margin for DB ops
 
 type RouteParams = { params: Promise<{ id: string }> };

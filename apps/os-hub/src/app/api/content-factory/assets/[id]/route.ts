@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { errorJson, isValidUuid } from "@/lib/content-factory/validate";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(
   _request: NextRequest,

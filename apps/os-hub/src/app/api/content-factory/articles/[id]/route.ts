@@ -10,6 +10,7 @@ import { errorJson, isTableOrConnectionError, isValidUuid } from "@/lib/content-
 import type { ContentBlock } from "@/lib/ai/content-blocks";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(
   _request: NextRequest,

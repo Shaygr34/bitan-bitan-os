@@ -450,6 +450,59 @@
   align-items: center;
 }
 
+/* ——— Editor: heading input ——— */
+.editorHeadingInput {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* ——— Editor: list bullet ——— */
+.editorListBullet {
+  font-size: 0.85rem;
+  color: var(--text-caption, #6b7280);
+  min-width: 1.2rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ——— Editor: add block row ——— */
+.editorAddRow {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  padding-top: var(--space-xs);
+  border-top: 1px dashed transparent;
+  transition: border-color var(--transition-fast);
+  opacity: 0;
+  height: 0;
+  overflow: hidden;
+  transition: opacity 0.2s, height 0.2s;
+}
+
+.editorBlock:hover .editorAddRow {
+  opacity: 1;
+  height: auto;
+  padding-top: var(--space-xs);
+}
+
+.editorAddBtn {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  background: transparent;
+  border: 1px dashed var(--border-subtle, #d1d5db);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-caption, #9ca3af);
+  transition: all var(--transition-fast);
+}
+
+.editorAddBtn:hover {
+  background: var(--surface-muted, #f3f4f6);
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
 /* ——— Loading & error states ——— */
 .loading {
   text-align: center;

@@ -8,6 +8,7 @@ import { logEvent } from "@/lib/content-factory/event-log";
 import { SEED_SOURCES } from "@/lib/content-factory/sources/seed-data";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
