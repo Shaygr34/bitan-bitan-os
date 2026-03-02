@@ -69,7 +69,37 @@ interface Article {
 
 /* ═══ Constants ═══ */
 
-const PLATFORMS = ["EMAIL", "WEBSITE", "FACEBOOK", "INSTAGRAM", "LINKEDIN"];
+const PLATFORMS = ["WEBSITE", "EMAIL", "FACEBOOK", "INSTAGRAM", "LINKEDIN"];
+
+const PLATFORM_HE: Record<string, string> = {
+  WEBSITE: "אתר",
+  EMAIL: "אימייל",
+  FACEBOOK: "פייסבוק",
+  INSTAGRAM: "אינסטגרם",
+  LINKEDIN: "לינקדאין",
+};
+
+const CATEGORY_HE: Record<string, string> = {
+  Tax: "מיסים",
+  Legal: "משפט ורגולציה",
+  "Business-News": "חדשות עסקיות",
+  Markets: "שוק ההון",
+  Payroll: "שכר ותעסוקה",
+};
+
+const TAG_HE: Record<string, string> = {
+  "court-ruling": "פסיקה",
+  compliance: "ציות ורגולציה",
+  "corp-tax": "מס חברות",
+  "real-estate-tax": "מיסוי מקרקעין",
+  "income-tax": "מס הכנסה",
+  VAT: "מע״מ",
+  grants: "מענקים",
+  "interest-rates": "ריביות",
+  enforcement: "אכיפה",
+  payroll: "שכר",
+  "employment-law": "דיני עבודה",
+};
 
 const STATUS_CLASS: Record<string, string> = {
   DRAFT: "statusDraft",
@@ -144,6 +174,53 @@ function autoRows(text: string | undefined, min: number): number {
   return Math.max(min, lines, charLines);
 }
 
+/**
+ * Merge consecutive paragraph blocks into one block with \n\n separators.
+ * This gives the editor a more natural feel — users edit sections, not sentences.
+ */
+function mergeConsecutiveParagraphs(blocks: ContentBlock[]): ContentBlock[] {
+  const merged: ContentBlock[] = [];
+  let pendingTexts: string[] = [];
+
+  function flushPending() {
+    if (pendingTexts.length > 0) {
+      merged.push({ type: "paragraph", text: pendingTexts.join("\n\n") });
+      pendingTexts = [];
+    }
+  }
+
+  for (const block of blocks) {
+    if (block.type === "paragraph" && block.text) {
+      pendingTexts.push(block.text);
+    } else {
+      flushPending();
+      merged.push(block);
+    }
+  }
+  flushPending();
+
+  return merged;
+}
+
+/**
+ * Split merged paragraph blocks back into individual blocks (one per paragraph).
+ * Opposite of mergeConsecutiveParagraphs — used when saving.
+ */
+function splitMergedParagraphs(blocks: ContentBlock[]): ContentBlock[] {
+  const result: ContentBlock[] = [];
+  for (const block of blocks) {
+    if (block.type === "paragraph" && block.text && block.text.includes("\n\n")) {
+      const parts = block.text.split("\n\n").map((t) => t.trim()).filter((t) => t.length > 0);
+      for (const part of parts) {
+        result.push({ type: "paragraph", text: part });
+      }
+    } else {
+      result.push(block);
+    }
+  }
+  return result;
+}
+
 function BlockEditor({
   blocks,
   onSave,
@@ -153,7 +230,7 @@ function BlockEditor({
   onSave: (blocks: ContentBlock[]) => void;
   saving: boolean;
 }) {
-  const [editBlocks, setEditBlocks] = useState<ContentBlock[]>(blocks);
+  const [editBlocks, setEditBlocks] = useState<ContentBlock[]>(() => mergeConsecutiveParagraphs(blocks));
   const [dirty, setDirty] = useState(false);
 
   function updateBlock(index: number, updates: Partial<ContentBlock>) {
@@ -244,7 +321,7 @@ function BlockEditor({
           <button
             className="btn-primary"
             disabled={!dirty || saving}
-            onClick={() => onSave(editBlocks)}
+            onClick={() => onSave(splitMergedParagraphs(editBlocks))}
           >
             {saving ? "שומר..." : "שמור שינויים"}
           </button>
@@ -447,7 +524,7 @@ function AssetCard({
   return (
     <div className={styles.assetCard}>
       <div className={styles.assetHeader}>
-        <span className={styles.assetPlatform}>{asset.platform}</span>
+        <span className={styles.assetPlatform}>{PLATFORM_HE[asset.platform] ?? asset.platform}</span>
         <span className={`${styles.statusBadge} ${styles[STATUS_CLASS[asset.status] ?? "statusDraft"]}`}>
           {t(`contentFactory.status.${asset.status}`)}
         </span>
@@ -809,51 +886,32 @@ export default function ArticleDetailPage() {
         {hint.text}
       </div>
 
-      {/* Meta grid */}
-      <div className={styles.metaGrid}>
-        <div className={styles.metaItem}>
-          <span className={styles.metaLabel}>{t("contentFactory.article.status")}</span>
-          <span className={`${styles.statusBadge} ${styles[STATUS_CLASS[article.status] ?? "statusDraft"]}`}>
-            {t(`contentFactory.status.${article.status}`)}
-          </span>
-        </div>
-        <div className={styles.metaItem}>
-          <span className={styles.metaLabel}>{t("contentFactory.article.version")}</span>
-          <span className={styles.metaValue}>{article.version}</span>
-        </div>
-        <div className={styles.metaItem}>
-          <span className={styles.metaLabel}>{t("contentFactory.article.distribution")}</span>
-          <span className={`${styles.statusBadge} ${styles[DIST_CLASS[article.distributionStatus] ?? "distNotPublished"]}`}>
-            {t(`contentFactory.distribution.${article.distributionStatus}`)}
-          </span>
-        </div>
-        <div className={styles.metaItem}>
-          <span className={styles.metaLabel}>{t("contentFactory.article.updatedAt")}</span>
-          <span className={styles.metaValue}>
-            {new Date(article.updatedAt).toLocaleString("he-IL")}
-          </span>
-        </div>
+      {/* Meta bar — compact horizontal strip */}
+      <div className={styles.metaBar}>
+        <span className={`${styles.statusBadge} ${styles[STATUS_CLASS[article.status] ?? "statusDraft"]}`}>
+          {t(`contentFactory.status.${article.status}`)}
+        </span>
+        <span className={`${styles.statusBadge} ${styles[DIST_CLASS[article.distributionStatus] ?? "distNotPublished"]}`}>
+          {t(`contentFactory.distribution.${article.distributionStatus}`)}
+        </span>
         {article.category && (
-          <div className={styles.metaItem}>
-            <span className={styles.metaLabel}>קטגוריה</span>
-            <span className={styles.metaValue}>{article.category}</span>
-          </div>
+          <span className={styles.metaTag}>{CATEGORY_HE[article.category] ?? article.category}</span>
         )}
-        {article.tags && article.tags.length > 0 && (
-          <div className={styles.metaItem}>
-            <span className={styles.metaLabel}>תגיות</span>
-            <span className={styles.metaValue}>{article.tags.join(", ")}</span>
-          </div>
-        )}
+        {article.tags && article.tags.map((tag) => (
+          <span key={tag} className={styles.metaTagLight}>{TAG_HE[tag] ?? tag}</span>
+        ))}
+        <span className={styles.metaDate}>
+          {new Date(article.updatedAt).toLocaleDateString("he-IL")}
+        </span>
       </div>
 
-      {/* SEO Meta — collapsible */}
+      {/* SEO — compact, no slug */}
       {(article.seoTitle || article.seoDescription) && (
         <div className={styles.seoSection}>
-          <div className={styles.seoTitle}>SEO</div>
+          <div className={styles.seoTitle}>קידום אתרים</div>
           {article.seoTitle && (
             <div className={styles.seoRow}>
-              <span className={styles.seoLabel}>כותרת SEO:</span>
+              <span className={styles.seoLabel}>כותרת:</span>
               <span>{article.seoTitle}</span>
             </div>
           )}
@@ -861,12 +919,6 @@ export default function ArticleDetailPage() {
             <div className={styles.seoRow}>
               <span className={styles.seoLabel}>תיאור:</span>
               <span>{article.seoDescription}</span>
-            </div>
-          )}
-          {article.slug && (
-            <div className={styles.seoRow}>
-              <span className={styles.seoLabel}>Slug:</span>
-              <span style={{ direction: "ltr", display: "inline-block" }}>{article.slug}</span>
             </div>
           )}
         </div>
@@ -923,34 +975,6 @@ export default function ArticleDetailPage() {
         </div>
       )}
 
-      {/* Publish to Sanity — only for APPROVED articles without sanityId */}
-      {article.status === "APPROVED" && !article.sanityId && (
-        <div className={styles.actions}>
-          <button
-            className="btn-primary"
-            onClick={handlePublishToSanity}
-            disabled={publishingToSanity}
-          >
-            {publishingToSanity ? t("common.status.processing") : t("contentFactory.publish.toSanity")}
-          </button>
-        </div>
-      )}
-
-      {/* Sanity link — show if already published */}
-      {article.sanityId && article.sanityUrl && (
-        <div className={styles.nextAction} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <span>{t("contentFactory.publish.sanityPublished")}</span>
-          <a
-            href={article.sanityUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ textDecoration: "underline" }}
-          >
-            {t("contentFactory.publish.openInSanity")}
-          </a>
-        </div>
-      )}
-
       {/* Error detail accordion (article-level) */}
       {errorDetail && (
         <div className={styles.errorAccordion}>
@@ -969,17 +993,47 @@ export default function ArticleDetailPage() {
         </div>
       )}
 
+      {/* Publish to Sanity — for APPROVED articles */}
+      {article.status === "APPROVED" && !article.sanityId && (
+        <div className={styles.publishCard}>
+          <div className={styles.publishCardTitle}>פרסום לאתר</div>
+          <p className={styles.publishCardDesc}>פרסום המאמר לאתר ביתן את ביתן דרך Sanity CMS</p>
+          <button
+            className="btn-primary"
+            onClick={handlePublishToSanity}
+            disabled={publishingToSanity}
+          >
+            {publishingToSanity ? "מפרסם..." : "פרסם לאתר"}
+          </button>
+        </div>
+      )}
+
+      {/* Sanity link — show if already published */}
+      {article.sanityId && article.sanityUrl && (
+        <div className={`${styles.nextAction} ${styles.nextActionSuccess}`} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <span>{t("contentFactory.publish.sanityPublished")}</span>
+          <a
+            href={article.sanityUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: "underline" }}
+          >
+            {t("contentFactory.publish.openInSanity")}
+          </a>
+        </div>
+      )}
+
       {/* Assets section */}
       <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>{t("contentFactory.assets.title")}</h2>
+        <h2 className={styles.sectionTitle}>נכסים</h2>
         <div className={styles.createAssetRow}>
           <select
             className={styles.platformSelect}
             value={selectedPlatform}
             onChange={(e) => setSelectedPlatform(e.target.value)}
           >
-            {PLATFORMS.map((p) => (
-              <option key={p} value={p}>{p}</option>
+            {PLATFORMS.filter((p) => p !== "WEBSITE").map((p) => (
+              <option key={p} value={p}>{PLATFORM_HE[p] ?? p}</option>
             ))}
           </select>
           <button
@@ -987,7 +1041,7 @@ export default function ArticleDetailPage() {
             onClick={handleCreateAsset}
             disabled={creatingAsset}
           >
-            {creatingAsset ? t("common.status.processing") : t("contentFactory.assets.create")}
+            {creatingAsset ? t("common.status.processing") : "צור נכס"}
           </button>
         </div>
       </div>
