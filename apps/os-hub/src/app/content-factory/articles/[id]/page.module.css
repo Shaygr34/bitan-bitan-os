@@ -254,6 +254,202 @@
   text-align: left;
 }
 
+/* ——— Source link ——— */
+.sourceLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--text-caption);
+  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.aiBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #818cf8, #6366f1);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 10px;
+  letter-spacing: 0.05em;
+  margin-inline-start: var(--space-sm);
+}
+
+/* ——— SEO section ——— */
+.seoSection {
+  background: var(--surface-muted, #f9fafb);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.seoTitle {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-sm);
+}
+
+.seoRow {
+  font-size: var(--font-size-sm);
+  color: var(--text-body);
+  margin-bottom: var(--space-xs);
+}
+
+.seoLabel {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-caption);
+  margin-inline-end: var(--space-xs);
+}
+
+/* ——— Block editor ——— */
+.editorContainer {
+  border: 2px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-md);
+  margin-bottom: var(--space-2xl);
+  background: #fff;
+}
+
+.editorToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-muted, #f9fafb);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-md);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.editorLabel {
+  font-size: var(--font-size-sm);
+  color: var(--text-caption);
+}
+
+.editorBlock {
+  border: 1px solid var(--border-subtle, #f0f0f0);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  transition: border-color var(--transition-fast);
+}
+
+.editorBlock:hover {
+  border-color: var(--border, #e5e7eb);
+}
+
+.editorBlock:focus-within {
+  border-color: #2563eb;
+}
+
+.editorBlockHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+
+.editorBlockType {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-caption);
+  background: var(--surface-muted, #f3f4f6);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.editorBlockActions {
+  display: flex;
+  gap: 4px;
+}
+
+.editorSmallBtn {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  background: var(--surface-muted, #f3f4f6);
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-caption);
+  transition: all var(--transition-fast);
+}
+
+.editorSmallBtn:hover {
+  background: var(--border, #e5e7eb);
+  color: var(--text-body);
+}
+
+.editorDeleteBtn {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  background: var(--status-error-bg, #fef2f2);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--status-error, #dc2626);
+}
+
+.editorDeleteBtn:hover {
+  background: rgba(220, 38, 38, 0.15);
+}
+
+.editorTextarea {
+  width: 100%;
+  direction: rtl;
+  text-align: right;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body, 1rem);
+  font-family: inherit;
+  line-height: 1.7;
+  resize: vertical;
+  min-height: 2.5rem;
+}
+
+.editorTextarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.editorInput {
+  flex: 1;
+  direction: rtl;
+  text-align: right;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.editorInput:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.editorListItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.editorListItem {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
 /* ——— Loading & error states ——— */
 .loading {
   text-align: center;

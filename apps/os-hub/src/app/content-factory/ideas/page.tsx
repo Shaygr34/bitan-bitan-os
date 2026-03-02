@@ -406,7 +406,7 @@ export default function IdeasPage() {
                       </p>
                     )}
 
-                    <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.8rem", color: "#9ca3af" }}>
+                    <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.8rem", color: "#9ca3af", flexWrap: "wrap", alignItems: "center" }}>
                       {idea.source && (
                         <span>{idea.source.nameHe || idea.source.name}</span>
                       )}
@@ -415,6 +415,21 @@ export default function IdeasPage() {
                       )}
                       {idea.tags.length > 0 && (
                         <span>{idea.tags.slice(0, 3).join(", ")}</span>
+                      )}
+                      {idea.sourceUrl && (
+                        <a
+                          href={idea.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: "#2563eb",
+                            textDecoration: "underline",
+                            fontSize: "0.8rem",
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          מאמר מקורי
+                        </a>
                       )}
                     </div>
 

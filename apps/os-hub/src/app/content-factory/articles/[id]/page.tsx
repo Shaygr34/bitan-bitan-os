@@ -32,15 +32,30 @@ interface Asset {
   createdAt: string;
 }
 
+interface IdeaSource {
+  id: string;
+  name: string;
+  nameHe: string | null;
+}
+
+interface Idea {
+  id: string;
+  title: string;
+  sourceUrl: string | null;
+  source: IdeaSource | null;
+}
+
 interface Article {
   id: string;
   title: string;
+  subtitle: string | null;
   status: string;
   version: number;
   distributionStatus: string;
   updatedAt: string;
   assets: Asset[];
   bodyBlocks?: ContentBlock[] | null;
+  bodyText?: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
   sanityId?: string | null;
@@ -48,6 +63,8 @@ interface Article {
   aiGenerated?: boolean;
   category?: string | null;
   slug?: string | null;
+  tags?: string[];
+  idea?: Idea | null;
 }
 
 /* ═══ Constants ═══ */
@@ -100,8 +117,189 @@ function getNextActionHint(article: Article): { text: string; success: boolean }
   if (article.distributionStatus === "FULLY_PUBLISHED") {
     return { text: t("contentFactory.nextAction.allPublished"), success: true };
   }
+  if (article.status === "DRAFT") {
+    return { text: "עריכת הטיוטה — עברו על התוכן, ערכו לפי הצורך, ואז שלחו לבדיקה.", success: false };
+  }
   const hint = t(`contentFactory.nextAction.${article.status}`);
   return { text: hint, success: false };
+}
+
+/* ═══ BlockEditor — Inline editing for DRAFT articles ═══ */
+
+function BlockEditor({
+  blocks,
+  onSave,
+  saving,
+}: {
+  blocks: ContentBlock[];
+  onSave: (blocks: ContentBlock[]) => void;
+  saving: boolean;
+}) {
+  const [editBlocks, setEditBlocks] = useState<ContentBlock[]>(blocks);
+  const [dirty, setDirty] = useState(false);
+
+  function updateBlock(index: number, updates: Partial<ContentBlock>) {
+    setEditBlocks((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...updates };
+      return next;
+    });
+    setDirty(true);
+  }
+
+  function updateListItem(blockIndex: number, itemIndex: number, value: string) {
+    setEditBlocks((prev) => {
+      const next = [...prev];
+      const items = [...(next[blockIndex].items ?? [])];
+      items[itemIndex] = value;
+      next[blockIndex] = { ...next[blockIndex], items };
+      return next;
+    });
+    setDirty(true);
+  }
+
+  function addListItem(blockIndex: number) {
+    setEditBlocks((prev) => {
+      const next = [...prev];
+      const items = [...(next[blockIndex].items ?? []), ""];
+      next[blockIndex] = { ...next[blockIndex], items };
+      return next;
+    });
+    setDirty(true);
+  }
+
+  function removeListItem(blockIndex: number, itemIndex: number) {
+    setEditBlocks((prev) => {
+      const next = [...prev];
+      const items = (next[blockIndex].items ?? []).filter((_, i) => i !== itemIndex);
+      next[blockIndex] = { ...next[blockIndex], items };
+      return next;
+    });
+    setDirty(true);
+  }
+
+  function removeBlock(index: number) {
+    setEditBlocks((prev) => prev.filter((_, i) => i !== index));
+    setDirty(true);
+  }
+
+  function addBlock(type: ContentBlock["type"], afterIndex: number) {
+    const newBlock: ContentBlock = type === "heading"
+      ? { type: "heading", text: "", level: 2 }
+      : type === "list"
+        ? { type: "list", style: "bullet", items: [""] }
+        : type === "divider"
+          ? { type: "divider" }
+          : { type: "paragraph", text: "" };
+
+    setEditBlocks((prev) => {
+      const next = [...prev];
+      next.splice(afterIndex + 1, 0, newBlock);
+      return next;
+    });
+    setDirty(true);
+  }
+
+  return (
+    <div className={styles.editorContainer}>
+      {/* Save bar */}
+      <div className={styles.editorToolbar}>
+        <span className={styles.editorLabel}>
+          {dirty ? "יש שינויים שלא נשמרו" : "מצב עריכה"}
+        </span>
+        <button
+          className="btn-primary"
+          disabled={!dirty || saving}
+          onClick={() => onSave(editBlocks)}
+        >
+          {saving ? "שומר..." : "שמור שינויים"}
+        </button>
+      </div>
+
+      {editBlocks.map((block, i) => (
+        <div key={i} className={styles.editorBlock}>
+          <div className={styles.editorBlockHeader}>
+            <span className={styles.editorBlockType}>{block.type}</span>
+            <div className={styles.editorBlockActions}>
+              <button
+                className={styles.editorSmallBtn}
+                title="הוסף פסקה"
+                onClick={() => addBlock("paragraph", i)}
+              >
+                + פסקה
+              </button>
+              <button
+                className={styles.editorSmallBtn}
+                title="הוסף כותרת"
+                onClick={() => addBlock("heading", i)}
+              >
+                + כותרת
+              </button>
+              <button
+                className={styles.editorSmallBtn}
+                title="הוסף רשימה"
+                onClick={() => addBlock("list", i)}
+              >
+                + רשימה
+              </button>
+              {editBlocks.length > 1 && (
+                <button
+                  className={styles.editorDeleteBtn}
+                  title="מחק בלוק"
+                  onClick={() => removeBlock(i)}
+                >
+                  מחק
+                </button>
+              )}
+            </div>
+          </div>
+
+          {(block.type === "heading" || block.type === "paragraph" || block.type === "quote" || block.type === "callout") && (
+            <textarea
+              className={styles.editorTextarea}
+              value={block.text ?? ""}
+              onChange={(e) => updateBlock(i, { text: e.target.value })}
+              rows={block.type === "heading" ? 1 : Math.max(2, Math.ceil((block.text?.length ?? 0) / 80))}
+              placeholder={block.type === "heading" ? "כותרת..." : "תוכן הפסקה..."}
+            />
+          )}
+
+          {block.type === "list" && (
+            <div className={styles.editorListItems}>
+              {(block.items ?? []).map((item, li) => (
+                <div key={li} className={styles.editorListItem}>
+                  <input
+                    type="text"
+                    className={styles.editorInput}
+                    value={item}
+                    onChange={(e) => updateListItem(i, li, e.target.value)}
+                    placeholder="פריט ברשימה..."
+                  />
+                  <button
+                    className={styles.editorDeleteBtn}
+                    onClick={() => removeListItem(i, li)}
+                    title="הסר פריט"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <button
+                className={styles.editorSmallBtn}
+                onClick={() => addListItem(i)}
+              >
+                + פריט
+              </button>
+            </div>
+          )}
+
+          {block.type === "divider" && (
+            <hr style={{ border: "none", borderTop: "1px dashed #ccc", margin: "0.5rem 0" }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /* ═══ AssetCard component ═══ */
@@ -194,7 +392,6 @@ function AssetCard({
         <span>{succeededJobs.length > 0 ? `${succeededJobs.length} ${t("contentFactory.publishJob.SUCCEEDED")}` : ""}</span>
       </div>
 
-      {/* Asset transition actions */}
       {transitions.length > 0 && (
         <div className={styles.assetActions}>
           {transitions.map((tr) => (
@@ -210,7 +407,6 @@ function AssetCard({
         </div>
       )}
 
-      {/* Manual publish form — only for APPROVED assets */}
       {canPublish && (
         <div className={styles.publishSection}>
           <form className={styles.publishForm} onSubmit={handlePublish}>
@@ -231,10 +427,6 @@ function AssetCard({
         </div>
       )}
 
-      {/* Show notice if trying to publish non-approved */}
-      {!canPublish && asset.status !== "APPROVED" && succeededJobs.length === 0 && transitions.length === 0 && null}
-
-      {/* Publish jobs list */}
       {asset.publishJobs.length > 0 && (
         <div className={styles.publishJobs}>
           <div className={styles.publishJobsTitle}>
@@ -270,7 +462,6 @@ function AssetCard({
         </div>
       )}
 
-      {/* Error detail accordion */}
       {errorDetail && (
         <div className={styles.errorAccordion}>
           <button
@@ -306,6 +497,10 @@ export default function ArticleDetailPage() {
   const [publishingToSanity, setPublishingToSanity] = useState(false);
   const [errorDetail, setErrorDetail] = useState<{ code: string; message: string } | null>(null);
   const [showError, setShowError] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
 
   const fetchArticle = useCallback(async () => {
     try {
@@ -344,6 +539,7 @@ export default function ArticleDetailPage() {
         setErrorDetail(data?.error ?? null);
         throw new Error(data?.error?.message ?? `${res.status}`);
       }
+      setEditing(false);
       await fetchArticle();
     } catch (err) {
       showToast({
@@ -352,6 +548,50 @@ export default function ArticleDetailPage() {
       });
     } finally {
       setTransitioning(false);
+    }
+  }
+
+  async function handleSaveBlocks(blocks: ContentBlock[]) {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/content-factory/articles/${articleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bodyBlocks: blocks }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error?.message ?? `${res.status}`);
+      }
+      showToast({ type: "success", message: "השינויים נשמרו" });
+      await fetchArticle();
+    } catch (err) {
+      showToast({ type: "error", message: `שגיאה בשמירה: ${(err as Error).message}` });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveTitle() {
+    if (!titleDraft.trim() || titleDraft.trim() === article?.title) {
+      setEditingTitle(false);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/content-factory/articles/${articleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: titleDraft.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error?.message ?? `${res.status}`);
+      }
+      showToast({ type: "success", message: "הכותרת עודכנה" });
+      setEditingTitle(false);
+      await fetchArticle();
+    } catch (err) {
+      showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
     }
   }
 
@@ -418,7 +658,7 @@ export default function ArticleDetailPage() {
   if (error || !article) {
     return (
       <div>
-        <Link href="/content-factory" className={styles.backLink}>
+        <Link href="/content-factory/articles" className={styles.backLink}>
           {t("contentFactory.article.backToList")}
         </Link>
         <div className={styles.errorBanner}>
@@ -431,17 +671,70 @@ export default function ArticleDetailPage() {
 
   const articleTransitions = ARTICLE_TRANSITIONS[article.status] ?? [];
   const hint = getNextActionHint(article);
+  const isDraft = article.status === "DRAFT";
 
   return (
     <div>
-      <Link href="/content-factory" className={styles.backLink}>
+      <Link href="/content-factory/articles" className={styles.backLink}>
         {t("contentFactory.article.backToList")}
       </Link>
 
-      <PageHeader
-        title={article.title}
-        description={t("contentFactory.article.title")}
-      />
+      {/* Title — editable for DRAFT */}
+      {editingTitle && isDraft ? (
+        <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <input
+            type="text"
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSaveTitle()}
+            style={{
+              flex: 1, fontSize: "1.5rem", fontWeight: 700,
+              padding: "0.5rem", border: "2px solid #2563eb",
+              borderRadius: "6px", direction: "rtl",
+            }}
+            autoFocus
+          />
+          <button className="btn-primary" onClick={handleSaveTitle}>שמור</button>
+          <button className="btn-secondary" onClick={() => setEditingTitle(false)}>ביטול</button>
+        </div>
+      ) : (
+        <PageHeader
+          title={article.title}
+          description={t("contentFactory.article.title")}
+          action={isDraft ? (
+            <button
+              className="btn-secondary"
+              onClick={() => { setTitleDraft(article.title); setEditingTitle(true); }}
+              style={{ fontSize: "0.8rem" }}
+            >
+              ערוך כותרת
+            </button>
+          ) : undefined}
+        />
+      )}
+
+      {/* Source idea link */}
+      {article.idea && (
+        <div className={styles.sourceLink}>
+          <span>מקור: </span>
+          <Link href={`/content-factory/ideas`} style={{ color: "var(--status-info)", marginInlineEnd: "0.5rem" }}>
+            {article.idea.source?.nameHe || article.idea.source?.name || "רעיון"}
+          </Link>
+          {article.idea.sourceUrl && (
+            <a
+              href={article.idea.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--status-info)", textDecoration: "underline", fontSize: "0.85rem" }}
+            >
+              מאמר מקורי
+            </a>
+          )}
+          {article.aiGenerated && (
+            <span className={styles.aiBadge}>AI</span>
+          )}
+        </div>
+      )}
 
       {/* Next action hint */}
       <div className={`${styles.nextAction} ${hint.success ? styles.nextActionSuccess : ""}`}>
@@ -472,16 +765,78 @@ export default function ArticleDetailPage() {
             {new Date(article.updatedAt).toLocaleString("he-IL")}
           </span>
         </div>
+        {article.category && (
+          <div className={styles.metaItem}>
+            <span className={styles.metaLabel}>קטגוריה</span>
+            <span className={styles.metaValue}>{article.category}</span>
+          </div>
+        )}
+        {article.tags && article.tags.length > 0 && (
+          <div className={styles.metaItem}>
+            <span className={styles.metaLabel}>תגיות</span>
+            <span className={styles.metaValue}>{article.tags.join(", ")}</span>
+          </div>
+        )}
       </div>
 
-      {/* Article body */}
-      {Array.isArray(article.bodyBlocks) && article.bodyBlocks.length > 0 && (
-        <>
-          <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>{t("contentFactory.article.body")}</h2>
-          </div>
-          <ContentBlockRenderer blocks={article.bodyBlocks} />
-        </>
+      {/* SEO Meta — collapsible */}
+      {(article.seoTitle || article.seoDescription) && (
+        <div className={styles.seoSection}>
+          <div className={styles.seoTitle}>SEO</div>
+          {article.seoTitle && (
+            <div className={styles.seoRow}>
+              <span className={styles.seoLabel}>כותרת SEO:</span>
+              <span>{article.seoTitle}</span>
+            </div>
+          )}
+          {article.seoDescription && (
+            <div className={styles.seoRow}>
+              <span className={styles.seoLabel}>תיאור:</span>
+              <span>{article.seoDescription}</span>
+            </div>
+          )}
+          {article.slug && (
+            <div className={styles.seoRow}>
+              <span className={styles.seoLabel}>Slug:</span>
+              <span style={{ direction: "ltr", display: "inline-block" }}>{article.slug}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Article body — read mode vs edit mode */}
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle}>{t("contentFactory.article.body")}</h2>
+        {isDraft && !editing && Array.isArray(article.bodyBlocks) && article.bodyBlocks.length > 0 && (
+          <button
+            className="btn-secondary"
+            onClick={() => setEditing(true)}
+            style={{ fontSize: "0.8rem" }}
+          >
+            ערוך תוכן
+          </button>
+        )}
+        {editing && (
+          <button
+            className="btn-secondary"
+            onClick={() => setEditing(false)}
+            style={{ fontSize: "0.8rem" }}
+          >
+            תצוגה מקדימה
+          </button>
+        )}
+      </div>
+
+      {editing && isDraft && Array.isArray(article.bodyBlocks) ? (
+        <BlockEditor
+          blocks={article.bodyBlocks}
+          onSave={handleSaveBlocks}
+          saving={saving}
+        />
+      ) : Array.isArray(article.bodyBlocks) && article.bodyBlocks.length > 0 ? (
+        <ContentBlockRenderer blocks={article.bodyBlocks} />
+      ) : (
+        <EmptyState message="אין תוכן במאמר" detail={isDraft ? "ערכו את המאמר להוספת תוכן" : undefined} />
       )}
 
       {/* Article transition actions */}
