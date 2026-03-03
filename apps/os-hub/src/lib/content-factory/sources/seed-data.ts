@@ -1,10 +1,10 @@
 /**
  * Default source seed data.
  *
- * Active RSS sources: Globes (proven working) + TheMarker.
- * Calcalist: marked inactive — their GeneralRSS URLs consistently return 403
- * for server-side requests (blocked for non-browser access since ~2025).
- * Scrape sources: inactive until Playwright scraper is built (v1).
+ * Active RSS sources: Globes (proven working).
+ * TheMarker: marked inactive — Haaretz group blocks server-side requests (confirmed).
+ * Calcalist: marked inactive — GeneralRSS URLs return 403 for non-browser access.
+ * Scrape sources: inactive until Playwright scraper is built (v2+).
  */
 
 export interface SeedSource {
@@ -83,7 +83,7 @@ export const SEED_SOURCES: SeedSource[] = [
     notes: "Globes main/headlines feed. Lower weight — broad financial news with some tax-adjacent content.",
   },
 
-  // ── TheMarker ─────────────────────────────────────────────────────
+  // ── TheMarker (INACTIVE — Haaretz blocks server-side requests) ───
   {
     name: "TheMarker — נדל\"ן",
     nameHe: "דה מרקר — נדל\"ן",
@@ -93,8 +93,8 @@ export const SEED_SOURCES: SeedSource[] = [
     category: "Tax",
     tags: ["real-estate-tax", "compliance", "court-ruling"],
     pollIntervalMin: 120,
-    active: true,
-    notes: "TheMarker real estate RSS. Good coverage of מס שבח, תמ\"א 38. NEEDS LIVE VERIFICATION — Haaretz group may block server-side requests.",
+    active: false,
+    notes: "BLOCKED — Haaretz group blocks server-side RSS requests (confirmed). Needs Playwright scraper (v2+).",
   },
   {
     name: "TheMarker — שוק ההון",
@@ -105,8 +105,8 @@ export const SEED_SOURCES: SeedSource[] = [
     category: "Business-News",
     tags: ["corp-tax", "compliance", "interest-rates"],
     pollIntervalMin: 120,
-    active: true,
-    notes: "TheMarker capital markets. Regulatory and tax-adjacent financial news. NEEDS LIVE VERIFICATION — Haaretz group may block server-side requests.",
+    active: false,
+    notes: "BLOCKED — Haaretz group blocks server-side RSS requests (confirmed). Needs Playwright scraper (v2+).",
   },
 
   // ── Calcalist (INACTIVE — 403 blocked) ────────────────────────────

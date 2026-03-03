@@ -10,9 +10,12 @@ interface HubStats {
   articles: number;
   articlesInReview: number;
   articlesApproved: number;
+  articlesDraft: number;
   ideas: number;
   ideasNewToday: number;
   activeSources: number;
+  sourceErrors: number;
+  lastSuccessfulPoll: string | null;
 }
 
 // RTL flow: rightmost → leftmost = מקורות → רעיונות → מאמרים
@@ -89,6 +92,11 @@ export default function ContentFactoryHub() {
               {loading ? "—" : (stats?.activeSources ?? 0)}
             </span>
             <span className={styles.pipelineLabel}>מקורות פעילים</span>
+            {!loading && (stats?.sourceErrors ?? 0) > 0 && (
+              <span style={{ fontSize: "0.7rem", color: "#ef4444", marginTop: "0.15rem" }}>
+                {stats?.sourceErrors} שגיאות
+              </span>
+            )}
           </div>
           <span className={styles.pipelineArrow}>←</span>
           <div className={styles.pipelineStep}>
@@ -100,9 +108,16 @@ export default function ContentFactoryHub() {
           <span className={styles.pipelineArrow}>←</span>
           <div className={styles.pipelineStep}>
             <span className={styles.pipelineValue}>
+              {loading ? "—" : (stats?.articlesDraft ?? 0)}
+            </span>
+            <span className={styles.pipelineLabel}>טיוטות</span>
+          </div>
+          <span className={styles.pipelineArrow}>←</span>
+          <div className={styles.pipelineStep}>
+            <span className={styles.pipelineValue}>
               {loading ? "—" : (stats?.articlesInReview ?? 0)}
             </span>
-            <span className={styles.pipelineLabel}>מאמרים בבדיקה</span>
+            <span className={styles.pipelineLabel}>בבדיקה</span>
           </div>
           <span className={styles.pipelineArrow}>←</span>
           <div className={styles.pipelineStep}>
@@ -112,6 +127,11 @@ export default function ContentFactoryHub() {
             <span className={styles.pipelineLabel}>פורסמו</span>
           </div>
         </div>
+        {!loading && stats?.lastSuccessfulPoll && (
+          <div style={{ textAlign: "center", marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-caption, #9ca3af)" }}>
+            סריקה אחרונה מוצלחת: {new Date(stats.lastSuccessfulPoll).toLocaleString("he-IL")}
+          </div>
+        )}
       </section>
     </div>
   );
