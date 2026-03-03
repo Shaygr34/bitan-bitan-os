@@ -533,6 +533,84 @@
   color: #2563eb;
 }
 
+/* ——— Asset content editor ——— */
+.assetPayloadEditor {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-md);
+  margin-top: var(--space-sm);
+}
+
+.assetPayloadTitle {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-caption);
+  margin-bottom: var(--space-sm);
+}
+
+.payloadFieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.payloadFieldGroup label {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.payloadFieldGroup input,
+.payloadFieldGroup textarea {
+  direction: rtl;
+  text-align: right;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+}
+
+.payloadFieldGroup input:focus,
+.payloadFieldGroup textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.payloadFieldGroup textarea {
+  min-height: 3rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.payloadHint {
+  font-size: 0.65rem;
+  color: var(--text-caption);
+  opacity: 0.7;
+}
+
+.payloadActions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.retryBtn {
+  font-size: var(--font-size-xs);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--status-warning-bg);
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--status-warning);
+  transition: all var(--transition-fast);
+}
+
+.retryBtn:hover {
+  background: rgba(217, 119, 6, 0.15);
+}
+
 /* ——— Loading & error states ——— */
 .loading {
   text-align: center;

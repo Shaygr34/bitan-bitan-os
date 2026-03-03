@@ -28,6 +28,7 @@ interface Asset {
   platform: string;
   status: string;
   version: number;
+  contentPayload: Record<string, string> | null;
   publishJobs: PublishJob[];
   createdAt: string;
 }
@@ -445,6 +446,40 @@ function BlockEditor({
   );
 }
 
+/* ═══ Platform-specific content payload fields ═══ */
+
+interface PayloadField {
+  key: string;
+  label: string;
+  type: "text" | "textarea";
+  placeholder: string;
+  hint?: string;
+}
+
+const PLATFORM_PAYLOAD_FIELDS: Record<string, PayloadField[]> = {
+  EMAIL: [
+    { key: "subjectLine", label: "נושא המייל", type: "text", placeholder: "כותרת שתופיע בתיבת הדואר...", hint: "עד 60 תווים — ברור, ספציפי, עם ערך" },
+    { key: "preheaderText", label: "טקסט מקדים", type: "text", placeholder: "תקציר שמופיע אחרי הנושא...", hint: "עד 90 תווים — משלים את הנושא" },
+    { key: "ctaText", label: "כפתור CTA", type: "text", placeholder: "לקריאה המלאה" },
+  ],
+  FACEBOOK: [
+    { key: "postText", label: "טקסט הפוסט", type: "textarea", placeholder: "תוכן הפוסט לפייסבוק...", hint: "עד 500 תווים — שפה נגישה, שורה ראשונה חזקה" },
+    { key: "hashtags", label: "האשטגים", type: "text", placeholder: "#מיסים #חשבונאות #עדכון" },
+  ],
+  INSTAGRAM: [
+    { key: "caption", label: "כיתוב", type: "textarea", placeholder: "טקסט הפוסט לאינסטגרם...", hint: "עד 2200 תווים — שורה ראשונה חזקה, רווחים בין פסקאות" },
+    { key: "hashtags", label: "האשטגים", type: "text", placeholder: "#מיסים #חשבונאות #ביתן_את_ביתן" },
+  ],
+  LINKEDIN: [
+    { key: "postText", label: "טקסט הפוסט", type: "textarea", placeholder: "תוכן הפוסט ללינקדאין...", hint: "טון מקצועי, שורה ראשונה חזקה, עד 3000 תווים" },
+    { key: "hashtags", label: "האשטגים", type: "text", placeholder: "#Tax #Accounting #Israel" },
+  ],
+  WEBSITE: [
+    { key: "metaTitle", label: "כותרת SEO", type: "text", placeholder: "כותרת לתוצאות חיפוש..." },
+    { key: "metaDescription", label: "תיאור SEO", type: "text", placeholder: "תיאור עד 155 תווים..." },
+  ],
+};
+
 /* ═══ AssetCard component ═══ */
 
 function AssetCard({
@@ -459,10 +494,49 @@ function AssetCard({
   const [publishing, setPublishing] = useState(false);
   const [errorDetail, setErrorDetail] = useState<{ code: string; message: string } | null>(null);
   const [showError, setShowError] = useState(false);
+  const [editingPayload, setEditingPayload] = useState(false);
+  const [payloadDraft, setPayloadDraft] = useState<Record<string, string>>({});
+  const [savingPayload, setSavingPayload] = useState(false);
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   const transitions = ASSET_TRANSITIONS[asset.status] ?? [];
   const succeededJobs = asset.publishJobs.filter((j) => j.status === "SUCCEEDED");
+  const failedJobs = asset.publishJobs.filter((j) => j.status === "FAILED");
   const canPublish = asset.status === "APPROVED";
+  const fields = PLATFORM_PAYLOAD_FIELDS[asset.platform] ?? [];
+  const payload = (asset.contentPayload ?? {}) as Record<string, string>;
+  const hasPayload = Object.keys(payload).some((k) => payload[k]);
+
+  function startEditPayload() {
+    const draft: Record<string, string> = {};
+    for (const f of fields) {
+      draft[f.key] = payload[f.key] ?? "";
+    }
+    setPayloadDraft(draft);
+    setEditingPayload(true);
+  }
+
+  async function savePayload() {
+    setSavingPayload(true);
+    try {
+      const res = await fetch(`/api/content-factory/assets/${asset.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentPayload: payloadDraft }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error?.message ?? `${res.status}`);
+      }
+      setEditingPayload(false);
+      showToast({ type: "success", message: "התוכן נשמר" });
+      onRefresh();
+    } catch (err) {
+      showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
+    } finally {
+      setSavingPayload(false);
+    }
+  }
 
   async function handleTransition(to: string) {
     setTransitioning(true);
@@ -521,6 +595,32 @@ function AssetCard({
     }
   }
 
+  async function handleRetry(jobId: string) {
+    setRetrying(jobId);
+    try {
+      // Re-publish by creating a new publish job (same URL as original)
+      const failedJob = asset.publishJobs.find((j) => j.id === jobId);
+      const res = await fetch(`/api/content-factory/assets/${asset.id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          externalUrl: failedJob?.externalUrl || "",
+          createdByUserId: "system",
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error?.message ?? `${res.status}`);
+      }
+      showToast({ type: "success", message: "נוצרה עבודת פרסום חדשה" });
+      onRefresh();
+    } catch (err) {
+      showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
+    } finally {
+      setRetrying(null);
+    }
+  }
+
   return (
     <div className={styles.assetCard}>
       <div className={styles.assetHeader}>
@@ -534,6 +634,69 @@ function AssetCard({
         <span>{t("contentFactory.article.version")}: {asset.version}</span>
         <span>{succeededJobs.length > 0 ? `${succeededJobs.length} ${t("contentFactory.publishJob.SUCCEEDED")}` : ""}</span>
       </div>
+
+      {/* Platform-specific content payload — read mode */}
+      {hasPayload && !editingPayload && (
+        <div className={styles.assetPayloadEditor}>
+          <div className={styles.assetPayloadTitle}>
+            תוכן לפלטפורמה
+            {asset.status === "DRAFT" && (
+              <button className={styles.editorSmallBtn} onClick={startEditPayload} style={{ marginInlineStart: "0.5rem" }}>
+                ערוך
+              </button>
+            )}
+          </div>
+          {fields.map((f) => payload[f.key] ? (
+            <div key={f.key} className={styles.payloadFieldGroup}>
+              <label>{f.label}</label>
+              <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-body)" }}>{payload[f.key]}</span>
+            </div>
+          ) : null)}
+        </div>
+      )}
+
+      {/* Platform-specific content payload — edit mode */}
+      {editingPayload && fields.length > 0 && (
+        <div className={styles.assetPayloadEditor}>
+          <div className={styles.assetPayloadTitle}>עריכת תוכן — {PLATFORM_HE[asset.platform] ?? asset.platform}</div>
+          {fields.map((f) => (
+            <div key={f.key} className={styles.payloadFieldGroup}>
+              <label>{f.label}</label>
+              {f.type === "textarea" ? (
+                <textarea
+                  value={payloadDraft[f.key] ?? ""}
+                  onChange={(e) => setPayloadDraft((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                  rows={3}
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={payloadDraft[f.key] ?? ""}
+                  onChange={(e) => setPayloadDraft((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                />
+              )}
+              {f.hint && <span className={styles.payloadHint}>{f.hint}</span>}
+            </div>
+          ))}
+          <div className={styles.payloadActions}>
+            <button className="btn-primary" onClick={savePayload} disabled={savingPayload}>
+              {savingPayload ? "שומר..." : "שמור"}
+            </button>
+            <button className="btn-secondary" onClick={() => setEditingPayload(false)}>ביטול</button>
+          </div>
+        </div>
+      )}
+
+      {/* Show edit button when no payload yet and asset is DRAFT */}
+      {!hasPayload && !editingPayload && fields.length > 0 && asset.status === "DRAFT" && (
+        <div className={styles.assetPayloadEditor}>
+          <button className="btn-secondary" onClick={startEditPayload} style={{ fontSize: "0.8rem" }}>
+            הוסף תוכן לפלטפורמה
+          </button>
+        </div>
+      )}
 
       {transitions.length > 0 && (
         <div className={styles.assetActions}>
@@ -595,10 +758,21 @@ function AssetCard({
                   {job.externalUrl}
                 </a>
               )}
-              {job.status === "FAILED" && job.errorMessage && (
-                <span className={styles.statusBadge} style={{ color: "var(--status-error)" }}>
-                  {job.errorMessage}
-                </span>
+              {job.status === "FAILED" && (
+                <>
+                  {job.errorMessage && (
+                    <span className={styles.statusBadge} style={{ color: "var(--status-error)" }}>
+                      {job.errorMessage}
+                    </span>
+                  )}
+                  <button
+                    className={styles.retryBtn}
+                    onClick={() => handleRetry(job.id)}
+                    disabled={retrying === job.id}
+                  >
+                    {retrying === job.id ? "..." : "נסה שוב"}
+                  </button>
+                </>
               )}
             </div>
           ))}
@@ -1032,7 +1206,7 @@ export default function ArticleDetailPage() {
             value={selectedPlatform}
             onChange={(e) => setSelectedPlatform(e.target.value)}
           >
-            {PLATFORMS.filter((p) => p !== "WEBSITE").map((p) => (
+            {PLATFORMS.map((p) => (
               <option key={p} value={p}>{PLATFORM_HE[p] ?? p}</option>
             ))}
           </select>

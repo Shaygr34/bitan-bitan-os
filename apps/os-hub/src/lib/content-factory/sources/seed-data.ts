@@ -159,18 +159,44 @@ export const SEED_SOURCES: SeedSource[] = [
     notes: "BLOCKED — Calcalist returns 403. Needs Playwright scraper (v1).",
   },
 
-  // ── Scrape (inactive until v1 Playwright) ─────────────────────────
+  // ── Globes ASMX API (structured XML endpoint) ──────────────────────
+  {
+    name: "גלובס — ASMX כתבות אחרונות",
+    nameHe: "גלובס — כתבות אחרונות (API)",
+    type: "API",
+    url: "https://www.globes.co.il/data/webservices/library.asmx/Last20Articles",
+    weight: 1.0,
+    category: "Business-News",
+    tags: ["compliance", "corp-tax", "interest-rates"],
+    pollIntervalMin: 120,
+    active: true,
+    notes: "Globes ASMX web service — Last20Articles. XML format. Broader coverage than individual RSS feeds.",
+  },
+
+  // ── Gov.il Scrape (active — HTML scraper implemented) ─────────────
   {
     name: "רשות המסים — פרסומים",
     nameHe: "רשות המסים — פרסומים וחוזרים",
     type: "SCRAPE",
-    url: "https://www.gov.il/he/collectors/publications?officeId=c0d8ba69-e309-4fe5-801f-855971774a90&limit=10&Type=0ec5a7ef-977c-459f-8c0a-dcfbe35c8164&drushimStatusType=1",
+    url: "https://www.gov.il/he/departments/publications/?officeId=c0d8ba69-e309-4fe5-801f-855971774a90",
     weight: 2.0,
     category: "Tax",
     tags: ["income-tax", "VAT", "corp-tax", "real-estate-tax", "compliance", "enforcement"],
     pollIntervalMin: 720,
-    active: false,
-    notes: "HIGHEST VALUE. Gov.il React SPA — requires Playwright. Active=false until scraper is built (v1).",
+    active: true,
+    notes: "HIGHEST VALUE. Gov.il publications — HTML scraper extracts titles/dates/links.",
+  },
+  {
+    name: "משרד האוצר — פרסומים",
+    nameHe: "משרד האוצר — פרסומים",
+    type: "SCRAPE",
+    url: "https://www.gov.il/he/departments/publications/?officeId=f41159c1-7867-41c3-bc0a-cbfe0da1bb1a",
+    weight: 1.5,
+    category: "Tax",
+    tags: ["corp-tax", "compliance", "grants", "interest-rates"],
+    pollIntervalMin: 720,
+    active: true,
+    notes: "Ministry of Finance publications. Same gov.il pattern as Tax Authority.",
   },
   {
     name: "המוסד לביטוח לאומי — חוזרים למעסיקים",
@@ -181,8 +207,8 @@ export const SEED_SOURCES: SeedSource[] = [
     category: "Payroll",
     tags: ["payroll", "employment-law", "compliance"],
     pollIntervalMin: 1440,
-    active: false,
-    notes: "ASP.NET — standard HTTP scraping works. Active=false until scraper built (v1).",
+    active: true,
+    notes: "ASP.NET — HTML scraper extracts linked headings.",
   },
   {
     name: "Deloitte Israel — Tax Alerts",
@@ -193,7 +219,7 @@ export const SEED_SOURCES: SeedSource[] = [
     category: "Tax",
     tags: ["income-tax", "VAT", "corp-tax", "real-estate-tax", "court-ruling", "enforcement"],
     pollIntervalMin: 1440,
-    active: false,
-    notes: "35+ numbered alerts/year. JS-rendered. Active=false until scraper built.",
+    active: true,
+    notes: "35+ numbered alerts/year. HTML scraper. High signal, low noise.",
   },
 ];

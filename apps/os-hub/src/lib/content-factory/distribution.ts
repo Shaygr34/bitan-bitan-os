@@ -53,7 +53,11 @@ export async function updateDistributionStatus(
     approvedAssets.length > 0 &&
     approvedAssets.every((a) => a.publishJobs.length > 0)
   ) {
+    // All approved assets have at least one succeeded publish job
     newStatus = "FULLY_PUBLISHED";
+  } else if (approvedAssets.length === 0) {
+    // Succeeded jobs exist but no approved assets — still partial
+    newStatus = "PARTIALLY_PUBLISHED";
   } else {
     newStatus = "PARTIALLY_PUBLISHED";
   }
