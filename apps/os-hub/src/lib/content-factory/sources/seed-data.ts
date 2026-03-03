@@ -94,7 +94,7 @@ export const SEED_SOURCES: SeedSource[] = [
     tags: ["real-estate-tax", "compliance", "court-ruling"],
     pollIntervalMin: 120,
     active: true,
-    notes: "TheMarker real estate RSS. Good coverage of מס שבח, תמ\"א 38.",
+    notes: "TheMarker real estate RSS. Good coverage of מס שבח, תמ\"א 38. NEEDS LIVE VERIFICATION — Haaretz group may block server-side requests.",
   },
   {
     name: "TheMarker — שוק ההון",
@@ -106,7 +106,7 @@ export const SEED_SOURCES: SeedSource[] = [
     tags: ["corp-tax", "compliance", "interest-rates"],
     pollIntervalMin: 120,
     active: true,
-    notes: "TheMarker capital markets. Regulatory and tax-adjacent financial news.",
+    notes: "TheMarker capital markets. Regulatory and tax-adjacent financial news. NEEDS LIVE VERIFICATION — Haaretz group may block server-side requests.",
   },
 
   // ── Calcalist (INACTIVE — 403 blocked) ────────────────────────────
