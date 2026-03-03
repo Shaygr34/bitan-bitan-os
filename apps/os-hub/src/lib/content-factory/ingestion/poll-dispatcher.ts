@@ -1,12 +1,16 @@
 /**
  * Poll dispatcher — routes source types to the appropriate fetcher.
  *
- * Currently only RSS is implemented. Future sprints will add:
- *   - API (Sprint 2: gov.il JSON endpoints)
- *   - SCRAPE (Sprint 3: Playwright-based HTML scrapers)
+ * Supported:
+ *   - RSS   → rss-parser.ts
+ *   - API   → api-fetcher.ts (Globes ASMX, JSON endpoints)
+ *   - SCRAPE → html-scraper.ts (gov.il, generic HTML)
+ *   - MANUAL → no-op
  */
 
 import { fetchRSSFeed, type RSSItem } from "./rss-parser";
+import { fetchAPIEndpoint } from "./api-fetcher";
+import { fetchGovIlPublications, fetchHtmlPage } from "./html-scraper";
 
 /** Normalized item returned by any fetcher. */
 export interface SourceItem {
@@ -20,8 +24,6 @@ type SourceType = "RSS" | "API" | "SCRAPE" | "MANUAL";
 
 /**
  * Fetch items from a source based on its type.
- *
- * Throws if the source type is not yet supported.
  */
 export async function fetchSourceItems(
   type: SourceType,
@@ -32,14 +34,10 @@ export async function fetchSourceItems(
       return fetchRSSItems(url);
 
     case "API":
-      throw new Error(
-        `Source type API is not yet implemented. Planned for Sprint 2.`,
-      );
+      return fetchAPIEndpoint(url);
 
     case "SCRAPE":
-      throw new Error(
-        `Source type SCRAPE is not yet implemented. Planned for Sprint 3.`,
-      );
+      return fetchScrapeItems(url);
 
     case "MANUAL":
       // Manual sources are entered by humans — nothing to poll
@@ -52,8 +50,7 @@ export async function fetchSourceItems(
 
 /** Supported source types that can be automatically polled. */
 export function isPollableType(type: string): boolean {
-  return type === "RSS";
-  // Future: return ["RSS", "API", "SCRAPE"].includes(type);
+  return ["RSS", "API", "SCRAPE"].includes(type);
 }
 
 /**
@@ -87,4 +84,14 @@ async function fetchRSSItems(url: string): Promise<SourceItem[]> {
     description: item.description,
     pubDate: item.pubDate,
   }));
+}
+
+/** Route SCRAPE sources to the appropriate scraper. */
+async function fetchScrapeItems(url: string): Promise<SourceItem[]> {
+  // Gov.il pages get the specialized scraper
+  if (url.includes("gov.il")) {
+    return fetchGovIlPublications(url);
+  }
+  // Everything else gets the generic HTML scraper
+  return fetchHtmlPage(url);
 }
