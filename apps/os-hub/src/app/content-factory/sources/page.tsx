@@ -252,7 +252,11 @@ export default function SourcesPage() {
       const res = await fetch("/api/content-factory/sources/seed", { method: "POST" });
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
-      showToast({ type: "success", message: `נוצרו ${data.created} מקורות, ${data.skipped} קיימים` });
+      const parts = [];
+      if (data.created > 0) parts.push(`${data.created} חדשים`);
+      if (data.updated > 0) parts.push(`${data.updated} עודכנו`);
+      if (data.skipped > 0) parts.push(`${data.skipped} ללא שינוי`);
+      showToast({ type: "success", message: parts.join(", ") || "אין שינויים" });
       await fetchSources();
     } catch (err) {
       showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
