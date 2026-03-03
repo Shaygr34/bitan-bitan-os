@@ -15,6 +15,8 @@ import { prisma } from "@/lib/prisma";
 import { isTableOrConnectionError } from "@/lib/content-factory/validate";
 import { fetchSourceItems, isPollableType, toIdeaSourceType } from "@/lib/content-factory/ingestion/poll-dispatcher";
 import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
+import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
+import { logEvent } from "@/lib/content-factory/event-log";
 
 export const dynamic = "force-dynamic";
 
@@ -76,19 +78,46 @@ export async function GET(request: Request) {
 
             if (existing) continue;
 
-            await prisma.idea.create({
-              data: {
-                title: item.title,
-                description: item.description || null,
-                sourceType: toIdeaSourceType(source.type),
-                sourceUrl: normalizedLink || null,
-                tags: source.tags,
-                status: "NEW",
-                sourceId: source.id,
-                fingerprint,
-                sourcePublishedAt: item.pubDate ? new Date(item.pubDate) : null,
-                createdByUserId: "system",
-              },
+            const publishedAt = item.pubDate ? new Date(item.pubDate) : null;
+            const breakdown = scoreIdea({
+              title: item.title,
+              description: item.description,
+              sourceWeight: source.weight,
+              sourceCategory: source.category,
+              publishedAt,
+            });
+
+            await prisma.$transaction(async (tx) => {
+              const idea = await tx.idea.create({
+                data: {
+                  title: item.title,
+                  description: item.description || null,
+                  sourceType: toIdeaSourceType(source.type),
+                  sourceUrl: normalizedLink || null,
+                  tags: source.tags,
+                  status: "NEW",
+                  sourceId: source.id,
+                  fingerprint,
+                  score: breakdown.total,
+                  scoreBreakdown: JSON.parse(JSON.stringify(breakdown)),
+                  sourcePublishedAt: publishedAt,
+                  createdByUserId: "system",
+                },
+              });
+
+              await logEvent(tx, {
+                actorUserId: "system",
+                entityType: "IDEA",
+                entityId: idea.id,
+                action: "IDEA_CREATED",
+                metadata: {
+                  sourceId: source.id,
+                  sourceName: source.name,
+                  fingerprint,
+                  score: breakdown.total,
+                  via: "cron",
+                },
+              });
             });
             newCount++;
           } catch (itemErr) {

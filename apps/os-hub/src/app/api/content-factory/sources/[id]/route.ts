@@ -53,6 +53,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (body.tags !== undefined) data.tags = body.tags;
     if (body.pollIntervalMin !== undefined) data.pollIntervalMin = body.pollIntervalMin;
     if (body.notes !== undefined) data.notes = body.notes;
+    if (body.lastError !== undefined) data.lastError = body.lastError; // null to clear
     if (body.type !== undefined) {
       const validTypes = ["RSS", "API", "SCRAPE", "MANUAL"];
       if (validTypes.includes(body.type as string)) data.type = body.type;
