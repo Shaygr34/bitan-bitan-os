@@ -110,6 +110,7 @@ export default function SourcesPage() {
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
   const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
   const [historyCache, setHistoryCache] = useState<Record<string, { entries: HistoryEntry[]; ideaCount: number }>>({});
+  const [viewMode, setViewMode] = useState<"cards" | "table">("table");
 
   // Wizard state
   const [wizardStep, setWizardStep] = useState<0 | 1 | 2 | 3>(0); // 0=closed, 1=url, 2=preview, 3=confirm
@@ -379,7 +380,7 @@ export default function SourcesPage() {
         }
       />
 
-      {/* Health summary bar */}
+      {/* Health summary bar + view toggle */}
       {!loading && sources.length > 0 && (
         <div className={styles.summaryBar}>
           <span className={styles.summaryPill}>
@@ -412,6 +413,22 @@ export default function SourcesPage() {
               {healthMap["never-polled"]} טרם נסרקו
             </span>
           )}
+          <span style={{ marginInlineStart: "auto" }}>
+            <button
+              className={viewMode === "table" ? "btn-primary" : "btn-secondary"}
+              style={{ fontSize: "var(--font-size-xs)", padding: "2px 8px", borderRadius: "4px 0 0 4px" }}
+              onClick={() => setViewMode("table")}
+            >
+              טבלה
+            </button>
+            <button
+              className={viewMode === "cards" ? "btn-primary" : "btn-secondary"}
+              style={{ fontSize: "var(--font-size-xs)", padding: "2px 8px", borderRadius: "0 4px 4px 0", marginInlineStart: "-1px" }}
+              onClick={() => setViewMode("cards")}
+            >
+              כרטיסים
+            </button>
+          </span>
         </div>
       )}
 
@@ -528,8 +545,149 @@ export default function SourcesPage() {
         />
       )}
 
-      {/* Source cards */}
-      {!loading && sources.length > 0 && (
+      {/* Table view */}
+      {!loading && sources.length > 0 && viewMode === "table" && (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+          <thead>
+            <tr>
+              <th>שם</th>
+              <th>סוג</th>
+              <th>סטטוס</th>
+              <th>פעיל</th>
+              <th>סריקה אחרונה</th>
+              <th>פריטים</th>
+              <th>שגיאה</th>
+              <th>פעולות</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sources.map((source) => {
+              const health = getHealthStatus(source);
+              const isDetailExpanded = expandedDetail === source.id;
+              const history = historyCache[source.id];
+              return (
+                <tr key={source.id} style={{ opacity: source.active ? 1 : 0.55 }}>
+                  <td style={{ fontWeight: 500, maxWidth: "14rem" }}>
+                    {source.nameHe || source.name}
+                  </td>
+                  <td>
+                    <span className={`${styles.typeBadge} ${typeBadgeClass(source.type)}`}>
+                      {source.type}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                      <span className={`${styles.healthDot} ${healthDotClass(health)}`}
+                        style={{ width: 8, height: 8 }}
+                      />
+                      {healthLabel(health)}
+                    </span>
+                  </td>
+                  <td>
+                    <button
+                      className={styles.activeToggle}
+                      onClick={() => handleToggleActive(source)}
+                      title={source.active ? "כבה" : "הפעל"}
+                    >
+                      {source.active ? "✅" : "⬜"}
+                    </button>
+                  </td>
+                  <td style={{ fontSize: "var(--font-size-xs)", color: "var(--text-caption)" }}>
+                    {relativeTime(source.lastPolledAt)}
+                  </td>
+                  <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {source.lastItemCount ?? "-"}
+                  </td>
+                  <td style={{ maxWidth: "12rem" }}>
+                    {source.lastError ? (
+                      <button
+                        className={styles.errorToggle}
+                        style={{ padding: "2px 4px", fontSize: "var(--font-size-xs)" }}
+                        onClick={() => setExpandedErrors((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(source.id)) next.delete(source.id);
+                          else next.add(source.id);
+                          return next;
+                        })}
+                        title={source.lastError}
+                      >
+                        {expandedErrors.has(source.id) ? source.lastError.slice(0, 80) : "שגיאה ◀"}
+                      </button>
+                    ) : (
+                      <span style={{ color: "var(--text-caption)" }}>—</span>
+                    )}
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      {(source.type === "RSS" || source.type === "API" || source.type === "SCRAPE") && (
+                        <button
+                          className={`btn-secondary ${styles.pollBtn}`}
+                          onClick={() => handlePoll(source.id)}
+                          disabled={polling === source.id}
+                        >
+                          {polling === source.id ? "..." : "סרוק"}
+                        </button>
+                      )}
+                      <button
+                        className={styles.expandBtn}
+                        onClick={() => toggleDetail(source.id)}
+                      >
+                        {isDetailExpanded ? "▲" : "▼"}
+                      </button>
+                      <button className={styles.deleteBtn} onClick={() => handleDelete(source)}>
+                        מחק
+                      </button>
+                    </div>
+                    {isDetailExpanded && (
+                      <div className={styles.detailPanel} style={{ marginTop: "8px" }}>
+                        <div className={styles.detailGrid}>
+                          <span className={styles.detailLabel}>URL</span>
+                          <a className={styles.detailUrl} href={source.url} target="_blank" rel="noopener noreferrer">
+                            {source.url}
+                          </a>
+                          <span className={styles.detailLabel}>משקל</span>
+                          <span className={styles.detailValue}>{source.weight}</span>
+                          <span className={styles.detailLabel}>קטגוריה</span>
+                          <span className={styles.detailValue}>{CATEGORY_HE[source.category ?? ""] ?? source.category ?? "-"}</span>
+                          {source.notes && (
+                            <>
+                              <span className={styles.detailLabel}>הערות</span>
+                              <span className={styles.detailValue}>{source.notes}</span>
+                            </>
+                          )}
+                        </div>
+                        {history && (
+                          <>
+                            <div className={styles.ideaCount}>רעיונות: {history.ideaCount}</div>
+                            {history.entries.length > 0 && (
+                              <table className={styles.historyTable}>
+                                <thead><tr><th>זמן</th><th>פריטים</th><th>חדשים</th><th>כפולים</th></tr></thead>
+                                <tbody>
+                                  {history.entries.map((entry) => (
+                                    <tr key={entry.id}>
+                                      <td>{relativeTime(entry.createdAt)}</td>
+                                      <td>{entry.metadata.itemsFound ?? "-"}</td>
+                                      <td>{entry.metadata.newIdeas ?? "-"}</td>
+                                      <td>{entry.metadata.duplicatesSkipped ?? "-"}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {/* Card view */}
+      {!loading && sources.length > 0 && viewMode === "cards" && (
         <div className={styles.cardGrid}>
           {sources.map((source) => {
             const health = getHealthStatus(source);

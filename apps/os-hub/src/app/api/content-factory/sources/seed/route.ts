@@ -97,30 +97,45 @@ export async function POST() {
     }
 
     // Phase 2: Stale entry cleanup
-    // If a DB source (by nameHe) matches a seed entry that says active:false,
-    // but the DB entry has a different URL (stale), deactivate it.
+    // For each active DB source with errors, check if it matches a BLOCKED seed entry
+    // by name substring (handles cases where old RSS entries have slightly different names).
+    // Also catches entries where URL changed between seed versions.
     let deactivatedStale = 0;
 
-    const inactiveSeedByName = new Map(
-      SEED_SOURCES.filter((s) => !s.active).map((s) => [s.nameHe, s]),
-    );
+    const inactiveSeeds = SEED_SOURCES.filter((s) => !s.active);
+    // Extract short brand names for fuzzy matching: "דה מרקר", "כלכליסט"
+    const blockedBrands = [...new Set(
+      inactiveSeeds.map((s) => s.nameHe.split("—")[0].split("–")[0].trim()),
+    )];
 
-    if (inactiveSeedByName.size > 0) {
+    if (inactiveSeeds.length > 0) {
       const allDbSources = await prisma.source.findMany({
-        select: { id: true, url: true, nameHe: true, active: true },
+        select: { id: true, url: true, name: true, nameHe: true, active: true, lastError: true },
       });
 
+      // Build a set of seed URLs for Phase 1 match check
+      const seedUrls = new Set(SEED_SOURCES.map((s) => s.url));
+
       for (const dbSource of allDbSources) {
-        if (!dbSource.active || !dbSource.nameHe) continue;
-        const seedMatch = inactiveSeedByName.get(dbSource.nameHe);
-        if (!seedMatch) continue;
-        // Already matched by URL in Phase 1 — skip
-        if (dbSource.url === seedMatch.url) continue;
+        if (!dbSource.active) continue;
+        // Skip if already matched by URL in Phase 1
+        if (seedUrls.has(dbSource.url)) continue;
+
+        const displayName = dbSource.nameHe || dbSource.name || "";
+        const matchedBrand = blockedBrands.find((brand) => displayName.includes(brand));
+        if (!matchedBrand) continue;
+
+        // Find the best matching seed entry for notes
+        const seedMatch = inactiveSeeds.find((s) => displayName.includes(matchedBrand));
 
         await prisma.$transaction(async (tx) => {
           await tx.source.update({
             where: { id: dbSource.id },
-            data: { active: false, notes: seedMatch.notes },
+            data: {
+              active: false,
+              type: "SCRAPE",
+              notes: seedMatch?.notes ?? `BLOCKED — deactivated by seed cleanup (matched brand: ${matchedBrand})`,
+            },
           });
           await logEvent(tx, {
             actorUserId: "system",
@@ -130,9 +145,9 @@ export async function POST() {
             metadata: {
               viaSeed: true,
               staleCleanup: true,
-              reason: `nameHe "${dbSource.nameHe}" matches inactive seed entry`,
+              reason: `Brand "${matchedBrand}" matches blocked seed entries`,
+              displayName,
               oldUrl: dbSource.url,
-              seedUrl: seedMatch.url,
             },
           });
         });
