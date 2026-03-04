@@ -49,8 +49,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       })),
       ideaCount,
     });
-  } catch (e) {
-    console.error(`GET /api/content-factory/sources/${id}/history failed:`, e);
+  } catch (err: unknown) {
+    console.error(`GET /api/content-factory/sources/${id}/history failed:`, err);
     return errorJson(500, "INTERNAL_ERROR", "Failed to load history");
   }
 }
