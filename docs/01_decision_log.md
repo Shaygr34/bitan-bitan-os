@@ -45,4 +45,15 @@ Each entry should include:
 - **Options**: (1) Single large API with business logic inline, (2) Separate state machine module + thin API routes, (3) Full CQRS/event-sourcing.
 - **Outcome**: Option 2 — explicit transition maps in `src/lib/content-factory/transitions.ts`, thin Next.js API routes that delegate to transition validators. Distribution status recalculated transactionally on publish. EventLog written inside the same transaction as every state change. Tests use Node.js built-in `node:test` runner (no extra deps). Manual publish creates a SUCCEEDED PublishJob directly (no queue step for human-provided URLs).
 
+### 2026-03-04 — Batch 4: Sources observability, data integrity, and onboarding
+
+- **Context**: 15 sources seeded but only ~6 work. TheMarker/Calcalist entries were stale (created as RSS, seed changed to SCRAPE+inactive, but upsert matched by URL → old entries never updated). SCRAPE sources couldn't be polled from UI (button gated to RSS/API). Error display showed generic "שגיאה" with no detail. No poll history or health overview.
+- **Options**: (1) Manual DB cleanup + incremental UI patches, (2) Full sources page rewrite with observability, (3) Separate monitoring dashboard.
+- **Outcome**: Option 2 — full sources page rewrite with 5 changes:
+  1. **Stale entry cleanup**: Seed endpoint Phase 2 matches by nameHe to deactivate DB entries that match inactive seed data but have different URLs (orphaned from URL-change).
+  2. **SCRAPE poll button**: Enabled for all pollable types (RSS/API/SCRAPE), matching poll-dispatcher capabilities.
+  3. **Card layout + health**: Replaced flat table with CSS Grid cards. Health status logic (inactive → never-polled → error → stale → healthy) with colored dots. Summary bar at top. Expandable error sections show full error text in monospace.
+  4. **Add-source wizard**: 3-step inline wizard — paste URL → auto-detect type via new `/api/content-factory/sources/detect` endpoint → preview 3 sample items → fill name/category/weight → save. Reuses existing parsers.
+  5. **Detail panel + poll history**: Expandable per-card detail shows full config + poll history from EventLog (SOURCE_POLLED events) + idea count. Zero new tables.
+
 <!-- TODO: Add future decisions below -->
