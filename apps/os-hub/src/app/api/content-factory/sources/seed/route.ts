@@ -96,7 +96,51 @@ export async function POST() {
       created++;
     }
 
-    return NextResponse.json({ created, updated, skipped }, { status: 201 });
+    // Phase 2: Stale entry cleanup
+    // If a DB source (by nameHe) matches a seed entry that says active:false,
+    // but the DB entry has a different URL (stale), deactivate it.
+    let deactivatedStale = 0;
+
+    const inactiveSeedByName = new Map(
+      SEED_SOURCES.filter((s) => !s.active).map((s) => [s.nameHe, s]),
+    );
+
+    if (inactiveSeedByName.size > 0) {
+      const allDbSources = await prisma.source.findMany({
+        select: { id: true, url: true, nameHe: true, active: true },
+      });
+
+      for (const dbSource of allDbSources) {
+        if (!dbSource.active || !dbSource.nameHe) continue;
+        const seedMatch = inactiveSeedByName.get(dbSource.nameHe);
+        if (!seedMatch) continue;
+        // Already matched by URL in Phase 1 — skip
+        if (dbSource.url === seedMatch.url) continue;
+
+        await prisma.$transaction(async (tx) => {
+          await tx.source.update({
+            where: { id: dbSource.id },
+            data: { active: false, notes: seedMatch.notes },
+          });
+          await logEvent(tx, {
+            actorUserId: "system",
+            entityType: "SOURCE",
+            entityId: dbSource.id,
+            action: "SOURCE_UPDATED",
+            metadata: {
+              viaSeed: true,
+              staleCleanup: true,
+              reason: `nameHe "${dbSource.nameHe}" matches inactive seed entry`,
+              oldUrl: dbSource.url,
+              seedUrl: seedMatch.url,
+            },
+          });
+        });
+        deactivatedStale++;
+      }
+    }
+
+    return NextResponse.json({ created, updated, skipped, deactivatedStale }, { status: 201 });
   } catch (e) {
     console.error("POST /api/content-factory/sources/seed failed:", e);
     return NextResponse.json(

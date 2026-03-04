@@ -256,6 +256,7 @@ export default function SourcesPage() {
       if (data.created > 0) parts.push(`${data.created} חדשים`);
       if (data.updated > 0) parts.push(`${data.updated} עודכנו`);
       if (data.skipped > 0) parts.push(`${data.skipped} ללא שינוי`);
+      if (data.deactivatedStale > 0) parts.push(`${data.deactivatedStale} מיושנים הושבתו`);
       showToast({ type: "success", message: parts.join(", ") || "אין שינויים" });
       await fetchSources();
     } catch (err) {
@@ -685,7 +686,7 @@ export default function SourcesPage() {
                 {/* Actions */}
                 <td style={{ padding: "0.75rem 0.5rem" }}>
                   <div style={{ display: "flex", gap: "0.25rem" }}>
-                    {(source.type === "RSS" || source.type === "API") && (
+                    {(source.type === "RSS" || source.type === "API" || source.type === "SCRAPE") && (
                       <button
                         className="btn-secondary"
                         style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
