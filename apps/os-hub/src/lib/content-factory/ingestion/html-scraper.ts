@@ -1,27 +1,30 @@
 /**
- * HTML scraper for gov.il publication pages and similar server-rendered sites.
+ * HTML scraper for gov.il publication pages, BTL circulars, and similar
+ * server-rendered government sites.
  *
- * Uses regex-based parsing (no external deps) to extract publication items
- * from gov.il collector pages (Tax Authority, Finance Ministry, etc.).
+ * Uses regex-based parsing (no external deps) to extract publication items.
  *
- * Target URL pattern:
- *   https://www.gov.il/he/departments/publications/?officeId=<uuid>
- *   https://www.gov.il/he/collectors/publications?officeId=<uuid>
+ * Supported patterns:
+ *   - gov.il publications (Next.js SSR) — currently blocked by WAF (403)
+ *   - btl.gov.il employer circulars (SharePoint ASP.NET)
+ *   - Generic HTML pages (Deloitte, etc.)
  */
 
 import type { SourceItem } from "./poll-dispatcher";
-
-const GOV_IL_BASE = "https://www.gov.il";
 
 /**
  * Fetch and parse gov.il publication list pages.
  *
  * Gov.il renders server-side HTML with a list of publications.
  * Each item typically has: title, date, link to detail page.
+ *
+ * NOTE: www.gov.il currently blocks server-side requests (WAF 403).
+ * This function still works for other .gov.il subdomains like btl.gov.il.
  */
 export async function fetchGovIlPublications(url: string): Promise<SourceItem[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
+  const origin = new URL(url).origin;
 
   console.log(`[SCRAPE] Fetching gov.il: ${url}`);
 
@@ -34,7 +37,15 @@ export async function fetchGovIlPublications(url: string): Promise<SourceItem[]>
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7",
-        Referer: "https://www.gov.il/",
+        "Accept-Encoding": "gzip, deflate, br",
+        Connection: "keep-alive",
+        DNT: "1",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        Referer: origin + "/",
       },
     });
 
@@ -47,7 +58,7 @@ export async function fetchGovIlPublications(url: string): Promise<SourceItem[]>
     const html = await response.text();
     console.log(`[SCRAPE] Body length: ${html.length} chars`);
 
-    const items = parseGovIlHtml(html);
+    const items = parseGovIlHtml(html, origin);
     console.log(`[SCRAPE] Parsed ${items.length} items from ${url}`);
 
     if (items.length > 0) {
@@ -66,26 +77,31 @@ export async function fetchGovIlPublications(url: string): Promise<SourceItem[]>
 }
 
 /**
- * Parse gov.il publication list HTML.
+ * Parse gov.il / .gov.il publication list HTML.
  *
- * Gov.il uses several HTML patterns for listing publications:
- * 1. <h3 class="...title..."><a href="/he/...">Title</a></h3> with date nearby
- * 2. <div class="gov-result-item"> containers
- * 3. JSON-LD or __NEXT_DATA__ embedded in the page
+ * Strategies tried in order:
+ * 1. __NEXT_DATA__ JSON (Next.js SSR — www.gov.il)
+ * 2. SharePoint table rows (btl.gov.il — `il-ItemTitleTd_gray` class)
+ * 3. Result item containers (generic gov.il patterns)
+ * 4. Linked headings with date context (fallback)
  *
- * We try multiple strategies and return the first that yields results.
+ * @param origin - Source URL origin for building absolute links (e.g. "https://www.btl.gov.il")
  */
-function parseGovIlHtml(html: string): SourceItem[] {
+function parseGovIlHtml(html: string, origin: string): SourceItem[] {
   // Strategy 1: Parse __NEXT_DATA__ JSON (Next.js SSR pages)
-  const nextDataItems = parseNextData(html);
+  const nextDataItems = parseNextData(html, origin);
   if (nextDataItems.length > 0) return nextDataItems;
 
-  // Strategy 2: Parse result item containers
-  const resultItems = parseResultItems(html);
+  // Strategy 2: Parse SharePoint table rows (btl.gov.il pattern)
+  const spItems = parseSharePointTable(html, origin);
+  if (spItems.length > 0) return spItems;
+
+  // Strategy 3: Parse result item containers
+  const resultItems = parseResultItems(html, origin);
   if (resultItems.length > 0) return resultItems;
 
-  // Strategy 3: Parse linked headings with date context
-  const headingItems = parseLinkedHeadings(html);
+  // Strategy 4: Parse linked headings with date context
+  const headingItems = parseLinkedHeadings(html, origin);
   if (headingItems.length > 0) return headingItems;
 
   console.warn(`[SCRAPE] No items found in gov.il HTML (${html.length} chars)`);
@@ -96,7 +112,7 @@ function parseGovIlHtml(html: string): SourceItem[] {
  * Strategy 1: Extract from __NEXT_DATA__ JSON blob.
  * Many gov.il pages embed structured data in a script tag.
  */
-function parseNextData(html: string): SourceItem[] {
+function parseNextData(html: string, origin: string): SourceItem[] {
   const match = html.match(/<script\s+id="__NEXT_DATA__"\s+type="application\/json">([\s\S]*?)<\/script>/i);
   if (!match) return [];
 
@@ -120,8 +136,9 @@ function parseNextData(html: string): SourceItem[] {
         const title = (item.title || item.Title || item.name) as string | undefined;
         if (!title) return null;
 
-        const link = buildGovIlLink(
+        const link = buildAbsoluteLink(
           (item.url || item.UrlName || item.path || item.link) as string | undefined,
+          origin,
         );
         const desc = (item.description || item.Description || item.summary || "") as string;
         const date = (item.publishDate || item.PublishDate || item.date || item.created) as string | undefined;
@@ -141,10 +158,43 @@ function parseNextData(html: string): SourceItem[] {
 }
 
 /**
- * Strategy 2: Parse gov.il result-item containers.
+ * Strategy 2: Parse SharePoint table rows (btl.gov.il pattern).
+ * BTL uses <td class="il-ItemTitleTd_gray"><a> with date prefix in link text.
+ * Link text format: "DD.MM.YYYY : Title"
+ */
+function parseSharePointTable(html: string, origin: string): SourceItem[] {
+  const items: SourceItem[] = [];
+  const rowRegex = /<td\s+class="il-ItemTitleTd[^"]*"[^>]*>\s*<a\s+class="[^"]*"\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*<\/td>/gi;
+
+  let match: RegExpExecArray | null;
+  while ((match = rowRegex.exec(html)) !== null) {
+    const href = match[1];
+    const rawText = stripHtml(match[2]).trim();
+    if (!rawText || rawText.length < 5) continue;
+
+    // Extract date prefix: "DD.MM.YYYY : Title"
+    const dateTitle = rawText.match(/^(\d{1,2}\.\d{1,2}\.\d{4})\s*:\s*(.+)$/);
+    const rawTitle = dateTitle ? dateTitle[2].trim() : rawText;
+    // BTL titles from PDF filenames use underscores as spaces
+    const title = rawTitle.replace(/^_+/, "").replace(/_/g, " ").trim();
+    const pubDate = dateTitle ? dateTitle[1] : null;
+
+    items.push({
+      title,
+      link: buildAbsoluteLink(href, origin),
+      description: "",
+      pubDate,
+    });
+  }
+
+  return items;
+}
+
+/**
+ * Strategy 3: Parse gov.il result-item containers.
  * Pattern: <div class="*result*item*"> containing title link + date.
  */
-function parseResultItems(html: string): SourceItem[] {
+function parseResultItems(html: string, origin: string): SourceItem[] {
   const items: SourceItem[] = [];
   // Match various result container patterns
   const containerRegex = /<(?:div|li|article)\s[^>]*class="[^"]*(?:result[-_]?item|publication[-_]?item|list[-_]?item|card)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|li|article)>/gi;
@@ -152,7 +202,7 @@ function parseResultItems(html: string): SourceItem[] {
   let match: RegExpExecArray | null;
   while ((match = containerRegex.exec(html)) !== null) {
     const block = match[1];
-    const item = extractItemFromBlock(block);
+    const item = extractItemFromBlock(block, origin);
     if (item) items.push(item);
   }
 
@@ -160,9 +210,9 @@ function parseResultItems(html: string): SourceItem[] {
 }
 
 /**
- * Strategy 3: Parse linked headings as publication entries.
+ * Strategy 4: Parse linked headings as publication entries.
  */
-function parseLinkedHeadings(html: string): SourceItem[] {
+function parseLinkedHeadings(html: string, origin: string): SourceItem[] {
   const items: SourceItem[] = [];
   const headingRegex = /<h[2-4][^>]*>\s*<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*<\/h[2-4]>/gi;
 
@@ -178,7 +228,7 @@ function parseLinkedHeadings(html: string): SourceItem[] {
 
     items.push({
       title,
-      link: buildGovIlLink(href),
+      link: buildAbsoluteLink(href, origin),
       description: "",
       pubDate: dateMatch ? dateMatch[1] : null,
     });
@@ -188,7 +238,7 @@ function parseLinkedHeadings(html: string): SourceItem[] {
 }
 
 /** Extract a single item from an HTML block. */
-function extractItemFromBlock(block: string): SourceItem | null {
+function extractItemFromBlock(block: string, origin: string): SourceItem | null {
   // Find the first link with text
   const linkMatch = block.match(/<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
   if (!linkMatch) return null;
@@ -209,17 +259,17 @@ function extractItemFromBlock(block: string): SourceItem | null {
 
   return {
     title,
-    link: buildGovIlLink(href),
+    link: buildAbsoluteLink(href, origin),
     description,
     pubDate,
   };
 }
 
-/** Build full gov.il URL from a relative or absolute path. */
-function buildGovIlLink(href: string | undefined): string {
+/** Build full URL from a relative or absolute path using the source origin. */
+function buildAbsoluteLink(href: string | undefined, origin: string): string {
   if (!href) return "";
   if (href.startsWith("http")) return href;
-  if (href.startsWith("/")) return `${GOV_IL_BASE}${href}`;
+  if (href.startsWith("/")) return `${origin}${href}`;
   return href;
 }
 
@@ -258,16 +308,17 @@ export async function fetchHtmlPage(url: string): Promise<SourceItem[]> {
     }
 
     const html = await response.text();
+    const origin = new URL(url).origin;
     console.log(`[SCRAPE] Body length: ${html.length} chars`);
 
     // Use the same strategies as gov.il
-    const items = parseResultItems(html);
+    const items = parseResultItems(html, origin);
     if (items.length > 0) {
       console.log(`[SCRAPE] Parsed ${items.length} items via result containers`);
       return items;
     }
 
-    const headings = parseLinkedHeadings(html);
+    const headings = parseLinkedHeadings(html, origin);
     console.log(`[SCRAPE] Parsed ${headings.length} items via linked headings`);
     return headings;
   } catch (err) {
