@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { errorJson, isValidUuid } from "@/lib/content-factory/validate";
 import { fetchSourceItems, isPollableType, toIdeaSourceType } from "@/lib/content-factory/ingestion/poll-dispatcher";
+import { closeBrowser } from "@/lib/content-factory/ingestion/browser-scraper";
 import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
 
@@ -143,6 +144,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         },
       });
       errors.push((fetchErr as Error).message);
+    }
+
+    // Close Chromium if this was a BROWSER source
+    if (source.type === "BROWSER") {
+      await closeBrowser();
     }
 
     console.log(`[Poll] Done: source=${id}, created=${created}, skipped=${skipped}, errors=${errors.length}`);

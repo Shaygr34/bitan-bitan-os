@@ -14,6 +14,7 @@ import { cronSecret } from "@/config/integrations";
 import { prisma } from "@/lib/prisma";
 import { isTableOrConnectionError } from "@/lib/content-factory/validate";
 import { fetchSourceItems, isPollableType, toIdeaSourceType } from "@/lib/content-factory/ingestion/poll-dispatcher";
+import { closeBrowser } from "@/lib/content-factory/ingestion/browser-scraper";
 import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
 import { logEvent } from "@/lib/content-factory/event-log";
@@ -157,6 +158,9 @@ export async function GET(request: Request) {
         }).catch(() => {});
       }
     }
+
+    // Close Chromium if any BROWSER sources were polled
+    await closeBrowser();
 
     const totalNew = results.reduce((sum, r) => sum + r.newIdeas, 0);
     console.log(`[Cron] Done: ${sources.length} sources, ${totalNew} new ideas`);
