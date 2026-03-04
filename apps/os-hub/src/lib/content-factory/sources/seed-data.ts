@@ -1,8 +1,8 @@
 /**
  * Default source seed data.
  *
- * Active RSS sources: Globes (proven working).
- * TheMarker: marked inactive — Haaretz group blocks server-side requests (confirmed).
+ * Active RSS sources: Globes (proven working), TheMarker (RSS feeds verified).
+ * TheMarker: switched from SCRAPE to RSS (/srv/tm-*) — working feeds discovered.
  * Calcalist: marked inactive — GeneralRSS URLs return 403 for non-browser access.
  * Gov.il: marked inactive — WAF returns 403 for all server-side requests. Needs Playwright.
  * BTL: active — SharePoint ASP.NET, server-side fetch works.
@@ -85,30 +85,30 @@ export const SEED_SOURCES: SeedSource[] = [
     notes: "Globes main/headlines feed. Lower weight — broad financial news with some tax-adjacent content.",
   },
 
-  // ── TheMarker (INACTIVE — Haaretz blocks server-side requests) ───
+  // ── TheMarker (RSS — verified working) ─────────────────────────────
   {
     name: "TheMarker — נדל\"ן",
     nameHe: "דה מרקר — נדל\"ן",
-    type: "SCRAPE",
-    url: "https://www.themarker.com/srv/haaretz-realestate",
+    type: "RSS",
+    url: "https://www.themarker.com/srv/tm-real-estate",
     weight: 1.2,
     category: "Tax",
     tags: ["real-estate-tax", "compliance", "court-ruling"],
     pollIntervalMin: 120,
-    active: false,
-    notes: "BLOCKED — Haaretz group blocks server-side requests (confirmed). Needs Playwright scraper (v2+).",
+    active: true,
+    notes: "RSS 2.0 feed. Verified working.",
   },
   {
     name: "TheMarker — שוק ההון",
     nameHe: "דה מרקר — שוק ההון",
-    type: "SCRAPE",
-    url: "https://www.themarker.com/srv/haaretz-capital-market",
+    type: "RSS",
+    url: "https://www.themarker.com/srv/tm-markets",
     weight: 0.9,
     category: "Business-News",
     tags: ["corp-tax", "compliance", "interest-rates"],
     pollIntervalMin: 120,
-    active: false,
-    notes: "BLOCKED — Haaretz group blocks server-side requests (confirmed). Needs Playwright scraper (v2+).",
+    active: true,
+    notes: "RSS 2.0 feed. Verified working.",
   },
 
   // ── Calcalist (INACTIVE — 403 blocked) ────────────────────────────
