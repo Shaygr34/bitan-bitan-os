@@ -50,7 +50,16 @@ function findChromium(): string {
 async function getBrowser(): Promise<PuppeteerBrowser> {
   if (browserInstance?.connected) return browserInstance;
 
-  const puppeteer = await import("puppeteer-core");
+  let puppeteer;
+  try {
+    puppeteer = await import("puppeteer-core");
+  } catch {
+    throw new Error(
+      "puppeteer-core is not installed. Run: npm install puppeteer-core. " +
+      "BROWSER sources require puppeteer-core + system Chromium.",
+    );
+  }
+
   const executablePath = findChromium();
   console.log(`[BROWSER] Launching Chromium: ${executablePath}`);
 

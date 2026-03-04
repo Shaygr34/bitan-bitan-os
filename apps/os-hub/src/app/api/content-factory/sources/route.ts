@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   const url = requireString(body as Record<string, unknown>, "url");
   if (!url) return errorJson(400, "MISSING_FIELD", "url is required");
 
-  const validTypes = ["RSS", "API", "SCRAPE", "MANUAL"];
+  const validTypes = ["RSS", "API", "SCRAPE", "BROWSER", "MANUAL"];
   const sourceType = body.type && validTypes.includes(body.type) ? body.type : "RSS";
 
   try {
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         data: {
           name,
           nameHe: body.nameHe ?? null,
-          type: sourceType as "RSS" | "API" | "SCRAPE" | "MANUAL",
+          type: sourceType as "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL",
           url,
           active: body.active ?? true,
           weight: body.weight ?? 1.0,

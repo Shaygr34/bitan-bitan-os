@@ -101,62 +101,55 @@ export async function POST() {
     }
 
     // Phase 2: Stale entry cleanup
-    // For each active DB source with errors, check if it matches a BLOCKED seed entry
-    // by name substring (handles cases where old RSS entries have slightly different names).
-    // Also catches entries where URL changed between seed versions.
+    // Deactivate any DB source whose URL is NOT in the current seed set
+    // but whose brand name matches a seed entry. This handles URL changes
+    // between seed versions (e.g. TheMarker SCRAPE → RSS, Calcalist RSS → BROWSER).
     let deactivatedStale = 0;
 
-    const inactiveSeeds = SEED_SOURCES.filter((s) => !s.active);
-    // Extract short brand names for fuzzy matching: "דה מרקר", "כלכליסט"
-    const blockedBrands = [...new Set(
-      inactiveSeeds.map((s) => s.nameHe.split("—")[0].split("–")[0].trim()),
+    const seedUrls = new Set(SEED_SOURCES.map((s) => normalizeUrl(s.url)));
+    // Extract brand names from ALL seed entries for fuzzy matching
+    const seedBrands = [...new Set(
+      SEED_SOURCES.map((s) => s.nameHe.split("—")[0].split("–")[0].trim()),
     )];
 
-    if (inactiveSeeds.length > 0) {
-      const allDbSources = await prisma.source.findMany({
-        select: { id: true, url: true, name: true, nameHe: true, active: true, lastError: true },
-      });
+    const allDbSources = await prisma.source.findMany({
+      select: { id: true, url: true, name: true, nameHe: true, active: true },
+    });
 
-      // Build a set of seed URLs for Phase 1 match check (normalized)
-      const seedUrls = new Set(SEED_SOURCES.map((s) => normalizeUrl(s.url)));
+    for (const dbSource of allDbSources) {
+      // Skip if URL matches a current seed entry (handled in Phase 1)
+      if (seedUrls.has(normalizeUrl(dbSource.url))) continue;
+      // Skip already inactive
+      if (!dbSource.active) continue;
 
-      for (const dbSource of allDbSources) {
-        if (!dbSource.active) continue;
-        // Skip if already matched by URL in Phase 1
-        if (seedUrls.has(normalizeUrl(dbSource.url))) continue;
+      const displayName = dbSource.nameHe || dbSource.name || "";
+      const matchedBrand = seedBrands.find((brand) => displayName.includes(brand));
+      if (!matchedBrand) continue;
 
-        const displayName = dbSource.nameHe || dbSource.name || "";
-        const matchedBrand = blockedBrands.find((brand) => displayName.includes(brand));
-        if (!matchedBrand) continue;
-
-        // Find the best matching seed entry for notes
-        const seedMatch = inactiveSeeds.find((s) => displayName.includes(matchedBrand));
-
-        await prisma.$transaction(async (tx) => {
-          await tx.source.update({
-            where: { id: dbSource.id },
-            data: {
-              active: false,
-              type: "SCRAPE",
-              notes: seedMatch?.notes ?? `BLOCKED — deactivated by seed cleanup (matched brand: ${matchedBrand})`,
-            },
-          });
-          await logEvent(tx, {
-            actorUserId: "system",
-            entityType: "SOURCE",
-            entityId: dbSource.id,
-            action: "SOURCE_UPDATED",
-            metadata: {
-              viaSeed: true,
-              staleCleanup: true,
-              reason: `Brand "${matchedBrand}" matches blocked seed entries`,
-              displayName,
-              oldUrl: dbSource.url,
-            },
-          });
+      // This DB entry has a brand name from the seed data but an old URL — deactivate it
+      await prisma.$transaction(async (tx) => {
+        await tx.source.update({
+          where: { id: dbSource.id },
+          data: {
+            active: false,
+            notes: `Deactivated by seed cleanup — URL replaced in current seed (brand: ${matchedBrand})`,
+          },
         });
-        deactivatedStale++;
-      }
+        await logEvent(tx, {
+          actorUserId: "system",
+          entityType: "SOURCE",
+          entityId: dbSource.id,
+          action: "SOURCE_UPDATED",
+          metadata: {
+            viaSeed: true,
+            staleCleanup: true,
+            reason: `Brand "${matchedBrand}" URL changed in seed data`,
+            displayName,
+            oldUrl: dbSource.url,
+          },
+        });
+      });
+      deactivatedStale++;
     }
 
     return NextResponse.json({ created, updated, skipped, deactivatedStale }, { status: 201 });

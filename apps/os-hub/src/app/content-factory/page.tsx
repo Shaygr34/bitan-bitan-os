@@ -44,7 +44,7 @@ const NAV_CARDS = [
   },
 ];
 
-async function fetchStats(retries = 3, delay = 1500): Promise<HubStats | null> {
+async function fetchStats(retries = 2, delay = 1000): Promise<HubStats | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch("/api/content-factory/hub-stats");

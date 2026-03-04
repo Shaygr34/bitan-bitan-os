@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { fetchSourceItems, isPollableType, toIdeaSourceType } from "@/lib/content-factory/ingestion/poll-dispatcher";
+import { closeBrowser } from "@/lib/content-factory/ingestion/browser-scraper";
 import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
 
@@ -31,7 +32,7 @@ export async function POST() {
 
       try {
         console.log(`[PollAll] Polling source: ${source.name} (${source.id}), type=${source.type}, url: ${source.url}`);
-        const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "MANUAL", source.url);
+        const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL", source.url);
         console.log(`[PollAll] Got ${items.length} items from ${source.name}`);
 
         for (const item of items) {
@@ -140,6 +141,9 @@ export async function POST() {
         polled++;
       }
     }
+
+    // Close Chromium if any BROWSER sources were polled
+    await closeBrowser();
 
     console.log(`[PollAll] Done: polled=${polled}, created=${totalCreated}, skipped=${totalSkipped}, errors=${sourceErrors.length}`);
     if (sourceErrors.length > 0) {
