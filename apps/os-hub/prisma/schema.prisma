@@ -37,6 +37,7 @@ enum SourceType {
   RSS
   API
   SCRAPE
+  BROWSER
   MANUAL
 }
 

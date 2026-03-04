@@ -12,7 +12,7 @@
 export interface SeedSource {
   name: string;
   nameHe: string;
-  type: "RSS" | "API" | "SCRAPE" | "MANUAL";
+  type: "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL";
   url: string;
   weight: number;
   category: string;

@@ -2,15 +2,17 @@
  * Poll dispatcher — routes source types to the appropriate fetcher.
  *
  * Supported:
- *   - RSS   → rss-parser.ts
- *   - API   → api-fetcher.ts (Globes ASMX, JSON endpoints)
- *   - SCRAPE → html-scraper.ts (gov.il, generic HTML)
- *   - MANUAL → no-op
+ *   - RSS     → rss-parser.ts
+ *   - API     → api-fetcher.ts (Globes ASMX, JSON endpoints)
+ *   - SCRAPE  → html-scraper.ts (gov.il, generic HTML)
+ *   - BROWSER → browser-scraper.ts (puppeteer-core for WAF-blocked sites)
+ *   - MANUAL  → no-op
  */
 
 import { fetchRSSFeed, type RSSItem } from "./rss-parser";
 import { fetchAPIEndpoint } from "./api-fetcher";
 import { fetchGovIlPublications, fetchHtmlPage } from "./html-scraper";
+import { fetchBrowserItems } from "./browser-scraper";
 
 /** Normalized item returned by any fetcher. */
 export interface SourceItem {
@@ -20,7 +22,7 @@ export interface SourceItem {
   pubDate: string | null;
 }
 
-type SourceType = "RSS" | "API" | "SCRAPE" | "MANUAL";
+type SourceType = "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL";
 
 /**
  * Fetch items from a source based on its type.
@@ -39,6 +41,9 @@ export async function fetchSourceItems(
     case "SCRAPE":
       return fetchScrapeItems(url);
 
+    case "BROWSER":
+      return fetchBrowserItems(url);
+
     case "MANUAL":
       // Manual sources are entered by humans — nothing to poll
       return [];
@@ -50,7 +55,7 @@ export async function fetchSourceItems(
 
 /** Supported source types that can be automatically polled. */
 export function isPollableType(type: string): boolean {
-  return ["RSS", "API", "SCRAPE"].includes(type);
+  return ["RSS", "API", "SCRAPE", "BROWSER"].includes(type);
 }
 
 /**
@@ -65,6 +70,7 @@ export function toIdeaSourceType(
     case "RSS":
       return "RSS";
     case "SCRAPE":
+    case "BROWSER":
       return "SCRAPE";
     case "MANUAL":
       return "MANUAL";

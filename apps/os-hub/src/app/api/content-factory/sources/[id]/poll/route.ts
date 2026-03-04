@@ -33,7 +33,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
     try {
       console.log(`[Poll] Polling source: ${source.name} (${source.id}), type=${source.type}, url: ${source.url}`);
-      const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "MANUAL", source.url);
+      const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL", source.url);
       console.log(`[Poll] Got ${items.length} items from ${source.name}`);
 
       for (const item of items) {

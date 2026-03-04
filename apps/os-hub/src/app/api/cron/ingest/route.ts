@@ -56,7 +56,7 @@ export async function GET(request: Request) {
     for (const source of sources) {
       try {
         console.log(`[Cron] Polling source: ${source.name} (${source.id}), type=${source.type}`);
-        const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "MANUAL", source.url);
+        const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL", source.url);
 
         let newCount = 0;
         for (const item of items) {
