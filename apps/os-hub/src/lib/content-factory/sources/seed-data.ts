@@ -4,7 +4,9 @@
  * Active RSS sources: Globes (proven working).
  * TheMarker: marked inactive — Haaretz group blocks server-side requests (confirmed).
  * Calcalist: marked inactive — GeneralRSS URLs return 403 for non-browser access.
- * Scrape sources: inactive until Playwright scraper is built (v2+).
+ * Gov.il: marked inactive — WAF returns 403 for all server-side requests. Needs Playwright.
+ * BTL: active — SharePoint ASP.NET, server-side fetch works.
+ * Deloitte: active — static HTML, server-side fetch works.
  */
 
 export interface SeedSource {
@@ -173,7 +175,7 @@ export const SEED_SOURCES: SeedSource[] = [
     notes: "Globes ASMX web service — Last20Articles. XML format. Broader coverage than individual RSS feeds.",
   },
 
-  // ── Gov.il Scrape (active — HTML scraper implemented) ─────────────
+  // ── Gov.il Scrape (INACTIVE — WAF blocks server-side requests) ────
   {
     name: "רשות המסים — פרסומים",
     nameHe: "רשות המסים — פרסומים וחוזרים",
@@ -183,8 +185,8 @@ export const SEED_SOURCES: SeedSource[] = [
     category: "Tax",
     tags: ["income-tax", "VAT", "corp-tax", "real-estate-tax", "compliance", "enforcement"],
     pollIntervalMin: 720,
-    active: true,
-    notes: "HIGHEST VALUE. Gov.il publications — HTML scraper extracts titles/dates/links.",
+    active: false,
+    notes: "BLOCKED — gov.il WAF returns 403 for all server-side requests. Needs Playwright scraper.",
   },
   {
     name: "משרד האוצר — פרסומים",
@@ -195,8 +197,8 @@ export const SEED_SOURCES: SeedSource[] = [
     category: "Tax",
     tags: ["corp-tax", "compliance", "grants", "interest-rates"],
     pollIntervalMin: 720,
-    active: true,
-    notes: "Ministry of Finance publications. Same gov.il pattern as Tax Authority.",
+    active: false,
+    notes: "BLOCKED — gov.il WAF returns 403 for all server-side requests. Needs Playwright scraper.",
   },
   {
     name: "המוסד לביטוח לאומי — חוזרים למעסיקים",

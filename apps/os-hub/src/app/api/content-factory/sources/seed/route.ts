@@ -20,15 +20,19 @@ export async function POST() {
     let updated = 0;
     let skipped = 0;
 
+    // Normalize URL for comparison: strip protocol, trailing slash
+    const normalizeUrl = (u: string) =>
+      u.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+
     // Bulk-fetch existing sources by URL for fast lookup
     const existingByUrl = new Map(
       (await prisma.source.findMany({
         select: { id: true, url: true, type: true, active: true, notes: true },
-      })).map((s) => [s.url, s]),
+      })).map((s) => [normalizeUrl(s.url), s]),
     );
 
     for (const seed of SEED_SOURCES) {
-      const existing = existingByUrl.get(seed.url);
+      const existing = existingByUrl.get(normalizeUrl(seed.url));
 
       if (existing) {
         // Check if type, active, or notes need syncing
@@ -113,13 +117,13 @@ export async function POST() {
         select: { id: true, url: true, name: true, nameHe: true, active: true, lastError: true },
       });
 
-      // Build a set of seed URLs for Phase 1 match check
-      const seedUrls = new Set(SEED_SOURCES.map((s) => s.url));
+      // Build a set of seed URLs for Phase 1 match check (normalized)
+      const seedUrls = new Set(SEED_SOURCES.map((s) => normalizeUrl(s.url)));
 
       for (const dbSource of allDbSources) {
         if (!dbSource.active) continue;
         // Skip if already matched by URL in Phase 1
-        if (seedUrls.has(dbSource.url)) continue;
+        if (seedUrls.has(normalizeUrl(dbSource.url))) continue;
 
         const displayName = dbSource.nameHe || dbSource.name || "";
         const matchedBrand = blockedBrands.find((brand) => displayName.includes(brand));
