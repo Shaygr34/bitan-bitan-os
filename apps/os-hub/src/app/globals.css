@@ -61,6 +61,8 @@
   --status-info-bg: rgba(37, 99, 235, 0.08);
   --status-neutral: #6B7280;
   --status-neutral-bg: rgba(107, 114, 128, 0.08);
+  --status-api: #7c3aed;
+  --status-api-bg: rgba(124, 58, 237, 0.08);
 
   /* ——— Sidebar tokens ——— */
   --sidebar-background: #002040;
