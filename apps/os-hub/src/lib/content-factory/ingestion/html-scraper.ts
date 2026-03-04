@@ -87,7 +87,7 @@ export async function fetchGovIlPublications(url: string): Promise<SourceItem[]>
  *
  * @param origin - Source URL origin for building absolute links (e.g. "https://www.btl.gov.il")
  */
-function parseGovIlHtml(html: string, origin: string): SourceItem[] {
+export function parseGovIlHtml(html: string, origin: string): SourceItem[] {
   // Strategy 1: Parse __NEXT_DATA__ JSON (Next.js SSR pages)
   const nextDataItems = parseNextData(html, origin);
   if (nextDataItems.length > 0) return nextDataItems;

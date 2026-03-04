@@ -95,6 +95,7 @@
 .typeBadgeRSS { background: var(--status-info); }
 .typeBadgeAPI { background: var(--status-api); }
 .typeBadgeSCRAPE { background: var(--status-warning); }
+.typeBadgeBROWSER { background: #b45309; }
 .typeBadgeMANUAL { background: var(--status-neutral); }
 
 .activeToggle {

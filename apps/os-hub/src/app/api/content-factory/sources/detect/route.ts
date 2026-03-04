@@ -22,10 +22,21 @@ export async function POST(request: NextRequest) {
   if (!url) return errorJson(400, "MISSING_FIELD", "url is required");
 
   // Validate URL format
+  let parsedUrl: URL;
   try {
-    new URL(url);
+    parsedUrl = new URL(url);
   } catch {
     return errorJson(400, "INVALID_URL", "Invalid URL format");
+  }
+
+  // Known browser-required domains — return BROWSER immediately
+  const browserDomains = ["gov.il", "calcalist.co.il"];
+  if (browserDomains.some((d) => parsedUrl.hostname.endsWith(d) && !parsedUrl.hostname.endsWith("btl.gov.il"))) {
+    return NextResponse.json({
+      detectedType: "BROWSER",
+      sampleItems: [],
+      error: "This domain requires browser rendering. Items will be extracted via Chromium.",
+    });
   }
 
   const controller = new AbortController();

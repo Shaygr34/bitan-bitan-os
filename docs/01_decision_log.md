@@ -56,4 +56,19 @@ Each entry should include:
   4. **Add-source wizard**: 3-step inline wizard — paste URL → auto-detect type via new `/api/content-factory/sources/detect` endpoint → preview 3 sample items → fill name/category/weight → save. Reuses existing parsers.
   5. **Detail panel + poll history**: Expandable per-card detail shows full config + poll history from EventLog (SOURCE_POLLED events) + idea count. Zero new tables.
 
+### 2026-03-04 — Batch 5: Unblock all sources — puppeteer-core BROWSER type
+
+- **Context**: 8 of 16 sources blocked. TheMarker (403 on SCRAPE), Gov.il (WAF 403), Calcalist (RSS 404). These include the highest-value sources: Tax Authority (weight 2.0), Finance Ministry (1.5), Calcalist Tax (1.5).
+- **Options**:
+  1. **Playwright** — full browser automation library (~50MB install, own Chromium)
+  2. **puppeteer-core** — browser automation without bundled Chromium (~2MB)
+  3. **Boolean `needsBrowser` flag** on existing SCRAPE type
+  4. **Proxy/CAPTCHA service** — external service to bypass WAF
+- **Outcome**: Option 2 + new `BROWSER` SourceType enum value.
+  - **puppeteer-core over Playwright**: Docker already installs `chromium` for Content Engine PDF rendering. puppeteer-core piggybacks on it — zero Docker changes, 2MB dep vs 50MB.
+  - **BROWSER type over boolean flag**: Keeps the type system clean, dispatcher's switch/case exhaustive, and UI badge/filtering explicit.
+  - **TheMarker discovery**: Found working RSS feeds at `/srv/tm-*` paths — zero new code, just URL swap.
+  - **Singleton pattern**: One Chromium process per cron cycle, `closeBrowser()` after batch.
+  - **Risk**: Calcalist section URLs need verification — may change structure.
+
 <!-- TODO: Add future decisions below -->

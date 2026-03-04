@@ -1,10 +1,10 @@
 /**
  * Default source seed data.
  *
- * Active RSS sources: Globes (proven working).
- * TheMarker: marked inactive — Haaretz group blocks server-side requests (confirmed).
- * Calcalist: marked inactive — GeneralRSS URLs return 403 for non-browser access.
- * Gov.il: marked inactive — WAF returns 403 for all server-side requests. Needs Playwright.
+ * Active RSS sources: Globes (proven working), TheMarker (RSS feeds verified).
+ * TheMarker: switched from SCRAPE to RSS (/srv/tm-*) — working feeds discovered.
+ * Calcalist: BROWSER type — section page scraping via Chromium (RSS feeds dead).
+ * Gov.il: BROWSER type — Chromium bypasses WAF 403. Reuses parseGovIlHtml strategies.
  * BTL: active — SharePoint ASP.NET, server-side fetch works.
  * Deloitte: active — static HTML, server-side fetch works.
  */
@@ -12,7 +12,7 @@
 export interface SeedSource {
   name: string;
   nameHe: string;
-  type: "RSS" | "API" | "SCRAPE" | "MANUAL";
+  type: "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL";
   url: string;
   weight: number;
   category: string;
@@ -85,80 +85,80 @@ export const SEED_SOURCES: SeedSource[] = [
     notes: "Globes main/headlines feed. Lower weight — broad financial news with some tax-adjacent content.",
   },
 
-  // ── TheMarker (INACTIVE — Haaretz blocks server-side requests) ───
+  // ── TheMarker (RSS — verified working) ─────────────────────────────
   {
     name: "TheMarker — נדל\"ן",
     nameHe: "דה מרקר — נדל\"ן",
-    type: "SCRAPE",
-    url: "https://www.themarker.com/srv/haaretz-realestate",
+    type: "RSS",
+    url: "https://www.themarker.com/srv/tm-real-estate",
     weight: 1.2,
     category: "Tax",
     tags: ["real-estate-tax", "compliance", "court-ruling"],
     pollIntervalMin: 120,
-    active: false,
-    notes: "BLOCKED — Haaretz group blocks server-side requests (confirmed). Needs Playwright scraper (v2+).",
+    active: true,
+    notes: "RSS 2.0 feed. Verified working.",
   },
   {
     name: "TheMarker — שוק ההון",
     nameHe: "דה מרקר — שוק ההון",
-    type: "SCRAPE",
-    url: "https://www.themarker.com/srv/haaretz-capital-market",
+    type: "RSS",
+    url: "https://www.themarker.com/srv/tm-markets",
     weight: 0.9,
     category: "Business-News",
     tags: ["corp-tax", "compliance", "interest-rates"],
     pollIntervalMin: 120,
-    active: false,
-    notes: "BLOCKED — Haaretz group blocks server-side requests (confirmed). Needs Playwright scraper (v2+).",
+    active: true,
+    notes: "RSS 2.0 feed. Verified working.",
   },
 
-  // ── Calcalist (INACTIVE — 403 blocked) ────────────────────────────
+  // ── Calcalist (BROWSER — section pages via Chromium) ───────────────
   {
     name: "כלכליסט — מיסים",
     nameHe: "כלכליסט — מיסים",
-    type: "SCRAPE",
-    url: "https://www.calcalist.co.il/GeneralRSS/0,16335,L-13,00.xml",
+    type: "BROWSER",
+    url: "https://www.calcalist.co.il/local_news/category/4419",
     weight: 1.5,
     category: "Tax",
     tags: ["income-tax", "VAT", "real-estate-tax", "corp-tax", "court-ruling"],
     pollIntervalMin: 60,
-    active: false,
-    notes: "BLOCKED — Calcalist returns 403 for server-side RSS requests. Needs Playwright scraper (v1).",
+    active: true,
+    notes: "Browser scrape — Calcalist tax section. React SPA, needs Chromium.",
   },
   {
     name: "כלכליסט — משפט",
     nameHe: "כלכליסט — משפט",
-    type: "SCRAPE",
-    url: "https://www.calcalist.co.il/GeneralRSS/0,16335,L-7,00.xml",
+    type: "BROWSER",
+    url: "https://www.calcalist.co.il/local_news/category/4417",
     weight: 1.3,
     category: "Legal",
     tags: ["court-ruling", "compliance", "enforcement"],
     pollIntervalMin: 60,
-    active: false,
-    notes: "BLOCKED — Calcalist returns 403. Needs Playwright scraper (v1).",
+    active: true,
+    notes: "Browser scrape — Calcalist law section. React SPA, needs Chromium.",
   },
   {
     name: "כלכליסט — נדל\"ן",
     nameHe: "כלכליסט — נדל\"ן",
-    type: "SCRAPE",
-    url: "https://www.calcalist.co.il/GeneralRSS/0,16335,L-9,00.xml",
+    type: "BROWSER",
+    url: "https://www.calcalist.co.il/real-estate",
     weight: 1.2,
     category: "Tax",
     tags: ["real-estate-tax", "compliance"],
     pollIntervalMin: 120,
-    active: false,
-    notes: "BLOCKED — Calcalist returns 403. Needs Playwright scraper (v1).",
+    active: true,
+    notes: "Browser scrape — Calcalist real estate section. React SPA, needs Chromium.",
   },
   {
     name: "כלכליסט — כלכלה",
     nameHe: "כלכליסט — כלכלה",
-    type: "SCRAPE",
-    url: "https://www.calcalist.co.il/GeneralRSS/0,16335,L-3928,00.xml",
+    type: "BROWSER",
+    url: "https://www.calcalist.co.il/local_news/category/4418",
     weight: 0.8,
     category: "Business-News",
     tags: ["grants", "compliance", "interest-rates"],
     pollIntervalMin: 120,
-    active: false,
-    notes: "BLOCKED — Calcalist returns 403. Needs Playwright scraper (v1).",
+    active: true,
+    notes: "Browser scrape — Calcalist economy section. React SPA, needs Chromium.",
   },
 
   // ── Globes ASMX API (structured XML endpoint) ──────────────────────
@@ -175,30 +175,30 @@ export const SEED_SOURCES: SeedSource[] = [
     notes: "Globes ASMX web service — Last20Articles. XML format. Broader coverage than individual RSS feeds.",
   },
 
-  // ── Gov.il Scrape (INACTIVE — WAF blocks server-side requests) ────
+  // ── Gov.il (BROWSER — Chromium bypasses WAF) ──────────────────────
   {
     name: "רשות המסים — פרסומים",
     nameHe: "רשות המסים — פרסומים וחוזרים",
-    type: "SCRAPE",
+    type: "BROWSER",
     url: "https://www.gov.il/he/departments/publications/?officeId=c0d8ba69-e309-4fe5-801f-855971774a90",
     weight: 2.0,
     category: "Tax",
     tags: ["income-tax", "VAT", "corp-tax", "real-estate-tax", "compliance", "enforcement"],
     pollIntervalMin: 720,
-    active: false,
-    notes: "BLOCKED — gov.il WAF returns 403 for all server-side requests. Needs Playwright scraper.",
+    active: true,
+    notes: "Browser scrape — gov.il WAF bypassed via Chromium. Uses parseGovIlHtml strategies.",
   },
   {
     name: "משרד האוצר — פרסומים",
     nameHe: "משרד האוצר — פרסומים",
-    type: "SCRAPE",
+    type: "BROWSER",
     url: "https://www.gov.il/he/departments/publications/?officeId=f41159c1-7867-41c3-bc0a-cbfe0da1bb1a",
     weight: 1.5,
     category: "Tax",
     tags: ["corp-tax", "compliance", "grants", "interest-rates"],
     pollIntervalMin: 720,
-    active: false,
-    notes: "BLOCKED — gov.il WAF returns 403 for all server-side requests. Needs Playwright scraper.",
+    active: true,
+    notes: "Browser scrape — gov.il WAF bypassed via Chromium. Uses parseGovIlHtml strategies.",
   },
   {
     name: "המוסד לביטוח לאומי — חוזרים למעסיקים",

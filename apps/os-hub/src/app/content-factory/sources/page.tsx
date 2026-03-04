@@ -23,7 +23,7 @@ interface Source {
   notes: string | null;
 }
 
-type SourceType = "RSS" | "API" | "SCRAPE" | "MANUAL";
+type SourceType = "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL";
 type HealthStatus = "inactive" | "never-polled" | "error" | "stale" | "healthy";
 
 interface HistoryEntry {
@@ -94,6 +94,7 @@ function typeBadgeClass(type: string): string {
     case "RSS": return styles.typeBadgeRSS;
     case "API": return styles.typeBadgeAPI;
     case "SCRAPE": return styles.typeBadgeSCRAPE;
+    case "BROWSER": return styles.typeBadgeBROWSER;
     default: return styles.typeBadgeMANUAL;
   }
 }
@@ -619,7 +620,7 @@ export default function SourcesPage() {
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: "4px" }}>
-                      {(source.type === "RSS" || source.type === "API" || source.type === "SCRAPE") && (
+                      {(source.type === "RSS" || source.type === "API" || source.type === "SCRAPE" || source.type === "BROWSER") && (
                         <button
                           className={`btn-secondary ${styles.pollBtn}`}
                           onClick={() => handlePoll(source.id)}
@@ -821,7 +822,7 @@ export default function SourcesPage() {
 
                 {/* Footer */}
                 <div className={styles.cardFooter}>
-                  {(source.type === "RSS" || source.type === "API" || source.type === "SCRAPE") && (
+                  {(source.type === "RSS" || source.type === "API" || source.type === "SCRAPE" || source.type === "BROWSER") && (
                     <button
                       className={`btn-secondary ${styles.pollBtn}`}
                       onClick={() => handlePoll(source.id)}
