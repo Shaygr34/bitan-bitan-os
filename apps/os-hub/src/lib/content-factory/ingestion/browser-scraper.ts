@@ -2,14 +2,18 @@
  * Browser scraper — headless Chromium via puppeteer-core.
  *
  * Used for sources where server-side fetch() is blocked by WAF/JS rendering:
- *   - gov.il  → WAF 403 blocks all fetch(), Chromium bypasses
- *   - calcalist.co.il → RSS feeds dead (404), section pages are React SPA
+ *   - gov.il       → WAF 403 blocks all fetch(), Chromium bypasses
+ *   - btl.gov.il   → SharePoint page behind JS wall
+ *   - calcalist    → RSS feeds dead (404), section pages are React SPA
  *
  * Design:
- *   - Lazy import of puppeteer-core (no crash in dev without Chromium)
+ *   - Lazy dynamic import of puppeteer-core (no crash if not installed)
  *   - Singleton browser process shared across all BROWSER sources in a cron cycle
  *   - Site-specific extractors routed by URL pattern
  *   - Reuses parseGovIlHtml() for gov.il pages (same 4 strategies)
+ *
+ * NOTE: No type imports from puppeteer-core — module may not be installed
+ * at build time. All puppeteer objects typed as `any` to avoid TS2307.
  */
 
 import type { SourceItem } from "./poll-dispatcher";
@@ -17,10 +21,8 @@ import { parseGovIlHtml } from "./html-scraper";
 
 // ── Chromium singleton ──────────────────────────────────────────────
 
-type PuppeteerBrowser = import("puppeteer-core").Browser;
-type PuppeteerPage = import("puppeteer-core").Page;
-
-let browserInstance: PuppeteerBrowser | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let browserInstance: any = null;
 
 const CHROMIUM_CANDIDATES = [
   process.env.CHROMIUM_PATH,
@@ -37,6 +39,7 @@ const LAUNCH_ARGS = [
 ];
 
 function findChromium(): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const fs = require("fs") as typeof import("fs");
   for (const candidate of CHROMIUM_CANDIDATES) {
     if (fs.existsSync(candidate)) return candidate;
@@ -47,7 +50,8 @@ function findChromium(): string {
   );
 }
 
-async function getBrowser(): Promise<PuppeteerBrowser> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getBrowser(): Promise<any> {
   if (browserInstance?.connected) return browserInstance;
 
   let puppeteer;
@@ -94,7 +98,8 @@ export async function fetchBrowserItems(url: string): Promise<SourceItem[]> {
   try {
     // Block images/fonts/media to speed up loading
     await page.setRequestInterception(true);
-    page.on("request", (req) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    page.on("request", (req: any) => {
       const type = req.resourceType();
       if (["image", "font", "media", "stylesheet"].includes(type)) {
         req.abort();
@@ -132,7 +137,8 @@ export async function fetchBrowserItems(url: string): Promise<SourceItem[]> {
  * Gov.il pages: render with Chromium to bypass WAF, then reuse
  * the existing parseGovIlHtml() strategies (NEXT_DATA, SharePoint, etc.)
  */
-async function extractGovIlItems(page: PuppeteerPage, url: string): Promise<SourceItem[]> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function extractGovIlItems(page: any, url: string): Promise<SourceItem[]> {
   // Wait for content to render
   await page.waitForSelector(
     '[class*="result"], [class*="publication"], #__NEXT_DATA__, [class*="card"]',
@@ -156,7 +162,8 @@ async function extractGovIlItems(page: PuppeteerPage, url: string): Promise<Sour
  * Calcalist section pages: React SPA with article cards.
  * Uses page.evaluate() for in-browser DOM extraction.
  */
-async function extractCalcalistItems(page: PuppeteerPage, url: string): Promise<SourceItem[]> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function extractCalcalistItems(page: any, url: string): Promise<SourceItem[]> {
   // Wait for article cards to render
   await page.waitForSelector(
     'article, [class*="article"], [class*="card"], [class*="teaser"]',
@@ -218,7 +225,8 @@ async function extractCalcalistItems(page: PuppeteerPage, url: string): Promise<
 
 // ── Generic fallback ────────────────────────────────────────────────
 
-async function extractGenericItems(page: PuppeteerPage, url: string): Promise<SourceItem[]> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function extractGenericItems(page: any, url: string): Promise<SourceItem[]> {
   const html = await page.content();
   const origin = new URL(url).origin;
   console.log(`[BROWSER] Generic HTML: ${html.length} chars`);
