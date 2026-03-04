@@ -60,6 +60,40 @@
   color: var(--text-caption);
 }
 
+/* ——— Loading bar ——— */
+
+.loadingBar {
+  height: 3px;
+  background: var(--border-subtle, #e5e7eb);
+  margin-bottom: var(--space-lg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.loadingBarInner {
+  height: 100%;
+  width: 40%;
+  background: var(--brand-gold, #c9a84c);
+  border-radius: 2px;
+  animation: loadSlide 1.2s ease-in-out infinite;
+}
+
+@keyframes loadSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+.unavailableNotice {
+  text-align: center;
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-lg);
+  background: var(--surface-muted, #f9fafb);
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-caption, #9ca3af);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
 /* ——— Pipeline Summary ——— */
 
 .pipelineSection {

@@ -5,7 +5,7 @@
  * TheMarker: switched from SCRAPE to RSS (/srv/tm-*) — working feeds discovered.
  * Calcalist: BROWSER type — section page scraping via Chromium (RSS feeds dead).
  * Gov.il: BROWSER type — Chromium bypasses WAF 403. Reuses parseGovIlHtml strategies.
- * BTL: active — SharePoint ASP.NET, server-side fetch works.
+ * BTL: BROWSER type — SharePoint page is behind JS wall, needs Chromium.
  * Deloitte: active — static HTML, server-side fetch works.
  */
 
@@ -111,30 +111,30 @@ export const SEED_SOURCES: SeedSource[] = [
     notes: "RSS 2.0 feed. Verified working.",
   },
 
-  // ── Calcalist (BROWSER — section pages via Chromium) ───────────────
+  // ── Calcalist (BROWSER — verified working URLs, Mar 2026) ──────────
   {
     name: "כלכליסט — מיסים",
     nameHe: "כלכליסט — מיסים",
     type: "BROWSER",
-    url: "https://www.calcalist.co.il/local_news/category/4419",
+    url: "https://www.calcalist.co.il/tags/%D7%9E%D7%99%D7%A1%D7%99%D7%9D",
     weight: 1.5,
     category: "Tax",
     tags: ["income-tax", "VAT", "real-estate-tax", "corp-tax", "court-ruling"],
     pollIntervalMin: 60,
     active: true,
-    notes: "Browser scrape — Calcalist tax section. React SPA, needs Chromium.",
+    notes: "Browser scrape — Calcalist tags/מיסים page. Verified working Mar 2026.",
   },
   {
     name: "כלכליסט — משפט",
     nameHe: "כלכליסט — משפט",
     type: "BROWSER",
-    url: "https://www.calcalist.co.il/local_news/category/4417",
+    url: "https://www.calcalist.co.il/local_news/category/3772",
     weight: 1.3,
     category: "Legal",
     tags: ["court-ruling", "compliance", "enforcement"],
     pollIntervalMin: 60,
     active: true,
-    notes: "Browser scrape — Calcalist law section. React SPA, needs Chromium.",
+    notes: "Browser scrape — Calcalist law section (category 3772). Verified working Mar 2026.",
   },
   {
     name: "כלכליסט — נדל\"ן",
@@ -146,19 +146,19 @@ export const SEED_SOURCES: SeedSource[] = [
     tags: ["real-estate-tax", "compliance"],
     pollIntervalMin: 120,
     active: true,
-    notes: "Browser scrape — Calcalist real estate section. React SPA, needs Chromium.",
+    notes: "Browser scrape — Calcalist real estate. Verified working Mar 2026.",
   },
   {
     name: "כלכליסט — כלכלה",
     nameHe: "כלכליסט — כלכלה",
     type: "BROWSER",
-    url: "https://www.calcalist.co.il/local_news/category/4418",
+    url: "https://www.calcalist.co.il/tags/%D7%9B%D7%9C%D7%9B%D7%9C%D7%94",
     weight: 0.8,
     category: "Business-News",
     tags: ["grants", "compliance", "interest-rates"],
     pollIntervalMin: 120,
     active: true,
-    notes: "Browser scrape — Calcalist economy section. React SPA, needs Chromium.",
+    notes: "Browser scrape — Calcalist tags/כלכלה page. Verified working Mar 2026.",
   },
 
   // ── Globes ASMX API (structured XML endpoint) ──────────────────────
@@ -203,14 +203,14 @@ export const SEED_SOURCES: SeedSource[] = [
   {
     name: "המוסד לביטוח לאומי — חוזרים למעסיקים",
     nameHe: "המוסד לביטוח לאומי — חוזרים למעסיקים",
-    type: "SCRAPE",
+    type: "BROWSER",
     url: "https://www.btl.gov.il/Insurance/HozrimBituah/HozrimMasikim/Pages/default.aspx",
     weight: 1.8,
     category: "Payroll",
     tags: ["payroll", "employment-law", "compliance"],
     pollIntervalMin: 1440,
     active: true,
-    notes: "ASP.NET — HTML scraper extracts linked headings.",
+    notes: "Browser scrape — SharePoint page is behind JS wall. Uses parseGovIlHtml strategies after rendering.",
   },
   {
     name: "Deloitte Israel — Tax Alerts",

@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
   // Known browser-required domains — return BROWSER immediately
   const browserDomains = ["gov.il", "calcalist.co.il"];
-  if (browserDomains.some((d) => parsedUrl.hostname.endsWith(d) && !parsedUrl.hostname.endsWith("btl.gov.il"))) {
+  if (browserDomains.some((d) => parsedUrl.hostname.endsWith(d))) {
     return NextResponse.json({
       detectedType: "BROWSER",
       sampleItems: [],
