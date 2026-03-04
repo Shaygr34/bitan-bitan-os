@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
 import { showToast } from "@/components/Toast";
+import styles from "./sources.module.css";
 
 interface Source {
   id: string;
@@ -23,13 +24,19 @@ interface Source {
 }
 
 type SourceType = "RSS" | "API" | "SCRAPE" | "MANUAL";
+type HealthStatus = "inactive" | "never-polled" | "error" | "stale" | "healthy";
 
-const TYPE_BADGE: Record<string, string> = {
-  RSS: "#2563eb",
-  API: "#7c3aed",
-  SCRAPE: "#d97706",
-  MANUAL: "#6b7280",
-};
+interface HistoryEntry {
+  id: string;
+  createdAt: string;
+  metadata: { itemsFound?: number; newIdeas?: number; duplicatesSkipped?: number };
+}
+
+interface DetectResult {
+  detectedType: SourceType;
+  sampleItems: { title: string; link: string }[];
+  error?: string;
+}
 
 const CATEGORY_OPTIONS = ["Tax", "Legal", "Business-News", "Markets", "Payroll"];
 
@@ -53,83 +60,42 @@ function relativeTime(iso: string | null): string {
   return `לפני ${days} ימים`;
 }
 
-function errorLabel(err: string): string {
-  if (err.includes("403")) return "חסום (403)";
-  if (err.includes("timeout")) return "זמן תם";
-  if (err.includes("HTML")) return "תגובת HTML";
-  if (err.includes("empty")) return "תגובה ריקה";
-  return "שגיאה";
+function getHealthStatus(source: Source): HealthStatus {
+  if (!source.active) return "inactive";
+  if (!source.lastPolledAt) return "never-polled";
+  if (source.lastError) return "error";
+  const elapsed = Date.now() - new Date(source.lastPolledAt).getTime();
+  if (elapsed > source.pollIntervalMin * 3 * 60_000) return "stale";
+  return "healthy";
 }
 
-// ── Inline-edit cell ────────────────────────────────────────────────────────
-
-interface EditCellProps {
-  value: string | number;
-  type?: "text" | "number" | "select";
-  options?: string[];
-  displayFn?: (v: string | number) => string;
-  onSave: (val: string | number) => void;
-}
-
-function EditCell({ value, type = "text", options, displayFn, onSave }: EditCellProps) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(value));
-
-  const commit = useCallback(() => {
-    setEditing(false);
-    const trimmed = draft.trim();
-    if (trimmed === String(value)) return;
-    const next = type === "number" ? parseFloat(trimmed) || value : trimmed;
-    onSave(next);
-  }, [draft, value, type, onSave]);
-
-  if (editing) {
-    if (type === "select" && options) {
-      return (
-        <select
-          value={draft}
-          autoFocus
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          style={{ fontSize: "0.85rem", padding: "0.2rem", border: "1px solid var(--color-accent, #3b82f6)", borderRadius: "4px" }}
-        >
-          {options.map((o) => (
-            <option key={o} value={o}>{CATEGORY_HE[o] ?? o}</option>
-          ))}
-        </select>
-      );
-    }
-    return (
-      <input
-        autoFocus
-        type={type}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-        step={type === "number" ? "0.1" : undefined}
-        style={{
-          width: type === "number" ? "3.5rem" : "100%",
-          fontSize: "0.85rem",
-          padding: "0.2rem 0.35rem",
-          border: "1px solid var(--color-accent, #3b82f6)",
-          borderRadius: "4px",
-        }}
-      />
-    );
+function healthDotClass(status: HealthStatus): string {
+  switch (status) {
+    case "healthy": return styles.dotHealthy;
+    case "error": return styles.dotError;
+    case "stale": return styles.dotStale;
+    case "never-polled": return styles.dotNever;
+    case "inactive": return styles.dotInactive;
   }
+}
 
-  const display = displayFn ? displayFn(value) : String(value);
+function healthLabel(status: HealthStatus): string {
+  switch (status) {
+    case "healthy": return "תקין";
+    case "error": return "שגיאה";
+    case "stale": return "מיושן";
+    case "never-polled": return "טרם נסרק";
+    case "inactive": return "מושבת";
+  }
+}
 
-  return (
-    <span
-      onClick={() => { setDraft(String(value)); setEditing(true); }}
-      title="לחצו לעריכה"
-      style={{ cursor: "pointer", borderBottom: "1px dashed var(--border-color, #d1d5db)" }}
-    >
-      {display}
-    </span>
-  );
+function typeBadgeClass(type: string): string {
+  switch (type) {
+    case "RSS": return styles.typeBadgeRSS;
+    case "API": return styles.typeBadgeAPI;
+    case "SCRAPE": return styles.typeBadgeSCRAPE;
+    default: return styles.typeBadgeMANUAL;
+  }
 }
 
 // ── Main page ───────────────────────────────────────────────────────────────
@@ -141,17 +107,21 @@ export default function SourcesPage() {
   const [deduping, setDeduping] = useState(false);
   const [polling, setPolling] = useState<string | null>(null);
   const [pollingAll, setPollingAll] = useState(false);
+  const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
+  const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
+  const [historyCache, setHistoryCache] = useState<Record<string, { entries: HistoryEntry[]; ideaCount: number }>>({});
 
-  // Create form
-  const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newUrl, setNewUrl] = useState("");
-  const [newType, setNewType] = useState<SourceType>("RSS");
-  const [newCategory, setNewCategory] = useState("Tax");
-  const [newWeight, setNewWeight] = useState("1.0");
-  const [creating, setCreating] = useState(false);
+  // Wizard state
+  const [wizardStep, setWizardStep] = useState<0 | 1 | 2 | 3>(0); // 0=closed, 1=url, 2=preview, 3=confirm
+  const [wizardUrl, setWizardUrl] = useState("");
+  const [wizardDetecting, setWizardDetecting] = useState(false);
+  const [wizardResult, setWizardResult] = useState<DetectResult | null>(null);
+  const [wizardName, setWizardName] = useState("");
+  const [wizardCategory, setWizardCategory] = useState("Tax");
+  const [wizardWeight, setWizardWeight] = useState("1.0");
+  const [wizardCreating, setWizardCreating] = useState(false);
 
-  async function fetchSources(retries = 2) {
+  const fetchSources = useCallback(async (retries = 2) => {
     try {
       const res = await fetch("/api/content-factory/sources");
       if (!res.ok) {
@@ -171,80 +141,11 @@ export default function SourcesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { fetchSources(); }, []);
+  useEffect(() => { fetchSources(); }, [fetchSources]);
 
-  // ── Create ──────────────────────────────────────────────────────────────
-
-  async function handleCreate() {
-    if (!newName.trim() || !newUrl.trim()) return;
-    setCreating(true);
-    try {
-      const res = await fetch("/api/content-factory/sources", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newName.trim(),
-          nameHe: newName.trim(),
-          url: newUrl.trim(),
-          type: newType,
-          category: newCategory,
-          weight: parseFloat(newWeight) || 1.0,
-        }),
-      });
-      if (!res.ok) throw new Error(`${res.status}`);
-      showToast({ type: "success", message: "מקור נוצר" });
-      setNewName("");
-      setNewUrl("");
-      setNewType("RSS");
-      setNewCategory("Tax");
-      setNewWeight("1.0");
-      setShowCreate(false);
-      await fetchSources();
-    } catch (err) {
-      showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  // ── Inline edit ─────────────────────────────────────────────────────────
-
-  async function handlePatchField(source: Source, field: string, value: unknown) {
-    try {
-      const res = await fetch(`/api/content-factory/sources/${source.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: value }),
-      });
-      if (!res.ok) throw new Error(`${res.status}`);
-      const updated = await res.json();
-      setSources((prev) => prev.map((s) => (s.id === source.id ? updated : s)));
-    } catch (err) {
-      showToast({ type: "error", message: `שגיאה בעדכון: ${(err as Error).message}` });
-    }
-  }
-
-  // ── Clear error ─────────────────────────────────────────────────────────
-
-  async function handleClearError(source: Source) {
-    try {
-      const res = await fetch(`/api/content-factory/sources/${source.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastError: null }),
-      });
-      if (!res.ok) throw new Error(`${res.status}`);
-      setSources((prev) =>
-        prev.map((s) => (s.id === source.id ? { ...s, lastError: null } : s)),
-      );
-    } catch (err) {
-      showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
-    }
-  }
-
-  // ── Existing actions ────────────────────────────────────────────────────
+  // ── Actions ────────────────────────────────────────────────────────────────
 
   async function handleSeed() {
     setSeeding(true);
@@ -252,10 +153,11 @@ export default function SourcesPage() {
       const res = await fetch("/api/content-factory/sources/seed", { method: "POST" });
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
-      const parts = [];
+      const parts: string[] = [];
       if (data.created > 0) parts.push(`${data.created} חדשים`);
       if (data.updated > 0) parts.push(`${data.updated} עודכנו`);
       if (data.skipped > 0) parts.push(`${data.skipped} ללא שינוי`);
+      if (data.deactivatedStale > 0) parts.push(`${data.deactivatedStale} מיושנים הושבתו`);
       showToast({ type: "success", message: parts.join(", ") || "אין שינויים" });
       await fetchSources();
     } catch (err) {
@@ -354,192 +256,266 @@ export default function SourcesPage() {
     }
   }
 
-  // ── Summary stats ─────────────────────────────────────────────────────
+  // ── Wizard ─────────────────────────────────────────────────────────────────
+
+  function openWizard() {
+    setWizardStep(1);
+    setWizardUrl("");
+    setWizardResult(null);
+    setWizardName("");
+    setWizardCategory("Tax");
+    setWizardWeight("1.0");
+  }
+
+  function closeWizard() {
+    setWizardStep(0);
+    setWizardResult(null);
+  }
+
+  async function handleDetect() {
+    if (!wizardUrl.trim()) return;
+    setWizardDetecting(true);
+    try {
+      const res = await fetch("/api/content-factory/sources/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: wizardUrl.trim() }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data: DetectResult = await res.json();
+      setWizardResult(data);
+      if (data.error) {
+        showToast({ type: "error", message: data.error });
+      } else {
+        setWizardStep(2);
+      }
+    } catch (err) {
+      showToast({ type: "error", message: `זיהוי נכשל: ${(err as Error).message}` });
+    } finally {
+      setWizardDetecting(false);
+    }
+  }
+
+  async function handleWizardCreate() {
+    if (!wizardResult || !wizardName.trim()) return;
+    setWizardCreating(true);
+    try {
+      const res = await fetch("/api/content-factory/sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: wizardName.trim(),
+          nameHe: wizardName.trim(),
+          url: wizardUrl.trim(),
+          type: wizardResult.detectedType,
+          category: wizardCategory,
+          weight: parseFloat(wizardWeight) || 1.0,
+        }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      showToast({ type: "success", message: "מקור נוצר בהצלחה" });
+      closeWizard();
+      await fetchSources();
+    } catch (err) {
+      showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
+    } finally {
+      setWizardCreating(false);
+    }
+  }
+
+  // ── Detail panel ───────────────────────────────────────────────────────────
+
+  async function toggleDetail(sourceId: string) {
+    if (expandedDetail === sourceId) {
+      setExpandedDetail(null);
+      return;
+    }
+    setExpandedDetail(sourceId);
+    if (!historyCache[sourceId]) {
+      try {
+        const res = await fetch(`/api/content-factory/sources/${sourceId}/history`);
+        if (res.ok) {
+          const data = await res.json();
+          setHistoryCache((prev) => ({ ...prev, [sourceId]: data }));
+        }
+      } catch {
+        // Silent fail — detail still shows config
+      }
+    }
+  }
+
+  // ── Health summary ─────────────────────────────────────────────────────────
+
+  const healthMap = sources.reduce<Record<HealthStatus, number>>(
+    (acc, s) => {
+      acc[getHealthStatus(s)]++;
+      return acc;
+    },
+    { inactive: 0, "never-polled": 0, error: 0, stale: 0, healthy: 0 },
+  );
 
   const activeCount = sources.filter((s) => s.active).length;
-  const errorCount = sources.filter((s) => s.lastError).length;
-  const rssActiveCount = sources.filter((s) => s.type === "RSS" && s.active).length;
 
   return (
     <div>
       <PageHeader
         title="מקורות תוכן"
-        description="ניהול מקורות RSS וסריקה — הזנת רעיונות למפעל התוכן"
+        description="ניהול מקורות RSS, API וסריקה — הזנת רעיונות למפעל התוכן"
         action={
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button
-              className="btn-secondary"
-              onClick={handleDedup}
-              disabled={deduping}
-              title="מחק מקורות עם URL זהה (שומר את הישן ביותר)"
-            >
+            <button className="btn-secondary" onClick={handleDedup} disabled={deduping}>
               {deduping ? "מנקה..." : "נקה כפילויות"}
             </button>
-            <button
-              className="btn-secondary"
-              onClick={handlePollAll}
-              disabled={pollingAll}
-            >
+            <button className="btn-secondary" onClick={handlePollAll} disabled={pollingAll}>
               {pollingAll ? "סורק..." : "סרוק הכל"}
             </button>
-            <button
-              className="btn-secondary"
-              onClick={handleSeed}
-              disabled={seeding}
-            >
+            <button className="btn-secondary" onClick={handleSeed} disabled={seeding}>
               {seeding ? "מעדכן..." : "טען ברירת מחדל"}
             </button>
-            <button
-              className="btn-primary"
-              onClick={() => setShowCreate(!showCreate)}
-            >
-              {showCreate ? "בטל" : "הוסף מקור"}
+            <button className="btn-primary" onClick={wizardStep > 0 ? closeWizard : openWizard}>
+              {wizardStep > 0 ? "בטל" : "הוסף מקור"}
             </button>
           </div>
         }
       />
 
-      {/* Summary bar */}
+      {/* Health summary bar */}
       {!loading && sources.length > 0 && (
-        <div style={{
-          display: "flex",
-          gap: "1.5rem",
-          marginBottom: "1rem",
-          padding: "0.75rem 1rem",
-          background: "#f9fafb",
-          borderRadius: "8px",
-          fontSize: "0.85rem",
-          color: "var(--color-muted, #666)",
-        }}>
-          <span>{sources.length} מקורות סה״כ</span>
-          <span style={{ color: "#10b981" }}>{activeCount} פעילים</span>
-          <span>{rssActiveCount} RSS פעילים</span>
-          {errorCount > 0 && (
-            <span style={{ color: "#ef4444" }}>{errorCount} שגיאות</span>
+        <div className={styles.summaryBar}>
+          <span className={styles.summaryPill}>
+            <span className={`${styles.dot} ${styles.dotTotal}`} />
+            {sources.length} סה״כ
+          </span>
+          <span className={styles.summaryPill}>
+            <span className={`${styles.dot} ${styles.dotActive}`} />
+            {activeCount} פעילים
+          </span>
+          <span className={styles.summaryPill}>
+            <span className={`${styles.dot} ${styles.dotHealthy}`} />
+            {healthMap.healthy} תקינים
+          </span>
+          {healthMap.error > 0 && (
+            <span className={styles.summaryPill}>
+              <span className={`${styles.dot} ${styles.dotError}`} />
+              {healthMap.error} שגיאות
+            </span>
+          )}
+          {healthMap.stale > 0 && (
+            <span className={styles.summaryPill}>
+              <span className={`${styles.dot} ${styles.dotStale}`} />
+              {healthMap.stale} מיושנים
+            </span>
+          )}
+          {healthMap["never-polled"] > 0 && (
+            <span className={styles.summaryPill}>
+              <span className={`${styles.dot} ${styles.dotNever}`} />
+              {healthMap["never-polled"]} טרם נסרקו
+            </span>
           )}
         </div>
       )}
 
-      {/* Create source form */}
-      {showCreate && (
-        <div style={{
-          marginBottom: "1.5rem",
-          padding: "1rem",
-          border: "1px solid var(--border-color, #d1d5db)",
-          borderRadius: "8px",
-          background: "#f9fafb",
-        }}>
-          <h3 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>הוספת מקור חדש</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-            <div>
-              <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", color: "var(--color-muted, #666)" }}>
-                שם
-              </label>
+      {/* Add Source Wizard */}
+      {wizardStep >= 1 && (
+        <div className={styles.wizard}>
+          <h3 className={styles.wizardTitle}>הוספת מקור חדש</h3>
+
+          {/* Step 1: URL input */}
+          <div className={styles.wizardStep}>
+            <div className={styles.wizardUrlRow}>
               <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="למשל: גלובס — מיסים"
-                style={{
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  border: "1px solid var(--border-color, #d1d5db)",
-                  borderRadius: "6px",
-                  fontSize: "0.9rem",
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", color: "var(--color-muted, #666)" }}>
-                כתובת URL
-              </label>
-              <input
+                className={styles.wizardUrlInput}
                 type="url"
-                value={newUrl}
-                onChange={(e) => setNewUrl(e.target.value)}
-                placeholder="https://..."
+                value={wizardUrl}
+                onChange={(e) => setWizardUrl(e.target.value)}
+                placeholder="הדביקו כתובת URL..."
                 dir="ltr"
-                style={{
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  border: "1px solid var(--border-color, #d1d5db)",
-                  borderRadius: "6px",
-                  fontSize: "0.9rem",
-                }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleDetect(); }}
               />
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", color: "var(--color-muted, #666)" }}>
-                סוג
-              </label>
-              <select
-                value={newType}
-                onChange={(e) => setNewType(e.target.value as SourceType)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  border: "1px solid var(--border-color, #d1d5db)",
-                  borderRadius: "6px",
-                  fontSize: "0.9rem",
-                }}
-              >
-                <option value="RSS">RSS</option>
-                <option value="API">API</option>
-                <option value="SCRAPE">SCRAPE</option>
-                <option value="MANUAL">MANUAL</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", color: "var(--color-muted, #666)" }}>
-                קטגוריה
-              </label>
-              <select
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  border: "1px solid var(--border-color, #d1d5db)",
-                  borderRadius: "6px",
-                  fontSize: "0.9rem",
-                }}
-              >
-                {CATEGORY_OPTIONS.map((c) => (
-                  <option key={c} value={c}>{CATEGORY_HE[c] ?? c}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", color: "var(--color-muted, #666)" }}>
-                משקל
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                max="5"
-                value={newWeight}
-                onChange={(e) => setNewWeight(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  border: "1px solid var(--border-color, #d1d5db)",
-                  borderRadius: "6px",
-                  fontSize: "0.9rem",
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
               <button
                 className="btn-primary"
-                onClick={handleCreate}
-                disabled={creating || !newName.trim() || !newUrl.trim()}
-                style={{ width: "100%" }}
+                onClick={handleDetect}
+                disabled={wizardDetecting || !wizardUrl.trim()}
               >
-                {creating ? "יוצר..." : "צור מקור"}
+                {wizardDetecting ? "מזהה..." : "זהה"}
               </button>
             </div>
           </div>
+
+          {/* Step 2: Preview */}
+          {wizardStep >= 2 && wizardResult && !wizardResult.error && (
+            <div className={styles.wizardStep}>
+              <div className={styles.wizardPreview}>
+                <div style={{ marginBottom: "var(--space-sm)", display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
+                  <span>זוהה כ:</span>
+                  <span className={`${styles.typeBadge} ${typeBadgeClass(wizardResult.detectedType)}`}>
+                    {wizardResult.detectedType}
+                  </span>
+                  <span style={{ color: "var(--text-caption)", fontSize: "var(--font-size-sm)" }}>
+                    ({wizardResult.sampleItems.length} פריטים לדוגמה)
+                  </span>
+                </div>
+                {wizardResult.sampleItems.map((item, i) => (
+                  <div key={i} className={styles.wizardPreviewItem}>
+                    <div className={styles.wizardPreviewTitle}>{item.title}</div>
+                    {item.link && (
+                      <span className={styles.wizardPreviewLink}>{item.link}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className={styles.wizardForm}>
+                <div className={styles.wizardField}>
+                  <label>שם (עברית)</label>
+                  <input
+                    type="text"
+                    value={wizardName}
+                    onChange={(e) => setWizardName(e.target.value)}
+                    placeholder="למשל: גלובס — מיסים"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <div className={styles.wizardField}>
+                  <label>קטגוריה</label>
+                  <select
+                    value={wizardCategory}
+                    onChange={(e) => setWizardCategory(e.target.value)}
+                    style={{ width: "100%" }}
+                  >
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <option key={c} value={c}>{CATEGORY_HE[c] ?? c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.wizardField}>
+                  <label>משקל</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="5"
+                    value={wizardWeight}
+                    onChange={(e) => setWizardWeight(e.target.value)}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.wizardActions}>
+                <button
+                  className="btn-primary"
+                  onClick={handleWizardCreate}
+                  disabled={wizardCreating || !wizardName.trim()}
+                >
+                  {wizardCreating ? "יוצר..." : "צור מקור"}
+                </button>
+                <button className="btn-secondary" onClick={closeWizard}>
+                  בטל
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -552,169 +528,167 @@ export default function SourcesPage() {
         />
       )}
 
+      {/* Source cards */}
       {!loading && sources.length > 0 && (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid var(--border-color, #e5e7eb)", textAlign: "right" }}>
-              <th style={{ padding: "0.75rem 0.5rem" }}>שם</th>
-              <th style={{ padding: "0.75rem 0.5rem" }}>סוג</th>
-              <th style={{ padding: "0.75rem 0.5rem" }}>פעיל</th>
-              <th style={{ padding: "0.75rem 0.5rem" }}>משקל</th>
-              <th style={{ padding: "0.75rem 0.5rem" }}>קטגוריה</th>
-              <th style={{ padding: "0.75rem 0.5rem" }}>סריקה אחרונה</th>
-              <th style={{ padding: "0.75rem 0.5rem" }}>סטטוס</th>
-              <th style={{ padding: "0.75rem 0.5rem" }}>פעולות</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sources.map((source) => (
-              <tr
-                key={source.id}
-                style={{
-                  borderBottom: "1px solid var(--border-color, #e5e7eb)",
-                  opacity: source.active ? 1 : 0.55,
-                }}
-              >
-                {/* Name — editable */}
-                <td style={{ padding: "0.75rem 0.5rem", fontWeight: 500, maxWidth: "14rem" }}>
-                  <EditCell
-                    value={source.nameHe || source.name}
-                    onSave={(val) => handlePatchField(source, "nameHe", val)}
-                  />
-                </td>
+        <div className={styles.cardGrid}>
+          {sources.map((source) => {
+            const health = getHealthStatus(source);
+            const isErrorExpanded = expandedErrors.has(source.id);
+            const isDetailExpanded = expandedDetail === source.id;
+            const history = historyCache[source.id];
 
-                {/* Type badge */}
-                <td style={{ padding: "0.75rem 0.5rem" }}>
-                  <span
-                    style={{
-                      display: "inline-block",
-                      padding: "0.15rem 0.5rem",
-                      borderRadius: "4px",
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: "#fff",
-                      backgroundColor: TYPE_BADGE[source.type] ?? "#6b7280",
-                    }}
-                  >
+            return (
+              <div
+                key={source.id}
+                className={`${styles.card} ${!source.active ? styles.cardInactive : ""}`}
+              >
+                {/* Header */}
+                <div className={styles.cardHeader}>
+                  <h3 className={styles.cardName}>
+                    {source.nameHe || source.name}
+                  </h3>
+                  <span className={`${styles.typeBadge} ${typeBadgeClass(source.type)}`}>
                     {source.type}
                   </span>
-                </td>
-
-                {/* Active toggle */}
-                <td style={{ padding: "0.75rem 0.5rem" }}>
-                  <button
-                    onClick={() => handleToggleActive(source)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: "1.2rem",
-                    }}
-                    title={source.active ? "כבה" : "הפעל"}
-                  >
-                    {source.active ? "\u2705" : "\u2B1C"}
-                  </button>
-                </td>
-
-                {/* Weight — editable */}
-                <td style={{ padding: "0.75rem 0.5rem" }}>
-                  <EditCell
-                    value={source.weight}
-                    type="number"
-                    onSave={(val) => handlePatchField(source, "weight", val)}
-                  />
-                </td>
-
-                {/* Category — editable dropdown */}
-                <td style={{ padding: "0.75rem 0.5rem" }}>
-                  <EditCell
-                    value={source.category ?? "Tax"}
-                    type="select"
-                    options={CATEGORY_OPTIONS}
-                    displayFn={(v) => CATEGORY_HE[String(v)] ?? String(v)}
-                    onSave={(val) => handlePatchField(source, "category", val)}
-                  />
-                </td>
-
-                {/* Last polled */}
-                <td style={{ padding: "0.75rem 0.5rem", fontSize: "0.8rem", color: "var(--color-muted, #666)" }}>
-                  {relativeTime(source.lastPolledAt)}
-                </td>
-
-                {/* Status: error / item count / never polled */}
-                <td style={{ padding: "0.75rem 0.5rem" }}>
-                  {source.lastError ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                      <span
-                        title={source.lastError}
-                        style={{
-                          color: "#ef4444",
-                          fontSize: "0.75rem",
-                          cursor: "help",
-                        }}
-                      >
-                        {errorLabel(source.lastError)}
-                      </span>
-                      <button
-                        onClick={() => handleClearError(source)}
-                        title="נקה שגיאה"
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#9ca3af",
-                          cursor: "pointer",
-                          fontSize: "0.7rem",
-                          padding: "0",
-                          lineHeight: 1,
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : source.lastItemCount !== null ? (
-                    <span style={{ color: "#10b981", fontSize: "0.85rem", fontWeight: 500 }}>
-                      {source.lastItemCount} פריטים
-                    </span>
-                  ) : (
-                    <span style={{ color: "var(--color-muted, #666)", fontSize: "0.8rem" }}>
-                      טרם נסרק
+                  {source.category && (
+                    <span className={styles.categoryBadge}>
+                      {CATEGORY_HE[source.category] ?? source.category}
                     </span>
                   )}
-                </td>
+                  <button
+                    className={styles.activeToggle}
+                    onClick={() => handleToggleActive(source)}
+                    title={source.active ? "כבה" : "הפעל"}
+                  >
+                    {source.active ? "✅" : "⬜"}
+                  </button>
+                </div>
 
-                {/* Actions */}
-                <td style={{ padding: "0.75rem 0.5rem" }}>
-                  <div style={{ display: "flex", gap: "0.25rem" }}>
-                    {(source.type === "RSS" || source.type === "API") && (
-                      <button
-                        className="btn-secondary"
-                        style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
-                        onClick={() => handlePoll(source.id)}
-                        disabled={polling === source.id}
-                      >
-                        {polling === source.id ? "סורק..." : "סרוק"}
-                      </button>
-                    )}
+                {/* Status row */}
+                <div className={styles.statusRow}>
+                  <span className={`${styles.healthDot} ${healthDotClass(health)}`} />
+                  <span className={styles.statusText}>
+                    {healthLabel(health)} · {relativeTime(source.lastPolledAt)}
+                  </span>
+                  {source.lastItemCount !== null && (
+                    <span className={styles.itemCount}>{source.lastItemCount} פריטים</span>
+                  )}
+                </div>
+
+                {/* Error section */}
+                {source.lastError && (
+                  <div className={styles.errorSection}>
                     <button
-                      style={{
-                        background: "none",
-                        border: "1px solid #ef4444",
-                        color: "#ef4444",
-                        cursor: "pointer",
-                        fontSize: "0.75rem",
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "4px",
-                      }}
-                      onClick={() => handleDelete(source)}
+                      className={styles.errorToggle}
+                      onClick={() => setExpandedErrors((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(source.id)) next.delete(source.id);
+                        else next.add(source.id);
+                        return next;
+                      })}
                     >
-                      מחק
+                      <span className={`${styles.errorChevron} ${isErrorExpanded ? styles.errorChevronOpen : ""}`}>
+                        ◀
+                      </span>
+                      שגיאה
                     </button>
+                    {isErrorExpanded && (
+                      <div className={styles.errorDetail}>{source.lastError}</div>
+                    )}
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                )}
+
+                {/* Detail panel (expandable) */}
+                {isDetailExpanded && (
+                  <div className={styles.detailPanel}>
+                    <div className={styles.detailGrid}>
+                      <span className={styles.detailLabel}>URL</span>
+                      <a
+                        className={styles.detailUrl}
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {source.url}
+                      </a>
+                      <span className={styles.detailLabel}>משקל</span>
+                      <span className={styles.detailValue}>{source.weight}</span>
+                      <span className={styles.detailLabel}>מרווח סריקה</span>
+                      <span className={styles.detailValue}>{source.pollIntervalMin} דקות</span>
+                      {source.tags.length > 0 && (
+                        <>
+                          <span className={styles.detailLabel}>תגיות</span>
+                          <span className={styles.detailValue}>{source.tags.join(", ")}</span>
+                        </>
+                      )}
+                      {source.notes && (
+                        <>
+                          <span className={styles.detailLabel}>הערות</span>
+                          <span className={styles.detailValue}>{source.notes}</span>
+                        </>
+                      )}
+                    </div>
+
+                    {history && (
+                      <>
+                        <div className={styles.ideaCount}>
+                          סה״כ רעיונות ממקור זה: {history.ideaCount}
+                        </div>
+                        {history.entries.length > 0 && (
+                          <table className={styles.historyTable}>
+                            <thead>
+                              <tr>
+                                <th>זמן</th>
+                                <th>פריטים</th>
+                                <th>חדשים</th>
+                                <th>כפולים</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {history.entries.map((entry) => (
+                                <tr key={entry.id}>
+                                  <td>{relativeTime(entry.createdAt)}</td>
+                                  <td>{entry.metadata.itemsFound ?? "-"}</td>
+                                  <td>{entry.metadata.newIdeas ?? "-"}</td>
+                                  <td>{entry.metadata.duplicatesSkipped ?? "-"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className={styles.cardFooter}>
+                  {(source.type === "RSS" || source.type === "API" || source.type === "SCRAPE") && (
+                    <button
+                      className={`btn-secondary ${styles.pollBtn}`}
+                      onClick={() => handlePoll(source.id)}
+                      disabled={polling === source.id}
+                    >
+                      {polling === source.id ? "סורק..." : "סרוק"}
+                    </button>
+                  )}
+                  <button
+                    className={styles.expandBtn}
+                    onClick={() => toggleDetail(source.id)}
+                  >
+                    {isDetailExpanded ? "הסתר פרטים ▲" : "פרטים ▼"}
+                  </button>
+                  <button
+                    className={styles.deleteBtn}
+                    onClick={() => handleDelete(source)}
+                  >
+                    מחק
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
