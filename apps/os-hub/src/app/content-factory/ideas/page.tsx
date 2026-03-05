@@ -97,6 +97,7 @@ export default function IdeasPage() {
   const [creating, setCreating] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<string>("ALL");
 
   const MIN_DISPLAY_SCORE = 45;
 
@@ -131,10 +132,26 @@ export default function IdeasPage() {
     };
   }, []);
 
+  const uniqueSources = useMemo(() => {
+    const map = new Map<string, { id: string; label: string }>();
+    for (const idea of ideas) {
+      if (idea.source) {
+        map.set(idea.source.id, {
+          id: idea.source.id,
+          label: idea.source.nameHe || idea.source.name,
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "he"));
+  }, [ideas]);
+
   const filtered = useMemo(() => {
     let result = ideas;
     if (statusFilter !== "ALL") {
       result = result.filter((i) => i.status === statusFilter);
+    }
+    if (sourceFilter !== "ALL") {
+      result = result.filter((i) => i.source?.id === sourceFilter);
     }
     if (!showAll) {
       result = result.filter(
@@ -142,7 +159,7 @@ export default function IdeasPage() {
       );
     }
     return result;
-  }, [ideas, statusFilter, showAll]);
+  }, [ideas, statusFilter, sourceFilter, showAll]);
 
   const hiddenCount = useMemo(() => {
     const withStatus = statusFilter === "ALL" ? ideas : ideas.filter((i) => i.status === statusFilter);
@@ -393,6 +410,21 @@ export default function IdeasPage() {
             {f.label}
           </button>
         ))}
+
+        <span className={styles.filterDivider} />
+
+        {uniqueSources.length > 1 && (
+          <select
+            className={styles.sourceSelect}
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+          >
+            <option value="ALL">כל המקורות</option>
+            {uniqueSources.map((s) => (
+              <option key={s.id} value={s.id}>{s.label}</option>
+            ))}
+          </select>
+        )}
 
         <span className={styles.filterDivider} />
 

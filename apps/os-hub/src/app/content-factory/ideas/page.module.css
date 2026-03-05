@@ -38,6 +38,23 @@
   margin-inline: 0.25rem;
 }
 
+.sourceSelect {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  background: #fff;
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--brand-navy, #1e3a5f);
+  cursor: pointer;
+  max-width: 180px;
+}
+
+.sourceSelect:focus {
+  outline: none;
+  border-color: var(--brand-navy, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
 .showAllPill {
   composes: filterPill;
 }
