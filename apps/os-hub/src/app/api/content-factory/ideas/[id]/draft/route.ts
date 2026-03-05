@@ -17,9 +17,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   if (!isValidUuid(id)) return errorJson(400, "INVALID_ID", "Invalid idea ID");
 
+  const startTime = Date.now();
   try {
     console.log(`[DRAFT] Starting draft generation for idea ${id}`);
-    const startTime = Date.now();
     const result = await generateDraft(prisma, id);
     console.log(`[DRAFT] Complete in ${Date.now() - startTime}ms — article: ${result.articleId}`);
 
