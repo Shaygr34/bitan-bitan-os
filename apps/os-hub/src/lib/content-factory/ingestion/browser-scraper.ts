@@ -21,8 +21,7 @@ import { parseGovIlHtml } from "./html-scraper";
 
 // ── Chromium singleton ──────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let browserInstance: any = null;
+let browserInstance: any = null; // eslint-disable-line
 
 const CHROMIUM_CANDIDATES = [
   process.env.CHROMIUM_PATH,
@@ -39,8 +38,7 @@ const LAUNCH_ARGS = [
 ];
 
 function findChromium(): string {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const fs = require("fs") as typeof import("fs");
+  const fs = require("fs") as typeof import("fs"); // eslint-disable-line
   for (const candidate of CHROMIUM_CANDIDATES) {
     if (fs.existsSync(candidate)) return candidate;
   }
@@ -50,8 +48,7 @@ function findChromium(): string {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getBrowser(): Promise<any> {
+async function getBrowser(): Promise<any> { // eslint-disable-line
   if (browserInstance?.connected) return browserInstance;
 
   let puppeteer;
@@ -98,8 +95,7 @@ export async function fetchBrowserItems(url: string): Promise<SourceItem[]> {
   try {
     // Block images/fonts/media to speed up loading
     await page.setRequestInterception(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    page.on("request", (req: any) => {
+    page.on("request", (req: any) => { // eslint-disable-line
       const type = req.resourceType();
       if (["image", "font", "media", "stylesheet"].includes(type)) {
         req.abort();
@@ -141,8 +137,7 @@ export async function fetchBrowserItems(url: string): Promise<SourceItem[]> {
  * Skips the generic gov.il waitForSelector (which wastes 15s on wrong selectors)
  * and goes straight to the correct SharePoint selector, then reuses parseGovIlHtml().
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function extractBtlItems(page: any, url: string): Promise<SourceItem[]> {
+async function extractBtlItems(page: any, url: string): Promise<SourceItem[]> { // eslint-disable-line
   // Wait for SharePoint item table cells
   await page.waitForSelector(
     'td[class*="il-ItemTitleTd"], [class*="ms-vb2"], table[class*="ms-listviewtable"]',
@@ -166,8 +161,7 @@ async function extractBtlItems(page: any, url: string): Promise<SourceItem[]> {
  * Gov.il pages: render with Chromium to bypass WAF, then reuse
  * the existing parseGovIlHtml() strategies (NEXT_DATA, SharePoint, etc.)
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function extractGovIlItems(page: any, url: string): Promise<SourceItem[]> {
+async function extractGovIlItems(page: any, url: string): Promise<SourceItem[]> { // eslint-disable-line
   // Wait for content — prioritize __NEXT_DATA__ (instant on Next.js pages)
   await page.waitForSelector(
     'script#__NEXT_DATA__, [class*="result"], [class*="publication"], [class*="card"]',
@@ -191,8 +185,7 @@ async function extractGovIlItems(page: any, url: string): Promise<SourceItem[]> 
  * Calcalist section pages: React SPA with article cards.
  * Uses page.evaluate() for in-browser DOM extraction.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function extractCalcalistItems(page: any, url: string): Promise<SourceItem[]> {
+async function extractCalcalistItems(page: any, url: string): Promise<SourceItem[]> { // eslint-disable-line
   // Wait for article cards to render
   await page.waitForSelector(
     'article, [class*="article"], [class*="card"], [class*="teaser"]',
@@ -254,8 +247,7 @@ async function extractCalcalistItems(page: any, url: string): Promise<SourceItem
 
 // ── Generic fallback ────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function extractGenericItems(page: any, url: string): Promise<SourceItem[]> {
+async function extractGenericItems(page: any, url: string): Promise<SourceItem[]> { // eslint-disable-line
   const html = await page.content();
   const origin = new URL(url).origin;
   console.log(`[BROWSER] Generic HTML: ${html.length} chars`);

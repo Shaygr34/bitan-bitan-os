@@ -100,7 +100,7 @@ export default function IdeasPage() {
 
   const MIN_DISPLAY_SCORE = 45;
 
-  async function fetchIdeas(retries = 2) {
+  const fetchIdeas = useCallback(async (retries = 2) => {
     try {
       const res = await fetch("/api/content-factory/ideas?sort=score:desc");
       if (!res.ok) {
@@ -120,9 +120,9 @@ export default function IdeasPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { fetchIdeas(); }, []);
+  useEffect(() => { fetchIdeas(); }, [fetchIdeas]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -209,7 +209,7 @@ export default function IdeasPage() {
       }
       setDrafting(null);
     }
-  }, []);
+  }, [fetchIdeas]);
 
   async function handlePollAll() {
     setPollingAll(true);
