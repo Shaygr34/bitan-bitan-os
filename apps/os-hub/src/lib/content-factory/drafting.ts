@@ -16,7 +16,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { randomBytes } from "crypto";
-import { complete } from "@/lib/ai/claude-client";
+import { streamComplete } from "@/lib/ai/claude-client";
 import { loadPrompt } from "@/lib/ai/prompt-loader";
 import { parseDraftResponse, validateContentBlocks } from "@/lib/ai/content-blocks";
 import type { ContentBlock, DraftMeta, DraftResponse } from "@/lib/ai/content-blocks";
@@ -177,8 +177,9 @@ export async function generateDraft(
     tags: idea.tags.length > 0 ? idea.tags.join(", ") : "לא צוינו",
   });
 
-  // 3. Call Claude
-  const response = await complete({
+  // 3. Call Claude (streaming — tokens arrive incrementally, no timeout)
+  console.log(`[DRAFT] Starting streaming generation — prompt: system=${systemPrompt.length}, user=${userPrompt.length} chars`);
+  const response = await streamComplete({
     systemPrompt,
     userPrompt,
     maxTokens: 4096,

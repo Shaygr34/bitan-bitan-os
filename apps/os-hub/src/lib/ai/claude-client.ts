@@ -2,7 +2,11 @@
  * Anthropic Claude API client wrapper.
  *
  * Uses native fetch (no SDK dependency) with token counting, cost calculation,
- * timeout (55s), and retry on 429 (exponential backoff, max 3 attempts).
+ * timeout, and retry on 429 (exponential backoff, max 3 attempts).
+ *
+ * Two modes:
+ *  - complete()       — non-streaming, for short/fast calls (< 75s)
+ *  - streamComplete() — SSE streaming, for long generations (drafts, 4K tokens)
  */
 
 export interface ClaudeResponse {
@@ -151,4 +155,134 @@ export async function complete(params: {
   }
 
   throw lastError ?? new Error("Claude API call failed after retries");
+}
+
+/**
+ * Streaming Claude API call — tokens arrive incrementally via SSE.
+ * Use for long generations (e.g. 4K-token Hebrew articles) where
+ * non-streaming would timeout waiting for the full response.
+ *
+ * Returns a full ClaudeResponse after the stream completes.
+ */
+export async function streamComplete(params: {
+  systemPrompt: string;
+  userPrompt: string;
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+}): Promise<ClaudeResponse> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+  const model = params.model ?? DEFAULT_MODEL;
+  const maxTokens = params.maxTokens ?? 4096;
+  const temperature = params.temperature ?? 0.3;
+
+  console.log(
+    `[Claude] Streaming ${model} — maxTokens=${maxTokens}, temp=${temperature}, ` +
+      `systemPrompt=${params.systemPrompt.length} chars, userPrompt=${params.userPrompt.length} chars`,
+  );
+
+  const controller = new AbortController();
+  // 3 minutes — generous because tokens arrive incrementally
+  const timeoutId = setTimeout(() => controller.abort(), 180_000);
+  const startTime = Date.now();
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature,
+        stream: true,
+        system: params.systemPrompt,
+        messages: [{ role: "user", content: params.userPrompt }],
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      throw new Error(`Claude API error ${response.status}: ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error("No response body for streaming");
+    }
+
+    // Parse SSE stream
+    let fullText = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let responseModel = model;
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") continue;
+
+        try {
+          const event = JSON.parse(data);
+
+          if (event.type === "message_start" && event.message) {
+            responseModel = event.message.model ?? model;
+            inputTokens = event.message.usage?.input_tokens ?? 0;
+          }
+
+          if (event.type === "content_block_delta" && event.delta?.text) {
+            fullText += event.delta.text;
+          }
+
+          if (event.type === "message_delta" && event.usage) {
+            outputTokens = event.usage.output_tokens ?? outputTokens;
+            console.log(`[Claude] Streaming: ${outputTokens} tokens so far`);
+          }
+        } catch {
+          // Skip unparseable lines (event: type lines, empty lines)
+        }
+      }
+    }
+
+    const durationMs = Date.now() - startTime;
+    const costUsd = calculateCost(inputTokens, outputTokens, responseModel);
+
+    console.log(
+      `[Claude] Stream complete — model=${responseModel}, input=${inputTokens}, output=${outputTokens}, ` +
+        `cost=$${costUsd.toFixed(4)}, duration=${durationMs}ms, chars=${fullText.length}`,
+    );
+
+    return {
+      text: fullText,
+      inputTokens,
+      outputTokens,
+      costUsd,
+      model: responseModel,
+      durationMs,
+    };
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      throw new Error(`Claude streaming timeout after 180s`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }

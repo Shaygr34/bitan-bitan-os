@@ -9,7 +9,7 @@ import { generateDraft } from "@/lib/content-factory/drafting";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 100; // seconds — 90s Claude timeout + margin for DB ops
+export const maxDuration = 180; // seconds — streaming generation (tokens arrive incrementally)
 
 type RouteParams = { params: Promise<{ id: string }> };
 
