@@ -111,32 +111,61 @@ export async function closeBrowser(): Promise<void> {
  * If a CF challenge page is detected, waits for it to resolve (3-8s typically).
  */
 async function navigateWithCfBypass(page: any, url: string): Promise<void> { // eslint-disable-line
-  console.log(`[BROWSER] Navigating to: ${url}`);
+  console.log(`[BROWSER] Navigating (CF-aware) to: ${url}`);
 
-  await page.goto(url, { waitUntil: "networkidle2", timeout: 45_000 });
+  // Use longer timeout for gov.il — CF challenge + page load
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  } catch (navErr) {
+    console.error(`[BROWSER] Initial navigation failed: ${(navErr as Error).message}`);
+    // Try again with less strict wait condition
+    await page.goto(url, { waitUntil: "load", timeout: 30_000 });
+  }
+
+  // Wait a moment for CF scripts to run
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // Check if we hit a Cloudflare challenge
   const content = await page.content();
-  if (
+  const pageTitle = await page.title();
+  console.log(`[BROWSER] Page title: "${pageTitle}", HTML length: ${content.length}`);
+
+  const isCfChallenge =
     content.includes("cf-challenge") ||
     content.includes("Checking your browser") ||
     content.includes("cf-browser-verification") ||
-    content.includes("Just a moment")
-  ) {
-    console.log("[BROWSER] Cloudflare challenge detected, waiting for resolution...");
+    content.includes("Just a moment") ||
+    pageTitle.includes("Just a moment");
 
-    // Wait for the challenge to auto-resolve (JS challenge typically 3-8s)
+  if (isCfChallenge) {
+    console.log("[BROWSER] Cloudflare challenge detected, waiting up to 15s for resolution...");
+
+    // Wait for the challenge to auto-resolve
     await page.waitForNavigation({
       waitUntil: "networkidle2",
       timeout: 15_000,
     }).catch(() => {
-      console.log("[BROWSER] Navigation timeout during CF challenge — checking page anyway");
+      console.log("[BROWSER] CF navigation timeout — checking page content");
     });
 
-    // Extra wait for dynamic content after challenge resolution
+    // Extra wait for dynamic content
     await new Promise((resolve) => setTimeout(resolve, 3000));
-    const finalUrl = page.url();
-    console.log(`[BROWSER] Post-CF URL: ${finalUrl}`);
+
+    const postCfTitle = await page.title();
+    const postCfUrl = page.url();
+    console.log(`[BROWSER] Post-CF: title="${postCfTitle}", url=${postCfUrl}`);
+
+    // Check if challenge was actually resolved
+    const postCfContent = await page.content();
+    if (postCfContent.includes("cf-challenge") || postCfContent.includes("Just a moment")) {
+      console.error("[BROWSER] Cloudflare challenge NOT resolved — stealth plugin failed for this site");
+    }
+  } else {
+    console.log("[BROWSER] No Cloudflare challenge detected — page loaded directly");
+    // Wait for networkidle after initial content load
+    await page.waitForNetworkIdle({ timeout: 10_000 }).catch(() => {
+      console.log("[BROWSER] Network idle timeout — proceeding with current content");
+    });
   }
 }
 

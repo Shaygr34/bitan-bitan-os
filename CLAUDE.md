@@ -126,4 +126,4 @@ score = sourceWeight(0-25) + recency(0-25) + keywords(0-30) + category(0-20) - n
 - Docker multi-stage build (deps → build → runner)
 - Puppeteer-core types not available at build time (dynamic import)
 - ESLint: `next/core-web-vitals` only, no `@typescript-eslint`
-- `maxDuration=100` on Railway routes — keep all timeouts under 90s
+- `maxDuration=300` on draft route (streaming), `maxDuration=100` default on other routes
