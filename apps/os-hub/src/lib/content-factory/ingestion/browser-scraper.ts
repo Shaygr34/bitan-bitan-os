@@ -313,9 +313,32 @@ async function extractCalcalistItems(page: any, url: string): Promise<SourceItem
         const desc = el.querySelector("p, [class*='subtitle'], [class*='description']");
         const description = desc?.textContent?.trim() ?? "";
 
-        // Extract date
+        // Extract date: try <time> element first, then URL pattern, then meta
         const timeEl = el.querySelector("time");
-        const pubDate = timeEl?.getAttribute("datetime") ?? timeEl?.textContent?.trim() ?? null;
+        let pubDate = timeEl?.getAttribute("datetime") ?? timeEl?.textContent?.trim() ?? null;
+
+        // Fallback: extract date from Calcalist article URL pattern
+        // e.g. /article/2026/03/05/... or /article/20260305...
+        if (!pubDate && link) {
+          const urlDateMatch = link.match(/\/article\/(\d{4})\/(\d{2})\/(\d{2})/);
+          if (urlDateMatch) {
+            pubDate = `${urlDateMatch[1]}-${urlDateMatch[2]}-${urlDateMatch[3]}`;
+          } else {
+            // Try compact date in URL: /article/20260305
+            const compactMatch = link.match(/\/article\/(\d{4})(\d{2})(\d{2})/);
+            if (compactMatch) {
+              pubDate = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
+            }
+          }
+        }
+
+        // Fallback: look for date-like text near the card
+        if (!pubDate) {
+          const dateSpan = el.querySelector('[class*="date"], [class*="time"], [class*="Date"]');
+          if (dateSpan?.textContent) {
+            pubDate = dateSpan.textContent.trim();
+          }
+        }
 
         results.push({ title, link, description, pubDate });
       }
