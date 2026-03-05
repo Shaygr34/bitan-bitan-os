@@ -98,6 +98,7 @@ export default function IdeasPage() {
   const [showAll, setShowAll] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string>("ALL");
+  const [purging, setPurging] = useState(false);
 
   const MIN_DISPLAY_SCORE = 45;
 
@@ -331,6 +332,27 @@ export default function IdeasPage() {
     }
   }
 
+  async function handlePurgeOld() {
+    const count = ideas.filter((i) => {
+      if (!i.sourcePublishedAt) return true;
+      return new Date(i.sourcePublishedAt) < new Date("2024-01-01");
+    }).length;
+    if (!confirm(`למחוק ${count > 0 ? `עד ${count}` : ""} רעיונות ישנים (לפני 2024) ופריטים ללא תאריך ממקורות BROWSER/SCRAPE?`)) return;
+
+    setPurging(true);
+    try {
+      const res = await fetch("/api/content-factory/ideas/cleanup?before=2024-01-01", { method: "DELETE" });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      showToast({ type: "success", message: `נמחקו ${data.deleted.total} רעיונות ישנים` });
+      await fetchIdeas();
+    } catch (err) {
+      showToast({ type: "error", message: `שגיאה בניקוי: ${(err as Error).message}` });
+    } finally {
+      setPurging(false);
+    }
+  }
+
   const isBusy = drafting !== null;
 
   return (
@@ -340,6 +362,14 @@ export default function IdeasPage() {
         description="רעיונות ממוינים לפי ציון רלוונטיות — בחרו ליצור טיוטה"
         action={
           <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              className="btn-secondary"
+              onClick={handlePurgeOld}
+              disabled={purging || isBusy}
+              style={{ backgroundColor: purging ? "#fecaca" : "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}
+            >
+              {purging ? "מנקה..." : "נקה ישנים"}
+            </button>
             <button className="btn-secondary" onClick={handlePollAll} disabled={pollingAll || isBusy}>
               {pollingAll ? "סורק..." : "סרוק כל המקורות"}
             </button>
