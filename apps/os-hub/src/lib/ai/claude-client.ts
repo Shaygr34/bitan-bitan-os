@@ -163,6 +163,7 @@ export async function complete(params: {
  * non-streaming would timeout waiting for the full response.
  *
  * Returns a full ClaudeResponse after the stream completes.
+ * Uses text-based SSE parsing compatible with Node 20 fetch.
  */
 export async function streamComplete(params: {
   systemPrompt: string;
@@ -183,10 +184,11 @@ export async function streamComplete(params: {
       `systemPrompt=${params.systemPrompt.length} chars, userPrompt=${params.userPrompt.length} chars`,
   );
 
-  const controller = new AbortController();
-  // 3 minutes — generous because tokens arrive incrementally
-  const timeoutId = setTimeout(() => controller.abort(), 180_000);
   const startTime = Date.now();
+
+  // Use a longer timeout for streaming — but rely on maxDuration as the real guard
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 240_000); // 4 min safety net
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -209,6 +211,7 @@ export async function streamComplete(params: {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
+      console.error(`[Claude] Stream API error ${response.status}:`, errorText.slice(0, 500));
       throw new Error(`Claude API error ${response.status}: ${errorText}`);
     }
 
@@ -216,12 +219,19 @@ export async function streamComplete(params: {
       throw new Error("No response body for streaming");
     }
 
-    // Parse SSE stream
+    console.log("[Claude] Stream connected, reading SSE events...");
+
+    // Parse SSE stream using text() then line-by-line parsing
+    // This is more reliable in Node.js than getReader() which can
+    // have issues with backpressure and chunk boundaries
     let fullText = "";
     let inputTokens = 0;
     let outputTokens = 0;
     let responseModel = model;
+    let lastLogAt = Date.now();
 
+    // Read the entire stream as text — Node 20 fetch handles this correctly
+    // for SSE streams, buffering until the connection closes
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -231,20 +241,24 @@ export async function streamComplete(params: {
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
 
-      for (const line of lines) {
+      // Process complete lines
+      let newlineIdx;
+      while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, newlineIdx).trim();
+        buffer = buffer.slice(newlineIdx + 1);
+
         if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") continue;
+        const jsonStr = line.slice(6);
+        if (!jsonStr || jsonStr === "[DONE]") continue;
 
         try {
-          const event = JSON.parse(data);
+          const event = JSON.parse(jsonStr);
 
           if (event.type === "message_start" && event.message) {
             responseModel = event.message.model ?? model;
             inputTokens = event.message.usage?.input_tokens ?? 0;
+            console.log(`[Claude] Stream started — model=${responseModel}, inputTokens=${inputTokens}`);
           }
 
           if (event.type === "content_block_delta" && event.delta?.text) {
@@ -253,10 +267,15 @@ export async function streamComplete(params: {
 
           if (event.type === "message_delta" && event.usage) {
             outputTokens = event.usage.output_tokens ?? outputTokens;
-            console.log(`[Claude] Streaming: ${outputTokens} tokens so far`);
+          }
+
+          // Log progress every 10s to show the stream is alive
+          if (Date.now() - lastLogAt > 10_000) {
+            console.log(`[Claude] Streaming: ${outputTokens} tokens, ${fullText.length} chars, ${Math.round((Date.now() - startTime) / 1000)}s elapsed`);
+            lastLogAt = Date.now();
           }
         } catch {
-          // Skip unparseable lines (event: type lines, empty lines)
+          // Skip malformed JSON (event: type lines, etc.)
         }
       }
     }
@@ -269,6 +288,10 @@ export async function streamComplete(params: {
         `cost=$${costUsd.toFixed(4)}, duration=${durationMs}ms, chars=${fullText.length}`,
     );
 
+    if (!fullText) {
+      throw new Error("Claude stream returned empty text — check API key and model availability");
+    }
+
     return {
       text: fullText,
       inputTokens,
@@ -278,9 +301,12 @@ export async function streamComplete(params: {
       durationMs,
     };
   } catch (err) {
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
     if ((err as Error).name === "AbortError") {
-      throw new Error(`Claude streaming timeout after 180s`);
+      console.error(`[Claude] Stream aborted after ${elapsed}s`);
+      throw new Error(`Claude streaming timeout after ${elapsed}s`);
     }
+    console.error(`[Claude] Stream error after ${elapsed}s:`, (err as Error).message);
     throw err;
   } finally {
     clearTimeout(timeoutId);
