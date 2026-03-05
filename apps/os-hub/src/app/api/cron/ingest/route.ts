@@ -39,10 +39,27 @@ export async function GET(request: Request) {
     const allActiveSources = await prisma.source.findMany({
       where: { active: true },
     });
-    const sources = allActiveSources.filter((s: { type: string }) => isPollableType(s.type));
+    const pollable = allActiveSources.filter((s: { type: string }) => isPollableType(s.type));
+
+    if (pollable.length === 0) {
+      return NextResponse.json({ message: "No active pollable sources", results: [] });
+    }
+
+    // Only poll sources that are due based on pollIntervalMin
+    const now = Date.now();
+    const sources = pollable.filter((s) => {
+      if (!s.lastPolledAt) return true; // Never polled — always due
+      const intervalMs = (s.pollIntervalMin || 60) * 60 * 1000;
+      return now - s.lastPolledAt.getTime() >= intervalMs;
+    });
+
+    const skippedCount = pollable.length - sources.length;
+    if (skippedCount > 0) {
+      console.log(`[Cron] Skipping ${skippedCount} sources (not yet due for polling)`);
+    }
 
     if (sources.length === 0) {
-      return NextResponse.json({ message: "No active pollable sources", results: [] });
+      return NextResponse.json({ message: `No sources due for polling (${skippedCount} skipped)`, results: [] });
     }
 
     const results: Array<{
