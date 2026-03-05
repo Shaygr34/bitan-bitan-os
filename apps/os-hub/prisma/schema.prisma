@@ -320,6 +320,7 @@ model Source {
   category        String?
   tags            String[]   @default([])
   pollIntervalMin Int        @default(60)
+  maxAgeDays      Int        @default(30)
   lastPolledAt    DateTime?
   lastItemCount   Int?
   lastError       String?

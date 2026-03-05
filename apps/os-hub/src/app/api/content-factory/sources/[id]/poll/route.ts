@@ -37,7 +37,21 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL", source.url);
       console.log(`[Poll] Got ${items.length} items from ${source.name}`);
 
-      for (const item of items) {
+      // Filter items by source's maxAgeDays window
+      const maxAgeMs = ((source as { maxAgeDays?: number }).maxAgeDays || 30) * 24 * 60 * 60 * 1000;
+      const cutoffDate = new Date(Date.now() - maxAgeMs);
+      const windowedItems = items.filter((item) => {
+        if (!item.pubDate) return true;
+        const d = parseFlexibleDate(item.pubDate);
+        if (!d) return true;
+        return d >= cutoffDate;
+      });
+      const droppedByAge = items.length - windowedItems.length;
+      if (droppedByAge > 0) {
+        console.log(`[Poll] ${source.name}: Dropped ${droppedByAge} items older than ${(source as { maxAgeDays?: number }).maxAgeDays || 30} days`);
+      }
+
+      for (const item of windowedItems) {
         try {
           const fingerprint = generateFingerprint(item.title);
           const normalizedLink = item.link ? normalizeUrl(item.link) : null;
