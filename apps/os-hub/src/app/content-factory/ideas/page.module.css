@@ -1,0 +1,399 @@
+/* Content Factory — Ideas page */
+
+/* ——— Filter pills ——— */
+
+.filterRow {
+  display: flex;
+  gap: var(--space-xs, 0.5rem);
+  margin-bottom: var(--space-lg, 1.5rem);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filterPill {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--font-size-sm, 0.85rem);
+  font-weight: 400;
+  transition: all var(--transition-fast, 0.15s);
+}
+
+.filterPill:hover {
+  border-color: var(--brand-navy, #1e3a5f);
+}
+
+.filterPillActive {
+  composes: filterPill;
+  border: 2px solid var(--brand-navy, #2563eb);
+  background: var(--surface-muted, #eff6ff);
+  font-weight: 600;
+}
+
+.filterDivider {
+  border-inline-start: 1px solid var(--border-color, #d1d5db);
+  height: 1.5rem;
+  margin-inline: 0.25rem;
+}
+
+.showAllPill {
+  composes: filterPill;
+}
+
+.showAllPillActive {
+  composes: filterPill;
+  border: 2px solid var(--brand-gold, #f59e0b);
+  background: #fffbeb;
+  font-weight: 600;
+}
+
+/* ——— Idea card ——— */
+
+.ideaList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ideaCard {
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  padding: 1rem 1.25rem;
+  background: #fff;
+  transition: all 0.2s;
+}
+
+.ideaCard:hover {
+  border-color: var(--brand-gold, #c9a84c);
+}
+
+.ideaCardDrafting {
+  composes: ideaCard;
+  border: 2px solid var(--brand-navy, #2563eb);
+  background: #eff6ff;
+}
+
+.ideaCardRejected {
+  composes: ideaCard;
+  background: #fef2f2;
+}
+
+.ideaCardDimmed {
+  opacity: 0.6;
+}
+
+.cardLayout {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.cardContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.badgeRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+/* ——— Score ——— */
+
+.scoreBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  min-width: 32px;
+  justify-content: center;
+}
+
+.scoreBar {
+  flex: 1;
+  max-width: 120px;
+  height: 6px;
+  background: var(--border-subtle, #e5e7eb);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.scoreBarFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ——— Status badge ——— */
+
+.statusBadge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.enrichedLabel {
+  font-size: 0.75rem;
+  color: #10b981;
+  font-weight: 500;
+}
+
+/* ——— Card title / description ——— */
+
+.ideaTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--brand-navy, #1e3a5f);
+}
+
+.ideaDescription {
+  margin: 0.25rem 0 0;
+  font-size: var(--font-size-sm, 0.85rem);
+  color: var(--text-caption, #6b7280);
+  line-height: 1.4;
+}
+
+/* ——— Meta row ——— */
+
+.metaRow {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-caption, #9ca3af);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sourcePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  background: var(--surface-muted, #f3f4f6);
+  color: var(--text-caption, #6b7280);
+  font-weight: 500;
+}
+
+.sourceLink {
+  color: var(--brand-navy, #2563eb);
+  text-decoration: underline;
+  font-size: 0.8rem;
+}
+
+.sourceLink:hover {
+  color: var(--brand-gold, #c9a84c);
+}
+
+/* ——— Actions ——— */
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.draftingLabel {
+  font-size: 0.8rem;
+  color: var(--brand-navy, #2563eb);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.deleteBtn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-caption, #9ca3af);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.deleteBtn:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.deleteBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rejectBtn {
+  background: none;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.rejectBtn:hover {
+  background: #fef2f2;
+}
+
+.rejectBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ——— Draft result ——— */
+
+.draftResultRow {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.draftSuccess {
+  color: #10b981;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.draftError {
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.retryBtn {
+  background: none;
+  border: 1px solid var(--brand-navy, #2563eb);
+  color: var(--brand-navy, #2563eb);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.retryBtn:hover {
+  background: #eff6ff;
+}
+
+/* ——— Poll progress ——— */
+
+.pollProgress {
+  margin-bottom: var(--space-lg, 1.5rem);
+  padding: 1rem 1.25rem;
+  background: var(--surface-muted, #f9fafb);
+  border: 1px solid var(--brand-gold, #c9a84c);
+  border-radius: var(--radius-md, 8px);
+}
+
+.pollProgressHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 600;
+  color: var(--brand-navy, #1e3a5f);
+}
+
+.pollProgressBar {
+  height: 8px;
+  background: var(--border-subtle, #e5e7eb);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.pollProgressFill {
+  height: 100%;
+  background: var(--brand-gold, #c9a84c);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.pollSourceName {
+  font-size: 0.8rem;
+  color: var(--text-caption, #6b7280);
+}
+
+.pollResults {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.pollResultItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.2rem 0;
+}
+
+.pollResultSuccess {
+  color: #10b981;
+  font-weight: 500;
+}
+
+.pollResultError {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+/* ——— Create form ——— */
+
+.createForm {
+  margin-bottom: var(--space-lg, 1.5rem);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.createInput {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.createInput:focus {
+  outline: none;
+  border-color: var(--brand-navy, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* ——— Responsive ——— */
+
+@media (max-width: 640px) {
+  .cardLayout {
+    flex-direction: column;
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .scoreBar {
+    max-width: 80px;
+  }
+}

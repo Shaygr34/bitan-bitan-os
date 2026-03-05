@@ -5,6 +5,7 @@ import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
 import { showToast } from "@/components/Toast";
+import styles from "./page.module.css";
 
 interface IdeaArticle {
   id: string;
@@ -35,10 +36,11 @@ interface Idea {
   createdAt: string;
 }
 
-interface PollSourceError {
-  sourceId: string;
-  name: string;
-  error: string;
+interface PollProgress {
+  current: number;
+  total: number;
+  currentSource: string;
+  results: Array<{ name: string; created: number; error?: string }>;
 }
 
 type StatusFilter = "ALL" | "NEW" | "SELECTED" | "ENRICHED" | "REJECTED";
@@ -89,10 +91,12 @@ export default function IdeasPage() {
   const [draftResult, setDraftResult] = useState<{ id: string; articleId?: string; error?: string } | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [pollingAll, setPollingAll] = useState(false);
+  const [pollProgress, setPollProgress] = useState<PollProgress | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const MIN_DISPLAY_SCORE = 45;
 
@@ -160,12 +164,26 @@ export default function IdeasPage() {
     }
   }
 
+  async function handleDelete(idea: Idea) {
+    if (!confirm(`למחוק את "${idea.title}"?`)) return;
+    setDeleting(idea.id);
+    try {
+      const res = await fetch(`/api/content-factory/ideas/${idea.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`${res.status}`);
+      setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
+      showToast({ type: "success", message: "הרעיון נמחק" });
+    } catch (err) {
+      showToast({ type: "error", message: `שגיאה במחיקה: ${(err as Error).message}` });
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   const handleDraft = useCallback(async (idea: Idea) => {
     setDrafting(idea.id);
     setDraftElapsed(0);
     setDraftResult(null);
 
-    // Start elapsed timer
     draftTimerRef.current = setInterval(() => {
       setDraftElapsed((prev) => prev + 1);
     }, 1000);
@@ -195,33 +213,81 @@ export default function IdeasPage() {
 
   async function handlePollAll() {
     setPollingAll(true);
-    try {
-      const res = await fetch("/api/content-factory/sources/poll-all", { method: "POST" });
-      if (!res.ok) throw new Error(`${res.status}`);
-      const data = await res.json();
-      const errors = (data.errors ?? []) as PollSourceError[];
+    setPollProgress(null);
 
+    try {
+      // Fetch active sources
+      const sourcesRes = await fetch("/api/content-factory/sources?active=true");
+      if (!sourcesRes.ok) throw new Error(`Failed to fetch sources: ${sourcesRes.status}`);
+      const sources: Array<{ id: string; name: string; nameHe: string | null; type: string; active: boolean }> =
+        await sourcesRes.json();
+
+      // Filter to pollable types (not MANUAL)
+      const pollable = sources.filter((s) => s.active && s.type !== "MANUAL");
+      if (pollable.length === 0) {
+        showToast({ type: "error", message: "אין מקורות פעילים לסריקה" });
+        return;
+      }
+
+      const progress: PollProgress = {
+        current: 0,
+        total: pollable.length,
+        currentSource: "",
+        results: [],
+      };
+      setPollProgress({ ...progress });
+
+      // Poll sources sequentially
+      for (const source of pollable) {
+        progress.current++;
+        progress.currentSource = source.nameHe || source.name;
+        setPollProgress({ ...progress });
+
+        try {
+          const res = await fetch(`/api/content-factory/sources/${source.id}/poll`, { method: "POST" });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({ error: `${res.status}` }));
+            progress.results.push({
+              name: source.nameHe || source.name,
+              created: 0,
+              error: errData.error ?? `${res.status}`,
+            });
+          } else {
+            const data = await res.json();
+            progress.results.push({
+              name: source.nameHe || source.name,
+              created: data.created ?? 0,
+            });
+          }
+        } catch (err) {
+          progress.results.push({
+            name: source.nameHe || source.name,
+            created: 0,
+            error: (err as Error).message,
+          });
+        }
+        setPollProgress({ ...progress });
+      }
+
+      // Summary
+      const totalCreated = progress.results.reduce((sum, r) => sum + r.created, 0);
+      const errors = progress.results.filter((r) => r.error);
       if (errors.length === 0) {
-        showToast({
-          type: "success",
-          message: `נסרקו ${data.polled} מקורות: ${data.totalCreated} חדשים, ${data.totalSkipped} כפולים`,
-        });
+        showToast({ type: "success", message: `נסרקו ${pollable.length} מקורות: ${totalCreated} רעיונות חדשים` });
       } else {
-        const failedNames = errors
-          .map((e: PollSourceError) => {
-            const shortErr = e.error.includes("403") ? "403" : e.error.includes("timeout") ? "timeout" : "error";
-            return `${e.name} (${shortErr})`;
-          })
-          .join(", ");
-        const okCount = data.polled - errors.length;
         showToast({
           type: "error",
-          message: `${okCount} מקורות הצליחו (${data.totalCreated} חדשים). נכשלו: ${failedNames}`,
+          message: `${pollable.length - errors.length} הצליחו (${totalCreated} חדשים), ${errors.length} נכשלו`,
         });
       }
+
       await fetchIdeas();
+
+      // Clear progress after 5s
+      setTimeout(() => setPollProgress(null), 5000);
     } catch (err) {
       showToast({ type: "error", message: `שגיאה: ${(err as Error).message}` });
+      setPollProgress(null);
     } finally {
       setPollingAll(false);
     }
@@ -248,7 +314,6 @@ export default function IdeasPage() {
     }
   }
 
-  /** Whether any draft is in progress (disables all action buttons) */
   const isBusy = drafting !== null;
 
   return (
@@ -268,21 +333,47 @@ export default function IdeasPage() {
         }
       />
 
+      {/* Poll progress */}
+      {pollProgress && (
+        <div className={styles.pollProgress}>
+          <div className={styles.pollProgressHeader}>
+            <span>סורק {pollProgress.current}/{pollProgress.total}: {pollProgress.currentSource}</span>
+            <span>{Math.round((pollProgress.current / pollProgress.total) * 100)}%</span>
+          </div>
+          <div className={styles.pollProgressBar}>
+            <div
+              className={styles.pollProgressFill}
+              style={{ width: `${(pollProgress.current / pollProgress.total) * 100}%` }}
+            />
+          </div>
+          {pollProgress.current === pollProgress.total && pollProgress.results.length > 0 && (
+            <div className={styles.pollResults}>
+              {pollProgress.results
+                .filter((r) => r.created > 0 || r.error)
+                .map((r, i) => (
+                  <div key={i} className={styles.pollResultItem}>
+                    <span>{r.name}</span>
+                    {r.error ? (
+                      <span className={styles.pollResultError}>{r.error.length > 30 ? r.error.slice(0, 30) + "..." : r.error}</span>
+                    ) : (
+                      <span className={styles.pollResultSuccess}>+{r.created}</span>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Manual idea creation form */}
       {showCreate && (
-        <div style={{ marginBottom: "1.5rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <div className={styles.createForm}>
           <input
             type="text"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="כותרת הרעיון..."
-            style={{
-              flex: 1,
-              padding: "0.5rem 0.75rem",
-              border: "1px solid var(--border-color, #d1d5db)",
-              borderRadius: "6px",
-              fontSize: "0.9rem",
-            }}
+            className={styles.createInput}
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
           />
           <button className="btn-primary" onClick={handleCreate} disabled={creating}>
@@ -292,38 +383,22 @@ export default function IdeasPage() {
       )}
 
       {/* Status filters + score toggle */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
+      <div className={styles.filterRow}>
         {STATUS_FILTERS.map((f) => (
           <button
             key={f.value}
             onClick={() => setStatusFilter(f.value)}
-            style={{
-              padding: "0.35rem 0.75rem",
-              border: statusFilter === f.value ? "2px solid #2563eb" : "1px solid var(--border-color, #d1d5db)",
-              borderRadius: "6px",
-              background: statusFilter === f.value ? "#eff6ff" : "transparent",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-              fontWeight: statusFilter === f.value ? 600 : 400,
-            }}
+            className={statusFilter === f.value ? styles.filterPillActive : styles.filterPill}
           >
             {f.label}
           </button>
         ))}
 
-        <span style={{ borderInlineStart: "1px solid var(--border-color, #d1d5db)", height: "1.5rem", marginInline: "0.25rem" }} />
+        <span className={styles.filterDivider} />
 
         <button
           onClick={() => setShowAll(!showAll)}
-          style={{
-            padding: "0.35rem 0.75rem",
-            border: showAll ? "2px solid #f59e0b" : "1px solid var(--border-color, #d1d5db)",
-            borderRadius: "6px",
-            background: showAll ? "#fffbeb" : "transparent",
-            cursor: "pointer",
-            fontSize: "0.85rem",
-            fontWeight: showAll ? 600 : 400,
-          }}
+          className={showAll ? styles.showAllPillActive : styles.showAllPill}
         >
           {showAll ? "סינון לפי ציון" : `הצג הכל${hiddenCount > 0 ? ` (+${hiddenCount})` : ""}`}
         </button>
@@ -339,86 +414,76 @@ export default function IdeasPage() {
       )}
 
       {!loading && filtered.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <div className={styles.ideaList}>
           {filtered.map((idea) => {
             const linkedArticle = idea.articles[0] ?? null;
             const isEnriched = idea.status === "ENRICHED";
             const canDraft = idea.status === "NEW" || idea.status === "SELECTED";
             const isDraftingThis = drafting === idea.id;
             const result = draftResult?.id === idea.id ? draftResult : null;
+            const isDeletingThis = deleting === idea.id;
+
+            const cardClass = isDraftingThis
+              ? styles.ideaCardDrafting
+              : idea.status === "REJECTED"
+                ? styles.ideaCardRejected
+                : styles.ideaCard;
 
             return (
               <div
                 key={idea.id}
-                style={{
-                  border: isDraftingThis
-                    ? "2px solid #2563eb"
-                    : "1px solid var(--border-color, #e5e7eb)",
-                  borderRadius: "8px",
-                  padding: "1rem 1.25rem",
-                  background: isDraftingThis
-                    ? "#eff6ff"
-                    : idea.status === "REJECTED"
-                      ? "#fef2f2"
-                      : "#fff",
-                  opacity: isBusy && !isDraftingThis ? 0.6 : 1,
-                  transition: "all 0.2s",
-                }}
+                className={`${cardClass}${isBusy && !isDraftingThis ? ` ${styles.ideaCardDimmed}` : ""}`}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.35rem" }}>
-                      {/* Score badge */}
+                <div className={styles.cardLayout}>
+                  <div className={styles.cardContent}>
+                    <div className={styles.badgeRow}>
+                      {/* Score badge + bar */}
                       {idea.score !== null && (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            padding: "0.15rem 0.5rem",
-                            borderRadius: "12px",
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            color: "#fff",
-                            backgroundColor: scoreColor(idea.score),
-                          }}
-                        >
-                          {Math.round(idea.score)}
-                        </span>
+                        <>
+                          <span
+                            className={styles.scoreBadge}
+                            style={{ backgroundColor: scoreColor(idea.score) }}
+                          >
+                            {Math.round(idea.score)}
+                          </span>
+                          <div className={styles.scoreBar}>
+                            <div
+                              className={styles.scoreBarFill}
+                              style={{
+                                width: `${Math.min(100, Math.round(idea.score))}%`,
+                                backgroundColor: scoreColor(idea.score),
+                              }}
+                            />
+                          </div>
+                        </>
                       )}
 
                       {/* Status badge */}
                       <span
-                        style={{
-                          display: "inline-block",
-                          padding: "0.15rem 0.5rem",
-                          borderRadius: "4px",
-                          fontSize: "0.7rem",
-                          fontWeight: 600,
-                          color: "#fff",
-                          backgroundColor: STATUS_COLORS[idea.status] ?? "#6b7280",
-                        }}
+                        className={styles.statusBadge}
+                        style={{ backgroundColor: STATUS_COLORS[idea.status] ?? "#6b7280" }}
                       >
                         {STATUS_FILTERS.find((f) => f.value === idea.status)?.label ?? idea.status}
                       </span>
 
                       {isEnriched && linkedArticle && (
-                        <span style={{ fontSize: "0.75rem", color: "#10b981", fontWeight: 500 }}>
-                          טיוטה נוצרה
-                        </span>
+                        <span className={styles.enrichedLabel}>טיוטה נוצרה</span>
                       )}
                     </div>
 
-                    <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>{idea.title}</h3>
+                    <h3 className={styles.ideaTitle}>{idea.title}</h3>
 
                     {idea.description && (
-                      <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", color: "#6b7280", lineHeight: 1.4 }}>
+                      <p className={styles.ideaDescription}>
                         {idea.description.slice(0, 200)}{idea.description.length > 200 ? "..." : ""}
                       </p>
                     )}
 
-                    <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.8rem", color: "#9ca3af", flexWrap: "wrap", alignItems: "center" }}>
+                    <div className={styles.metaRow}>
                       {idea.source && (
-                        <span>{idea.source.nameHe || idea.source.name}</span>
+                        <span className={styles.sourcePill}>
+                          {idea.source.nameHe || idea.source.name}
+                        </span>
                       )}
                       {idea.sourcePublishedAt && (
                         <span>{relativeTime(idea.sourcePublishedAt)}</span>
@@ -431,11 +496,7 @@ export default function IdeasPage() {
                           href={idea.sourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{
-                            color: "#2563eb",
-                            textDecoration: "underline",
-                            fontSize: "0.8rem",
-                          }}
+                          className={styles.sourceLink}
                           onClick={(e) => e.stopPropagation()}
                         >
                           מאמר מקורי
@@ -445,10 +506,8 @@ export default function IdeasPage() {
 
                     {/* Draft result feedback */}
                     {result?.articleId && (
-                      <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ color: "#10b981", fontWeight: 600, fontSize: "0.85rem" }}>
-                          טיוטה נוצרה!
-                        </span>
+                      <div className={styles.draftResultRow}>
+                        <span className={styles.draftSuccess}>טיוטה נוצרה!</span>
                         <Link
                           href={`/content-factory/articles/${result.articleId}`}
                           style={{ color: "#2563eb", fontSize: "0.85rem" }}
@@ -458,20 +517,12 @@ export default function IdeasPage() {
                       </div>
                     )}
                     {result?.error && (
-                      <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ color: "#ef4444", fontWeight: 600, fontSize: "0.85rem" }}>
+                      <div className={styles.draftResultRow}>
+                        <span className={styles.draftError}>
                           נכשל — {result.error.length > 80 ? result.error.slice(0, 80) + "..." : result.error}
                         </span>
                         <button
-                          style={{
-                            background: "none",
-                            border: "1px solid #2563eb",
-                            color: "#2563eb",
-                            cursor: "pointer",
-                            fontSize: "0.8rem",
-                            padding: "0.2rem 0.5rem",
-                            borderRadius: "4px",
-                          }}
+                          className={styles.retryBtn}
                           onClick={() => { setDraftResult(null); handleDraft(idea); }}
                         >
                           נסו שוב
@@ -481,10 +532,10 @@ export default function IdeasPage() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, alignItems: "center" }}>
+                  <div className={styles.actions}>
                     {isDraftingThis && (
-                      <span style={{ fontSize: "0.8rem", color: "#2563eb", fontWeight: 500, whiteSpace: "nowrap" }}>
-                        יוצר טיוטה... ({draftElapsed} שניות)
+                      <span className={styles.draftingLabel}>
+                        {draftElapsed > 45 ? "עדיין עובד..." : "יוצר טיוטה..."} ({draftElapsed} שניות)
                       </span>
                     )}
                     {canDraft && !isDraftingThis && (
@@ -508,22 +559,22 @@ export default function IdeasPage() {
                     )}
                     {canDraft && !isDraftingThis && (
                       <button
-                        style={{
-                          background: "none",
-                          border: "1px solid #ef4444",
-                          color: "#ef4444",
-                          cursor: isBusy ? "not-allowed" : "pointer",
-                          fontSize: "0.8rem",
-                          padding: "0.4rem 0.75rem",
-                          borderRadius: "6px",
-                          opacity: isBusy ? 0.5 : 1,
-                        }}
+                        className={styles.rejectBtn}
                         onClick={() => handleReject(idea)}
                         disabled={isBusy}
                       >
                         דחה
                       </button>
                     )}
+                    {/* Delete button */}
+                    <button
+                      className={styles.deleteBtn}
+                      onClick={() => handleDelete(idea)}
+                      disabled={isBusy || isDeletingThis}
+                      title="מחק רעיון"
+                    >
+                      {isDeletingThis ? "..." : "🗑"}
+                    </button>
                   </div>
                 </div>
               </div>

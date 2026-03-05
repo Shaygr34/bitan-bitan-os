@@ -18,14 +18,14 @@ const UNAVAILABLE = NextResponse.json({ _status: "unavailable" as const });
 
 export async function GET() {
   try {
-    // Race the DB queries against a 5s timeout to avoid 502s on cold starts
+    // Race the DB queries against an 8s timeout to avoid 502s on cold starts
     const result = await Promise.race([
       fetchStats(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8_000)),
     ]);
 
     if (!result) {
-      console.warn("[hub-stats] DB query timed out after 5s (cold start?)");
+      console.warn("[hub-stats] DB query timed out after 8s (cold start?)");
       return UNAVAILABLE;
     }
 

@@ -14,6 +14,33 @@ import { fetchAPIEndpoint } from "./api-fetcher";
 import { fetchGovIlPublications, fetchHtmlPage } from "./html-scraper";
 import { fetchBrowserItems } from "./browser-scraper";
 
+/**
+ * Parse dates in multiple formats:
+ *   - ISO 8601 / RFC 2822 (native Date parsing)
+ *   - DD.MM.YYYY (BTL SharePoint)
+ *   - DD/MM/YYYY (other gov.il patterns)
+ * Returns null for unparseable or invalid dates.
+ */
+export function parseFlexibleDate(dateStr: string | null | undefined): Date | null {
+  if (!dateStr) return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  // Try DD.MM.YYYY or DD/MM/YYYY
+  const dmyMatch = trimmed.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+  if (dmyMatch) {
+    const [, day, month, year] = dmyMatch;
+    const d = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T00:00:00Z`);
+    if (!isNaN(d.getTime())) return d;
+    return null;
+  }
+
+  // Fallback to native Date parsing (ISO, RFC 2822, etc.)
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
 /** Normalized item returned by any fetcher. */
 export interface SourceItem {
   title: string;

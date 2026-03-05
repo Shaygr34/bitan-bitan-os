@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { errorJson, isValidUuid } from "@/lib/content-factory/validate";
-import { fetchSourceItems, isPollableType, toIdeaSourceType } from "@/lib/content-factory/ingestion/poll-dispatcher";
+import { fetchSourceItems, isPollableType, toIdeaSourceType, parseFlexibleDate } from "@/lib/content-factory/ingestion/poll-dispatcher";
 import { closeBrowser } from "@/lib/content-factory/ingestion/browser-scraper";
 import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
@@ -58,7 +58,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
             continue;
           }
 
-          const publishedAt = item.pubDate ? new Date(item.pubDate) : null;
+          const publishedAt = parseFlexibleDate(item.pubDate);
+          // Skip items older than 2024
+          if (publishedAt && publishedAt < new Date("2024-01-01")) { skipped++; continue; }
 
           // Score the idea
           const breakdown = scoreIdea({

@@ -122,26 +122,31 @@ function parseNextData(html: string, origin: string): SourceItem[] {
     const props = data?.props?.pageProps;
     if (!props) return [];
 
-    // Try common collection patterns
-    const collections = props.collectorData?.items
+    // Try common collection patterns (hardcoded paths first)
+    let collections: Record<string, unknown>[] | null = props.collectorData?.items
       ?? props.publications
       ?? props.results
       ?? props.items
-      ?? [];
+      ?? null;
 
-    if (!Array.isArray(collections) || collections.length === 0) return [];
+    if (!Array.isArray(collections) || collections.length === 0) {
+      // Fallback: deep-search the entire __NEXT_DATA__ tree for arrays of titled objects
+      collections = deepSearchArrays(data);
+    }
+
+    if (!collections || collections.length === 0) return [];
 
     return collections
       .map((item: Record<string, unknown>): SourceItem | null => {
-        const title = (item.title || item.Title || item.name) as string | undefined;
+        const title = (item.title || item.Title || item.name || item.subject || item.Subject || item.headline) as string | undefined;
         if (!title) return null;
 
         const link = buildAbsoluteLink(
-          (item.url || item.UrlName || item.path || item.link) as string | undefined,
+          (item.url || item.UrlName || item.path || item.link || item.slug || item.href) as string | undefined,
           origin,
         );
         const desc = (item.description || item.Description || item.summary || "") as string;
-        const date = (item.publishDate || item.PublishDate || item.date || item.created) as string | undefined;
+        const date = (item.publishDate || item.PublishDate || item.date || item.created || item.lastModified || item.updatedDate) as string | undefined;
 
         return {
           title: stripHtml(title),
@@ -155,6 +160,49 @@ function parseNextData(html: string, origin: string): SourceItem[] {
     console.warn(`[SCRAPE] Failed to parse __NEXT_DATA__: ${(err as Error).message}`);
     return [];
   }
+}
+
+/**
+ * Recursively search a JSON tree for the first array of ≥3 objects
+ * containing title-like fields. Used as fallback when hardcoded
+ * __NEXT_DATA__ paths don't match (e.g. React Query dehydrated state).
+ */
+const TITLE_KEYS = new Set(["title", "Title", "name", "subject", "Subject", "headline"]);
+
+function deepSearchArrays(
+  obj: unknown,
+  depth = 0,
+  maxDepth = 8,
+): Record<string, unknown>[] | null {
+  if (depth > maxDepth || obj === null || obj === undefined) return null;
+  if (typeof obj !== "object") return null;
+
+  if (Array.isArray(obj)) {
+    // Check if this array has ≥3 objects with a title-like field
+    if (obj.length >= 3) {
+      const withTitle = obj.filter(
+        (item) =>
+          item && typeof item === "object" && !Array.isArray(item) &&
+          Object.keys(item as Record<string, unknown>).some((k) => TITLE_KEYS.has(k)),
+      );
+      if (withTitle.length >= 3) {
+        return withTitle as Record<string, unknown>[];
+      }
+    }
+    // Search inside array elements
+    for (const el of obj) {
+      const found = deepSearchArrays(el, depth + 1, maxDepth);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  // Search object values
+  for (const val of Object.values(obj as Record<string, unknown>)) {
+    const found = deepSearchArrays(val, depth + 1, maxDepth);
+    if (found) return found;
+  }
+  return null;
 }
 
 /**

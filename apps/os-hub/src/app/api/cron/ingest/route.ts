@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { cronSecret } from "@/config/integrations";
 import { prisma } from "@/lib/prisma";
 import { isTableOrConnectionError } from "@/lib/content-factory/validate";
-import { fetchSourceItems, isPollableType, toIdeaSourceType } from "@/lib/content-factory/ingestion/poll-dispatcher";
+import { fetchSourceItems, isPollableType, toIdeaSourceType, parseFlexibleDate } from "@/lib/content-factory/ingestion/poll-dispatcher";
 import { closeBrowser } from "@/lib/content-factory/ingestion/browser-scraper";
 import { generateFingerprint, normalizeUrl } from "@/lib/content-factory/ingestion/dedup";
 import { scoreIdea } from "@/lib/content-factory/ingestion/scoring";
@@ -60,6 +60,7 @@ export async function GET(request: Request) {
         const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL", source.url);
 
         let newCount = 0;
+        let skipped = 0;
         for (const item of items) {
           try {
             const fingerprint = generateFingerprint(item.title);
@@ -79,7 +80,10 @@ export async function GET(request: Request) {
 
             if (existing) continue;
 
-            const publishedAt = item.pubDate ? new Date(item.pubDate) : null;
+            const publishedAt = parseFlexibleDate(item.pubDate);
+            // Skip items older than 2024
+            if (publishedAt && publishedAt < new Date("2024-01-01")) { skipped++; continue; }
+
             const breakdown = scoreIdea({
               title: item.title,
               description: item.description,

@@ -84,7 +84,10 @@
 }
 
 .unavailableNotice {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md, 1rem);
   padding: var(--space-sm) var(--space-md);
   margin-bottom: var(--space-lg);
   background: var(--surface-muted, #f9fafb);
@@ -92,6 +95,53 @@
   border-radius: var(--radius-md, 8px);
   color: var(--text-caption, #9ca3af);
   font-size: var(--font-size-sm, 0.875rem);
+}
+
+.retryButton {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--brand-navy, #2563eb);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--brand-navy, #2563eb);
+  cursor: pointer;
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 500;
+  transition: all var(--transition-fast, 0.15s);
+}
+
+.retryButton:hover {
+  background: #eff6ff;
+}
+
+.retryNotice {
+  text-align: center;
+  padding: var(--space-xs, 0.25rem) var(--space-md, 1rem);
+  margin-bottom: var(--space-md, 1rem);
+  color: var(--brand-gold, #c9a84c);
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 500;
+}
+
+/* ——— Shimmer skeleton ——— */
+
+.shimmerValue {
+  display: inline-block;
+  width: 2.5rem;
+  height: 1.5rem;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--border-subtle, #e5e7eb) 25%,
+    var(--surface-muted, #f3f4f6) 50%,
+    var(--border-subtle, #e5e7eb) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* ——— Pipeline Summary ——— */
