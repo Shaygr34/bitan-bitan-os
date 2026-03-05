@@ -80,9 +80,13 @@ export async function GET(request: Request) {
         const maxAgeMs = ((source as { maxAgeDays?: number }).maxAgeDays || 30) * 24 * 60 * 60 * 1000;
         const cutoffDate = new Date(Date.now() - maxAgeMs);
         const windowedItems = items.filter((item) => {
-          if (!item.pubDate) return true; // Keep dateless items (they get recency=0 in scoring)
+          if (!item.pubDate) {
+            // Dateless items from BROWSER/SCRAPE: reject (likely old archived content)
+            // Dateless items from RSS/API: keep (feed misconfiguration, still current)
+            return source.type !== "BROWSER" && source.type !== "SCRAPE";
+          }
           const d = parseFlexibleDate(item.pubDate);
-          if (!d) return true;
+          if (!d) return source.type !== "BROWSER" && source.type !== "SCRAPE";
           return d >= cutoffDate;
         });
         const droppedByAge = items.length - windowedItems.length;

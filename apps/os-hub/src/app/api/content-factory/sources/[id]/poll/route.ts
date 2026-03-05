@@ -41,9 +41,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       const maxAgeMs = ((source as { maxAgeDays?: number }).maxAgeDays || 30) * 24 * 60 * 60 * 1000;
       const cutoffDate = new Date(Date.now() - maxAgeMs);
       const windowedItems = items.filter((item) => {
-        if (!item.pubDate) return true;
+        if (!item.pubDate) {
+          // Dateless items from BROWSER/SCRAPE: reject (likely old archived content)
+          return source.type !== "BROWSER" && source.type !== "SCRAPE";
+        }
         const d = parseFlexibleDate(item.pubDate);
-        if (!d) return true;
+        if (!d) return source.type !== "BROWSER" && source.type !== "SCRAPE";
         return d >= cutoffDate;
       });
       const droppedByAge = items.length - windowedItems.length;

@@ -18,7 +18,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   if (!isValidUuid(id)) return errorJson(400, "INVALID_ID", "Invalid idea ID");
 
   try {
+    console.log(`[DRAFT] Starting draft generation for idea ${id}`);
+    const startTime = Date.now();
     const result = await generateDraft(prisma, id);
+    console.log(`[DRAFT] Complete in ${Date.now() - startTime}ms — article: ${result.articleId}`);
 
     return NextResponse.json(
       {
@@ -31,6 +34,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   } catch (e) {
     const msg = (e as Error).message;
+    console.error(`[DRAFT] Failed for idea ${id}:`, msg);
 
     if (msg.includes("not found")) {
       return errorJson(404, "NOT_FOUND", msg);
@@ -39,14 +43,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       return errorJson(400, "INVALID_STATUS", msg);
     }
     if (msg.includes("ANTHROPIC_API_KEY")) {
-      return errorJson(500, "CONFIG_ERROR", "AI service not configured");
+      return errorJson(500, "CONFIG_ERROR", "AI service not configured — check ANTHROPIC_API_KEY");
     }
-    if (msg.includes("timeout")) {
-      return errorJson(504, "TIMEOUT", "AI generation timed out. Please try again.");
+    if (msg.includes("timeout") || msg.includes("AbortError")) {
+      return errorJson(504, "TIMEOUT", "יצירת הטיוטה נכשלה (timeout). נסו שוב — זמני תגובה משתנים.");
+    }
+    if (msg.includes("Claude API error")) {
+      return errorJson(502, "AI_ERROR", `שגיאת AI: ${msg.slice(0, 200)}`);
     }
 
-    const detail = (e as Error).message ?? "unknown error";
-    console.error(`POST /api/content-factory/ideas/${id}/draft failed:`, detail, e);
-    return errorJson(500, "INTERNAL_ERROR", `Failed to generate draft: ${detail}`);
+    console.error(`POST /api/content-factory/ideas/${id}/draft failed:`, msg, e);
+    return errorJson(500, "INTERNAL_ERROR", `שגיאה ביצירת טיוטה: ${msg.slice(0, 200)}`);
   }
 }

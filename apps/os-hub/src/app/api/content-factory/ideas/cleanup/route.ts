@@ -2,7 +2,8 @@
  * DELETE /api/content-factory/ideas/cleanup?before=2024-01-01
  *
  * Admin endpoint to delete ideas with sourcePublishedAt before a cutoff date.
- * Also deletes ideas with null sourcePublishedAt from BTL sources.
+ * Also deletes ideas with null sourcePublishedAt from BROWSER/SCRAPE sources
+ * (Calcalist, gov.il, BTL — undated items from these sources are likely old).
  *
  * Protected by CRON_SECRET.
  */
@@ -44,33 +45,34 @@ export async function DELETE(request: NextRequest) {
       },
     });
 
-    // Delete ideas with null sourcePublishedAt from BTL sources
-    const btlSources = await prisma.source.findMany({
-      where: { url: { contains: "btl.gov.il" } },
+    // Delete ideas with null sourcePublishedAt from BROWSER/SCRAPE sources
+    // These sources scrape rendered pages — undated items are likely old
+    const scrapedSources = await prisma.source.findMany({
+      where: { type: { in: ["BROWSER", "SCRAPE"] } },
       select: { id: true },
     });
-    const btlSourceIds = btlSources.map((s) => s.id);
+    const scrapedSourceIds = scrapedSources.map((s) => s.id);
 
-    let nullDateBtl = { count: 0 };
-    if (btlSourceIds.length > 0) {
-      nullDateBtl = await prisma.idea.deleteMany({
+    let nullDateScraped = { count: 0 };
+    if (scrapedSourceIds.length > 0) {
+      nullDateScraped = await prisma.idea.deleteMany({
         where: {
           sourcePublishedAt: null,
-          sourceId: { in: btlSourceIds },
+          sourceId: { in: scrapedSourceIds },
         },
       });
     }
 
     console.log(
       `[Cleanup] Deleted ${oldItems.count} ideas before ${before}, ` +
-      `${nullDateBtl.count} null-date BTL ideas`,
+      `${nullDateScraped.count} null-date BROWSER/SCRAPE ideas`,
     );
 
     return NextResponse.json({
       deleted: {
         oldItems: oldItems.count,
-        nullDateBtl: nullDateBtl.count,
-        total: oldItems.count + nullDateBtl.count,
+        nullDateScraped: nullDateScraped.count,
+        total: oldItems.count + nullDateScraped.count,
       },
       cutoffDate: before,
     });
