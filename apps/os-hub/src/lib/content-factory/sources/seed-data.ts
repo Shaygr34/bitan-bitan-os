@@ -161,7 +161,7 @@ export const SEED_SOURCES: SeedSource[] = [
     notes: "Browser scrape — Calcalist tags/כלכלה page. Verified working Mar 2026.",
   },
 
-  // ── Globes ASMX API (structured XML endpoint) ──────────────────────
+  // ── Globes ASMX API — DEAD (HTTP 500), deactivated ────────────────
   {
     name: "גלובס — ASMX כתבות אחרונות",
     nameHe: "גלובס — כתבות אחרונות (API)",
@@ -171,8 +171,8 @@ export const SEED_SOURCES: SeedSource[] = [
     category: "Business-News",
     tags: ["compliance", "corp-tax", "interest-rates"],
     pollIntervalMin: 120,
-    active: true,
-    notes: "Globes ASMX web service — Last20Articles. XML format. Broader coverage than individual RSS feeds.",
+    active: false,
+    notes: "DEAD — Last20Articles returns HTTP 500 since at least 2026-03-05. Deactivated. Coverage provided by the 5 Globes RSS feeds instead.",
   },
 
   // ── Gov.il (BROWSER — Chromium bypasses WAF) ──────────────────────
