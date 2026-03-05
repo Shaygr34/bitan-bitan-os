@@ -22,7 +22,7 @@ const PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 const MAX_RETRIES = 3;
-const TIMEOUT_MS = 55_000; // 55s — leaves 45s margin within 100s maxDuration
+const TIMEOUT_MS = 75_000; // 75s — leaves 25s margin within 100s maxDuration
 
 function calculateCost(
   inputTokens: number,
