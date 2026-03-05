@@ -112,6 +112,7 @@ export default function SourcesPage() {
   const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
   const [historyCache, setHistoryCache] = useState<Record<string, { entries: HistoryEntry[]; ideaCount: number }>>({});
   const [viewMode, setViewMode] = useState<"cards" | "table">("table");
+  const [scanResults, setScanResults] = useState<Record<string, { created: number; skipped: number; error?: string }>>({});
 
   // Wizard state
   const [wizardStep, setWizardStep] = useState<0 | 1 | 2 | 3>(0); // 0=closed, 1=url, 2=preview, 3=confirm
@@ -218,20 +219,25 @@ export default function SourcesPage() {
 
   async function handlePoll(sourceId: string) {
     setPolling(sourceId);
+    // Clear previous result for this source
+    setScanResults((prev) => { const next = { ...prev }; delete next[sourceId]; return next; });
     try {
       const res = await fetch(`/api/content-factory/sources/${sourceId}/poll`, { method: "POST" });
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
       const hasErrors = data.errors && data.errors.length > 0;
-      showToast({
-        type: hasErrors && data.created === 0 ? "error" : "success",
-        message: hasErrors
-          ? `נסרק: ${data.created} חדשים, ${data.skipped} כפולים — שגיאה: ${data.errors[0]}`
-          : `נסרק: ${data.created} חדשים, ${data.skipped} כפולים`,
-      });
+      const result = {
+        created: data.created ?? 0,
+        skipped: data.skipped ?? 0,
+        error: hasErrors ? data.errors[0] : undefined,
+      };
+      setScanResults((prev) => ({ ...prev, [sourceId]: result }));
+      // Auto-clear after 8s
+      setTimeout(() => setScanResults((prev) => { const next = { ...prev }; delete next[sourceId]; return next; }), 8000);
       await fetchSources();
     } catch (err) {
-      showToast({ type: "error", message: `שגיאה בסריקה: ${(err as Error).message}` });
+      setScanResults((prev) => ({ ...prev, [sourceId]: { created: 0, skipped: 0, error: (err as Error).message } }));
+      setTimeout(() => setScanResults((prev) => { const next = { ...prev }; delete next[sourceId]; return next; }), 8000);
     } finally {
       setPolling(null);
     }
@@ -619,7 +625,7 @@ export default function SourcesPage() {
                     )}
                   </td>
                   <td>
-                    <div style={{ display: "flex", gap: "4px" }}>
+                    <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap" }}>
                       {(source.type === "RSS" || source.type === "API" || source.type === "SCRAPE" || source.type === "BROWSER") && (
                         <button
                           className={`btn-secondary ${styles.pollBtn}`}
@@ -628,6 +634,17 @@ export default function SourcesPage() {
                         >
                           {polling === source.id ? "..." : "סרוק"}
                         </button>
+                      )}
+                      {scanResults[source.id] && (
+                        <span style={{
+                          fontSize: "var(--font-size-xs, 0.75rem)",
+                          fontWeight: 500,
+                          color: scanResults[source.id].error ? "#ef4444" : scanResults[source.id].created > 0 ? "#10b981" : "#6b7280",
+                        }}>
+                          {scanResults[source.id].error
+                            ? `שגיאה`
+                            : `+${scanResults[source.id].created}`}
+                        </span>
                       )}
                       <button
                         className={styles.expandBtn}
@@ -830,6 +847,17 @@ export default function SourcesPage() {
                     >
                       {polling === source.id ? "סורק..." : "סרוק"}
                     </button>
+                  )}
+                  {scanResults[source.id] && (
+                    <span style={{
+                      fontSize: "var(--font-size-xs, 0.75rem)",
+                      fontWeight: 500,
+                      color: scanResults[source.id].error ? "#ef4444" : scanResults[source.id].created > 0 ? "#10b981" : "#6b7280",
+                    }}>
+                      {scanResults[source.id].error
+                        ? `שגיאה: ${scanResults[source.id].error!.slice(0, 30)}`
+                        : `+${scanResults[source.id].created} חדשים, ${scanResults[source.id].skipped} כפולים`}
+                    </span>
                   )}
                   <button
                     className={styles.expandBtn}
