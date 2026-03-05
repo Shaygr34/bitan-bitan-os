@@ -117,7 +117,10 @@ export async function fetchBrowserItems(url: string): Promise<SourceItem[]> {
     console.log(`[BROWSER] Navigating to: ${url}`);
     await page.goto(url, { waitUntil: "networkidle2", timeout: 45_000 });
 
-    // Route to site-specific extractor
+    // Route to site-specific extractor (BTL before generic gov.il)
+    if (url.includes("btl.gov.il")) {
+      return await extractBtlItems(page, url);
+    }
     if (url.includes("gov.il")) {
       return await extractGovIlItems(page, url);
     }
@@ -131,6 +134,32 @@ export async function fetchBrowserItems(url: string): Promise<SourceItem[]> {
   }
 }
 
+// ── BTL (Bituach Leumi) extractor ──────────────────────────────────
+
+/**
+ * BTL SharePoint pages: uses `td[class*="il-ItemTitleTd"]` for item lists.
+ * Skips the generic gov.il waitForSelector (which wastes 15s on wrong selectors)
+ * and goes straight to the correct SharePoint selector, then reuses parseGovIlHtml().
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function extractBtlItems(page: any, url: string): Promise<SourceItem[]> {
+  // Wait for SharePoint item table cells
+  await page.waitForSelector(
+    'td[class*="il-ItemTitleTd"], [class*="ms-vb2"], table[class*="ms-listviewtable"]',
+    { timeout: 15_000 },
+  ).catch(() => {
+    console.warn("[BROWSER] BTL: no SharePoint selectors found, proceeding with raw HTML");
+  });
+
+  const html = await page.content();
+  const origin = new URL(url).origin;
+  console.log(`[BROWSER] BTL HTML: ${html.length} chars`);
+
+  const items = parseGovIlHtml(html, origin);
+  console.log(`[BROWSER] BTL extracted ${items.length} items`);
+  return items;
+}
+
 // ── Gov.il extractor ────────────────────────────────────────────────
 
 /**
@@ -139,9 +168,9 @@ export async function fetchBrowserItems(url: string): Promise<SourceItem[]> {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function extractGovIlItems(page: any, url: string): Promise<SourceItem[]> {
-  // Wait for content to render
+  // Wait for content — prioritize __NEXT_DATA__ (instant on Next.js pages)
   await page.waitForSelector(
-    '[class*="result"], [class*="publication"], #__NEXT_DATA__, [class*="card"]',
+    'script#__NEXT_DATA__, [class*="result"], [class*="publication"], [class*="card"]',
     { timeout: 15_000 },
   ).catch(() => {
     console.warn("[BROWSER] Gov.il: no expected selectors found, proceeding with raw HTML");

@@ -21,13 +21,14 @@ export interface ScoreBreakdown {
  * Calculate recency score based on hours since publication.
  */
 function recencyScore(publishedAt: Date | null): number {
-  if (!publishedAt) return 5; // Unknown age → minimum score
+  if (!publishedAt) return 0;           // Unknown date → 0 (not 5)
   const hoursAge = (Date.now() - publishedAt.getTime()) / (1000 * 60 * 60);
   if (hoursAge < 6) return 25;
   if (hoursAge < 24) return 20;
   if (hoursAge < 48) return 15;
-  if (hoursAge < 168) return 10; // 7 days
-  return 5;
+  if (hoursAge < 168) return 10;        // 7 days
+  if (hoursAge < 720) return 5;         // 30 days
+  return 0;                              // Older than 30 days → 0
 }
 
 /**

@@ -2,7 +2,7 @@
  * Anthropic Claude API client wrapper.
  *
  * Uses native fetch (no SDK dependency) with token counting, cost calculation,
- * timeout (120s), and retry on 429 (exponential backoff, max 3 attempts).
+ * timeout (55s), and retry on 429 (exponential backoff, max 3 attempts).
  */
 
 export interface ClaudeResponse {
@@ -22,7 +22,7 @@ const PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 const MAX_RETRIES = 3;
-const TIMEOUT_MS = 90_000;
+const TIMEOUT_MS = 55_000; // 55s — leaves 45s margin within 100s maxDuration
 
 function calculateCost(
   inputTokens: number,
@@ -139,7 +139,7 @@ export async function complete(params: {
 
       if ((err as Error).name === "AbortError") {
         console.error(`[Claude] Timeout after ${TIMEOUT_MS}ms (attempt ${attempt + 1})`);
-        throw new Error(`Claude API timeout after ${TIMEOUT_MS}ms`);
+        throw new Error(`Claude API timeout after ${TIMEOUT_MS / 1000}s`);
       }
 
       if (attempt < MAX_RETRIES) {
