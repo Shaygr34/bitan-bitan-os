@@ -9,24 +9,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { cronSecret } from "@/config/integrations";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function DELETE(request: NextRequest) {
-  // Auth check
-  if (cronSecret) {
-    const authHeader = request.headers.get("authorization") ?? "";
-    const token = authHeader.replace(/^Bearer\s+/i, "");
-    if (token !== cronSecret) {
-      return NextResponse.json(
-        { error: { code: "UNAUTHORIZED", message: "Invalid or missing CRON_SECRET" } },
-        { status: 401 },
-      );
-    }
-  }
 
   const before = request.nextUrl.searchParams.get("before") ?? "2024-01-01";
   const cutoff = new Date(before);
