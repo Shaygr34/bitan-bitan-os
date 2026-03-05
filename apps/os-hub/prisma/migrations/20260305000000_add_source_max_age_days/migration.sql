@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "sources" ADD COLUMN "maxAgeDays" INTEGER NOT NULL DEFAULT 30;

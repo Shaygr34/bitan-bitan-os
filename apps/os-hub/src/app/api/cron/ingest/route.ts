@@ -39,10 +39,27 @@ export async function GET(request: Request) {
     const allActiveSources = await prisma.source.findMany({
       where: { active: true },
     });
-    const sources = allActiveSources.filter((s: { type: string }) => isPollableType(s.type));
+    const pollable = allActiveSources.filter((s: { type: string }) => isPollableType(s.type));
+
+    if (pollable.length === 0) {
+      return NextResponse.json({ message: "No active pollable sources", results: [] });
+    }
+
+    // Only poll sources that are due based on pollIntervalMin
+    const now = Date.now();
+    const sources = pollable.filter((s) => {
+      if (!s.lastPolledAt) return true; // Never polled — always due
+      const intervalMs = (s.pollIntervalMin || 60) * 60 * 1000;
+      return now - s.lastPolledAt.getTime() >= intervalMs;
+    });
+
+    const skippedCount = pollable.length - sources.length;
+    if (skippedCount > 0) {
+      console.log(`[Cron] Skipping ${skippedCount} sources (not yet due for polling)`);
+    }
 
     if (sources.length === 0) {
-      return NextResponse.json({ message: "No active pollable sources", results: [] });
+      return NextResponse.json({ message: `No sources due for polling (${skippedCount} skipped)`, results: [] });
     }
 
     const results: Array<{
@@ -59,9 +76,23 @@ export async function GET(request: Request) {
         console.log(`[Cron] Polling source: ${source.name} (${source.id}), type=${source.type}`);
         const items = await fetchSourceItems(source.type as "RSS" | "API" | "SCRAPE" | "BROWSER" | "MANUAL", source.url);
 
+        // Filter items by source's maxAgeDays window
+        const maxAgeMs = ((source as { maxAgeDays?: number }).maxAgeDays || 30) * 24 * 60 * 60 * 1000;
+        const cutoffDate = new Date(Date.now() - maxAgeMs);
+        const windowedItems = items.filter((item) => {
+          if (!item.pubDate) return true; // Keep dateless items (they get recency=0 in scoring)
+          const d = parseFlexibleDate(item.pubDate);
+          if (!d) return true;
+          return d >= cutoffDate;
+        });
+        const droppedByAge = items.length - windowedItems.length;
+        if (droppedByAge > 0) {
+          console.log(`[Cron] ${source.name}: Dropped ${droppedByAge} items older than ${(source as { maxAgeDays?: number }).maxAgeDays || 30} days`);
+        }
+
         let newCount = 0;
         let skipped = 0;
-        for (const item of items) {
+        for (const item of windowedItems) {
           try {
             const fingerprint = generateFingerprint(item.title);
             const normalizedLink = item.link ? normalizeUrl(item.link) : null;

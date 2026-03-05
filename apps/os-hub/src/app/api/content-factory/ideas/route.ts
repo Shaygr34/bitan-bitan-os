@@ -70,11 +70,15 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
+    const sourceIdFilter = searchParams.get("sourceId");
     const sortParam = searchParams.get("sort"); // e.g. "score:desc"
 
     const where: Record<string, unknown> = {};
     if (statusFilter) {
       where.status = statusFilter;
+    }
+    if (sourceIdFilter) {
+      where.sourceId = sourceIdFilter;
     }
 
     let orderBy: Record<string, string> = { createdAt: "desc" };

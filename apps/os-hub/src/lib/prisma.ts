@@ -4,12 +4,20 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+function getDatabaseUrl(): string | undefined {
+  const base = process.env.DATABASE_URL;
+  if (!base) return undefined;
+  const separator = base.includes("?") ? "&" : "?";
+  return `${base}${separator}connection_limit=5&pool_timeout=20&connect_timeout=15`;
+}
+
 function createPrismaClient(): PrismaClient {
-  if (!process.env.DATABASE_URL) {
+  const url = getDatabaseUrl();
+  if (!url) {
     console.warn("DATABASE_URL not set — Prisma client will connect lazily at runtime");
   }
   return new PrismaClient({
-    datasourceUrl: process.env.DATABASE_URL,
+    datasourceUrl: url,
     log: process.env.NODE_ENV === "production" ? ["error"] : ["warn", "error"],
   });
 }
