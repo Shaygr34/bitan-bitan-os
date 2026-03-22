@@ -1,16 +1,17 @@
 .dialog {
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 0;
   max-width: 900px;
   width: 95vw;
   max-height: 85vh;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-xl);
   background: var(--background);
 }
 
 .dialog::backdrop {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
 }
 
 .content {
@@ -138,7 +139,7 @@
 }
 
 .table tbody tr:hover {
-  background: rgba(192, 176, 112, 0.04);
+  background: rgba(197, 165, 114, 0.04);
 }
 
 /* ——— Truncation notice ——— */

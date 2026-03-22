@@ -1,11 +1,10 @@
 .header {
   margin-bottom: var(--space-3xl);
-  padding-bottom: var(--space-lg);
-  background: var(--background);
-  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-xl);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  animation: fadeUp 400ms ease-out both;
 }
 
 .titleBlock {
@@ -13,19 +12,26 @@
 }
 
 .title {
-  font-size: 1.25rem;
+  font-size: var(--font-size-h1);
   font-weight: var(--font-weight-bold);
   line-height: var(--line-height-tight);
   letter-spacing: var(--tracking-tight);
   color: var(--text-heading);
-  border-bottom: 1px solid var(--separator-gold);
-  padding-bottom: 6px;
-  display: inline-block;
+}
+
+.underline {
+  display: block;
+  width: 80px;
+  height: 3px;
+  background: var(--brand-gold);
+  margin-top: var(--space-sm);
+  transform-origin: right;
+  animation: underlineGrow 600ms ease-out 200ms both;
 }
 
 .description {
-  margin-top: var(--space-xs);
-  font-size: var(--font-size-sm);
+  margin-top: var(--space-md);
+  font-size: var(--font-size-body);
   color: var(--text-caption);
   line-height: var(--line-height-relaxed);
   max-width: 520px;
@@ -33,4 +39,5 @@
 
 .actionArea {
   flex-shrink: 0;
+  animation: fadeIn 400ms ease-out 300ms both;
 }

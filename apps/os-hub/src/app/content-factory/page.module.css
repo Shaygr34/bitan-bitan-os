@@ -11,11 +11,6 @@
   text-decoration: none;
   color: inherit;
   display: block;
-  transition: transform var(--transition-fast);
-}
-
-.cardLink:hover {
-  transform: translateY(-2px);
 }
 
 .cardInner {
@@ -73,7 +68,7 @@
 .loadingBarInner {
   height: 100%;
   width: 40%;
-  background: var(--brand-gold, #c9a84c);
+  background: var(--brand-gold, #C5A572);
   border-radius: 2px;
   animation: loadSlide 1.2s ease-in-out infinite;
 }
@@ -99,10 +94,10 @@
 
 .retryButton {
   padding: 0.35rem 0.75rem;
-  border: 1px solid var(--brand-navy, #2563eb);
+  border: 1px solid var(--brand-navy, #1B2A4A);
   border-radius: 6px;
   background: transparent;
-  color: var(--brand-navy, #2563eb);
+  color: var(--brand-navy, #1B2A4A);
   cursor: pointer;
   font-size: var(--font-size-sm, 0.875rem);
   font-weight: 500;
@@ -110,14 +105,14 @@
 }
 
 .retryButton:hover {
-  background: #eff6ff;
+  background: rgba(27, 42, 74, 0.04);
 }
 
 .retryNotice {
   text-align: center;
   padding: var(--space-xs, 0.25rem) var(--space-md, 1rem);
   margin-bottom: var(--space-md, 1rem);
-  color: var(--brand-gold, #c9a84c);
+  color: var(--brand-gold, #C5A572);
   font-size: var(--font-size-sm, 0.875rem);
   font-weight: 500;
 }
@@ -161,6 +156,8 @@
   height: 2px;
   background: var(--brand-gold);
   margin-bottom: var(--space-xl);
+  transform-origin: right;
+  animation: underlineGrow 600ms ease-out both;
 }
 
 .pipeline {

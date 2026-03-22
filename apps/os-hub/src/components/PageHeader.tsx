@@ -11,6 +11,7 @@ export default function PageHeader({ title, description, action }: PageHeaderPro
     <header className={styles.header}>
       <div className={styles.titleBlock}>
         <h1 className={styles.title}>{title}</h1>
+        <span className={styles.underline} />
         {description && <p className={styles.description}>{description}</p>}
       </div>
       {action && <div className={styles.actionArea}>{action}</div>}

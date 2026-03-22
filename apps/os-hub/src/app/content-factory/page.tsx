@@ -108,7 +108,7 @@ export default function ContentFactoryHub() {
   }
 
   return (
-    <div>
+    <div className="animate-page">
       <PageHeader
         title="מפעל התוכן"
         description="ניהול מחזור התוכן — ממקור ועד פרסום"
@@ -139,7 +139,7 @@ export default function ContentFactoryHub() {
       )}
 
       {/* Navigation Cards */}
-      <div className={styles.cardsGrid}>
+      <div className={`${styles.cardsGrid} animate-stagger`}>
         {NAV_CARDS.map((card) => (
           <Link key={card.href} href={card.href} className={styles.cardLink}>
             <Card>

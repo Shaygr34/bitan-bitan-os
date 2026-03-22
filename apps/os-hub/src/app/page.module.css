@@ -26,7 +26,13 @@
   background: var(--surface-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border-top: 3px solid var(--brand-gold);
 }
+
+.statCard:nth-child(1) { animation: statPop 500ms ease-out 100ms both; }
+.statCard:nth-child(2) { animation: statPop 500ms ease-out 200ms both; }
+.statCard:nth-child(3) { animation: statPop 500ms ease-out 300ms both; }
 
 .statLabel {
   font-size: var(--font-size-xs);
@@ -37,7 +43,7 @@
 }
 
 .statValue {
-  font-size: var(--font-size-h2);
+  font-size: var(--font-size-h1);
   font-weight: var(--font-weight-bold);
   color: var(--text-heading);
   font-variant-numeric: tabular-nums;
@@ -107,7 +113,7 @@
 }
 
 .sectionTitle {
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--text-heading);
 }
@@ -117,6 +123,8 @@
   background: var(--separator-gold);
   margin-bottom: var(--space-lg);
   margin-top: var(--space-sm);
+  transform-origin: right;
+  animation: underlineGrow 600ms ease-out both;
 }
 
 .modulesGrid {
@@ -127,7 +135,6 @@
 
 .moduleLink {
   display: block;
-  transition: border-color var(--transition-fast);
 }
 
 .moduleName {
@@ -144,12 +151,15 @@
 }
 
 .comingSoonCard {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: default;
+  pointer-events: none;
 }
 
 .comingSoonCard:hover {
   border-color: var(--border) !important;
+  transform: none !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 
 .moduleHeader {
@@ -168,7 +178,7 @@
   font-weight: var(--font-weight-semibold);
   color: var(--separator-gold);
   border: 1px solid var(--separator-gold);
-  border-radius: var(--radius);
+  border-radius: 9999px;
   padding: var(--space-xs) var(--space-sm);
   white-space: nowrap;
 }

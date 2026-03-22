@@ -22,13 +22,13 @@
 }
 
 .filterPill:hover {
-  border-color: var(--brand-navy, #1e3a5f);
+  border-color: var(--brand-navy, #1B2A4A);
 }
 
 .filterPillActive {
   composes: filterPill;
-  border: 2px solid var(--brand-navy, #2563eb);
-  background: var(--surface-muted, #eff6ff);
+  border: 2px solid var(--brand-navy, #1B2A4A);
+  background: var(--surface-muted, rgba(27, 42, 74, 0.04));
   font-weight: 600;
 }
 
@@ -44,14 +44,14 @@
   border-radius: 6px;
   background: #fff;
   font-size: var(--font-size-sm, 0.85rem);
-  color: var(--brand-navy, #1e3a5f);
+  color: var(--brand-navy, #1B2A4A);
   cursor: pointer;
   max-width: 180px;
 }
 
 .sourceSelect:focus {
   outline: none;
-  border-color: var(--brand-navy, #2563eb);
+  border-color: var(--brand-navy, #1B2A4A);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
@@ -61,8 +61,8 @@
 
 .showAllPillActive {
   composes: filterPill;
-  border: 2px solid var(--brand-gold, #f59e0b);
-  background: #fffbeb;
+  border: 2px solid var(--brand-gold, #C5A572);
+  background: rgba(197, 165, 114, 0.06);
   font-weight: 600;
 }
 
@@ -76,20 +76,20 @@
 
 .ideaCard {
   border: 1px solid var(--border-subtle, #e5e7eb);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-lg);
   padding: 1rem 1.25rem;
-  background: #fff;
-  transition: all 0.2s;
+  background: var(--surface-card);
+  transition: all var(--transition-normal);
 }
 
 .ideaCard:hover {
-  border-color: var(--brand-gold, #c9a84c);
+  border-color: var(--brand-gold, #C5A572);
 }
 
 .ideaCardDrafting {
   composes: ideaCard;
-  border: 2px solid var(--brand-navy, #2563eb);
-  background: #eff6ff;
+  border: 2px solid var(--brand-navy, #1B2A4A);
+  background: rgba(27, 42, 74, 0.04);
 }
 
 .ideaCardRejected {
@@ -172,7 +172,7 @@
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--brand-navy, #1e3a5f);
+  color: var(--brand-navy, #1B2A4A);
 }
 
 .ideaDescription {
@@ -207,13 +207,13 @@
 }
 
 .sourceLink {
-  color: var(--brand-navy, #2563eb);
+  color: var(--brand-navy, #1B2A4A);
   text-decoration: underline;
   font-size: 0.8rem;
 }
 
 .sourceLink:hover {
-  color: var(--brand-gold, #c9a84c);
+  color: var(--brand-gold, #C5A572);
 }
 
 /* ——— Actions ——— */
@@ -227,7 +227,7 @@
 
 .draftingLabel {
   font-size: 0.8rem;
-  color: var(--brand-navy, #2563eb);
+  color: var(--brand-navy, #1B2A4A);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -298,8 +298,8 @@
 
 .retryBtn {
   background: none;
-  border: 1px solid var(--brand-navy, #2563eb);
-  color: var(--brand-navy, #2563eb);
+  border: 1px solid var(--brand-navy, #1B2A4A);
+  color: var(--brand-navy, #1B2A4A);
   cursor: pointer;
   font-size: 0.8rem;
   padding: 0.2rem 0.5rem;
@@ -307,7 +307,7 @@
 }
 
 .retryBtn:hover {
-  background: #eff6ff;
+  background: rgba(27, 42, 74, 0.04);
 }
 
 /* ——— Poll progress ——— */
@@ -316,7 +316,7 @@
   margin-bottom: var(--space-lg, 1.5rem);
   padding: 1rem 1.25rem;
   background: var(--surface-muted, #f9fafb);
-  border: 1px solid var(--brand-gold, #c9a84c);
+  border: 1px solid var(--brand-gold, #C5A572);
   border-radius: var(--radius-md, 8px);
 }
 
@@ -327,7 +327,7 @@
   margin-bottom: 0.5rem;
   font-size: var(--font-size-sm, 0.875rem);
   font-weight: 600;
-  color: var(--brand-navy, #1e3a5f);
+  color: var(--brand-navy, #1B2A4A);
 }
 
 .pollProgressBar {
@@ -340,7 +340,7 @@
 
 .pollProgressFill {
   height: 100%;
-  background: var(--brand-gold, #c9a84c);
+  background: var(--brand-gold, #C5A572);
   border-radius: 4px;
   transition: width 0.3s ease;
 }
@@ -394,7 +394,7 @@
 
 .createInput:focus {
   outline: none;
-  border-color: var(--brand-navy, #2563eb);
+  border-color: var(--brand-navy, #1B2A4A);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
