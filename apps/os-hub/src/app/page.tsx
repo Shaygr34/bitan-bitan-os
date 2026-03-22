@@ -81,7 +81,7 @@ export default function Home() {
   const runsInReview = runs.filter((r) => r.status === "review").length;
 
   return (
-    <div>
+    <div className="animate-page">
       <PageHeader
         title={t("dashboard.title")}
         description={t("dashboard.subtitle")}
@@ -91,7 +91,7 @@ export default function Home() {
       <section className={styles.modulesSection}>
         <h2 className={styles.sectionTitle}>{t("dashboard.modules.title")}</h2>
         <div className={styles.goldSeparator} />
-        <div className={styles.modulesGrid}>
+        <div className={`${styles.modulesGrid} animate-stagger`}>
           {modules.map((mod) =>
             mod.comingSoon ? (
               <div key={mod.key} className={styles.moduleLink}>

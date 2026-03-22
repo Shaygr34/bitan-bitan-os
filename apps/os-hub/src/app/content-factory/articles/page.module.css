@@ -37,7 +37,7 @@
 }
 
 .filterBtnActive:hover {
-  background: #1a2d52;
+  background: #243a5e;
 }
 
 .searchInput {
@@ -77,7 +77,7 @@
 }
 
 .clickableRow:hover {
-  background: rgba(192, 176, 112, 0.04);
+  background: rgba(197, 165, 114, 0.04);
 }
 
 .dateCell {

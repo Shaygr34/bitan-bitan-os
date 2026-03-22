@@ -21,19 +21,19 @@
   gap: var(--space-lg);
   padding: var(--space-6xl) var(--space-2xl);
   border: 2px dashed var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   background: var(--surface-muted);
   cursor: pointer;
   transition:
-    border-color var(--transition-fast),
-    background var(--transition-fast),
-    box-shadow var(--transition-fast);
+    border-color var(--transition-normal),
+    background var(--transition-normal),
+    box-shadow var(--transition-normal);
   text-align: center;
 }
 
 .dropzone:hover {
   border-color: var(--brand-navy);
-  background: rgba(16, 32, 64, 0.02);
+  background: rgba(27, 42, 74, 0.02);
 }
 
 .dropzone:focus-visible {
@@ -43,8 +43,8 @@
 
 .dropzoneActive {
   border-color: var(--brand-gold);
-  background: rgba(192, 176, 112, 0.06);
-  box-shadow: inset 0 0 0 2px rgba(192, 176, 112, 0.15);
+  background: rgba(197, 165, 114, 0.06);
+  box-shadow: inset 0 0 0 2px rgba(197, 165, 114, 0.15);
 }
 
 .dropzoneIcon {
@@ -373,11 +373,11 @@
 }
 
 .historyTable tbody tr:nth-child(even) {
-  background: var(--table-row-alt, rgba(16, 32, 64, 0.02));
+  background: var(--table-row-alt, rgba(27, 42, 74, 0.02));
 }
 
 .historyTable tbody tr:hover {
-  background: rgba(192, 176, 112, 0.06);
+  background: rgba(197, 165, 114, 0.06);
 }
 
 .historyTable tbody td {
@@ -442,5 +442,5 @@
 
 .historyDownloadBtn:hover {
   color: var(--brand-gold);
-  background: rgba(16, 32, 64, 0.04);
+  background: rgba(27, 42, 74, 0.04);
 }

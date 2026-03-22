@@ -16,11 +16,11 @@
   gap: var(--space-md);
   background: white;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: var(--space-md) var(--space-lg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-lg);
   border-inline-start: 3px solid var(--brand-gold);
-  animation: toastIn 150ms ease;
+  animation: toastIn 200ms ease;
 }
 
 .success {
