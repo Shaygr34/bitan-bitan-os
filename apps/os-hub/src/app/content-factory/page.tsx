@@ -4,7 +4,19 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
+import StatusBadge from "@/components/StatusBadge";
+import { t } from "@/lib/strings";
 import styles from "./page.module.css";
+
+interface Article {
+  id: string;
+  title: string;
+  status: string;
+  distributionStatus: string;
+  updatedAt: string;
+  aiGenerated?: boolean;
+  sanityId?: string | null;
+}
 
 interface HubStats {
   _status: "ok" | "unavailable";
@@ -19,191 +31,174 @@ interface HubStats {
   lastSuccessfulPoll: string | null;
 }
 
-// RTL flow: rightmost → leftmost = מקורות → רעיונות → מאמרים
-const NAV_CARDS = [
-  {
-    title: "מקורות",
-    description: "ניהול מקורות תוכן — RSS, API וגרידה",
-    href: "/content-factory/sources",
-    statKey: "activeSources" as const,
-    statLabel: "מקורות פעילים",
-  },
-  {
-    title: "רעיונות",
-    description: "רעיונות לתוכן — מקורות RSS, ידני ו-AI",
-    href: "/content-factory/ideas",
-    statKey: "ideas" as const,
-    statLabel: "רעיונות",
-  },
-  {
-    title: "מאמרים",
-    description: "ניהול מאמרים, עריכה והפצה לפלטפורמות",
-    href: "/content-factory/articles",
-    statKey: "articles" as const,
-    statLabel: "מאמרים",
-  },
-];
-
-const MAX_RETRY_ATTEMPTS = 3;
-
-async function fetchStatsOnce(): Promise<HubStats | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
-
-  try {
-    const res = await fetch("/api/content-factory/hub-stats", {
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    const data: HubStats = await res.json();
-    return data._status === "ok" ? data : null;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+const MAX_RETRY = 3;
 
 export default function ContentFactoryHub() {
+  const [articles, setArticles] = useState<Article[]>([]);
   const [stats, setStats] = useState<HubStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [retryAttempt, setRetryAttempt] = useState(0);
 
-  const loadStats = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setFailed(false);
 
-    for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
-      setRetryAttempt(attempt);
-      const data = await fetchStatsOnce();
+    for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+      try {
+        const [articlesRes, statsRes] = await Promise.all([
+          fetch("/api/content-factory/articles"),
+          fetch("/api/content-factory/hub-stats"),
+        ]);
 
-      if (data) {
-        setStats(data);
+        if (articlesRes.ok) {
+          const data = await articlesRes.json();
+          setArticles(Array.isArray(data) ? data : []);
+        }
+        if (statsRes.ok) {
+          const data = await statsRes.json();
+          if (data._status === "ok") setStats(data);
+        }
+
         setLoading(false);
-        setRetryAttempt(0);
         return;
-      }
-
-      // Exponential backoff between retries (2s, 4s)
-      if (attempt < MAX_RETRY_ATTEMPTS) {
-        await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));
+      } catch {
+        if (attempt < MAX_RETRY) {
+          await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));
+        }
       }
     }
 
-    // All retries exhausted
     setLoading(false);
     setFailed(true);
-    setRetryAttempt(0);
   }, []);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
+  useEffect(() => { load(); }, [load]);
 
-  function renderStatValue(key: keyof HubStats) {
-    if (loading) {
-      return <span className={styles.shimmerValue} />;
-    }
-    if (!stats) return "—";
-    return stats[key] as number;
-  }
+  const recentArticles = articles
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 10);
 
   return (
     <div className="animate-page">
       <PageHeader
-        title="מפעל התוכן"
-        description="ניהול מחזור התוכן — ממקור ועד פרסום"
+        title={t("contentFactory.hub.title")}
+        description={t("contentFactory.hub.subtitle")}
       />
 
-      {/* Loading bar */}
+      {/* Loading */}
       {loading && (
         <div className={styles.loadingBar}>
           <div className={styles.loadingBarInner} />
         </div>
       )}
 
-      {/* Retry status during loading */}
-      {loading && retryAttempt > 1 && (
-        <div className={styles.retryNotice}>
-          השרת מתעורר... ניסיון {retryAttempt} מתוך {MAX_RETRY_ATTEMPTS}
-        </div>
-      )}
-
-      {/* DB unavailable notice with retry */}
       {failed && !loading && (
         <div className={styles.unavailableNotice}>
           <span>מסד הנתונים לא זמין כרגע</span>
-          <button className={styles.retryButton} onClick={loadStats}>
-            נסו שוב
-          </button>
+          <button className={styles.retryButton} onClick={load}>נסו שוב</button>
         </div>
       )}
 
-      {/* Navigation Cards */}
-      <div className={`${styles.cardsGrid} animate-stagger`}>
-        {NAV_CARDS.map((card) => (
-          <Link key={card.href} href={card.href} className={styles.cardLink}>
-            <Card>
-              <div className={styles.cardInner}>
-                <h2 className={styles.cardTitle}>{card.title}</h2>
-                <p className={styles.cardDescription}>{card.description}</p>
-                <div className={styles.cardStat}>
-                  <span className={styles.cardStatValue}>
-                    {renderStatValue(card.statKey)}
-                  </span>
-                  <span className={styles.cardStatLabel}>{card.statLabel}</span>
-                </div>
-              </div>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {/* CTA + Stats Row */}
+      <div className={styles.topRow}>
+        <Link href="/content-factory/new" className={`btn-primary ${styles.newArticleBtn}`}>
+          + מאמר חדש
+        </Link>
 
-      {/* Pipeline Summary */}
-      <section className={styles.pipelineSection}>
-        <h2 className={styles.sectionTitle}>צינור התוכן</h2>
-        <div className={styles.goldSeparator} />
-        <div className={styles.pipeline}>
-          <div className={styles.pipelineStep}>
-            <span className={styles.pipelineValue}>
-              {renderStatValue("activeSources")}
-            </span>
-            <span className={styles.pipelineLabel}>מקורות פעילים</span>
+        <div className={styles.statsRow}>
+          <div className={styles.statPill}>
+            <span className={styles.statValue}>{stats?.articles ?? "—"}</span>
+            <span className={styles.statLabel}>מאמרים</span>
           </div>
-          <span className={styles.pipelineArrow}>←</span>
-          <div className={styles.pipelineStep}>
-            <span className={styles.pipelineValue}>
-              {renderStatValue("ideasNewToday")}
-            </span>
-            <span className={styles.pipelineLabel}>רעיונות חדשים היום</span>
+          <div className={styles.statPill}>
+            <span className={styles.statValue}>{stats?.articlesDraft ?? "—"}</span>
+            <span className={styles.statLabel}>טיוטות</span>
           </div>
-          <span className={styles.pipelineArrow}>←</span>
-          <div className={styles.pipelineStep}>
-            <span className={styles.pipelineValue}>
-              {renderStatValue("articlesDraft")}
-            </span>
-            <span className={styles.pipelineLabel}>טיוטות</span>
+          <div className={styles.statPill}>
+            <span className={styles.statValue}>{stats?.articlesInReview ?? "—"}</span>
+            <span className={styles.statLabel}>בבדיקה</span>
           </div>
-          <span className={styles.pipelineArrow}>←</span>
-          <div className={styles.pipelineStep}>
-            <span className={styles.pipelineValue}>
-              {renderStatValue("articlesInReview")}
-            </span>
-            <span className={styles.pipelineLabel}>בבדיקה</span>
-          </div>
-          <span className={styles.pipelineArrow}>←</span>
-          <div className={styles.pipelineStep}>
-            <span className={styles.pipelineValue}>
-              {renderStatValue("articlesApproved")}
-            </span>
-            <span className={styles.pipelineLabel}>פורסמו</span>
+          <div className={styles.statPill}>
+            <span className={styles.statValue}>{stats?.articlesApproved ?? "—"}</span>
+            <span className={styles.statLabel}>פורסמו</span>
           </div>
         </div>
-        {stats?.lastSuccessfulPoll && (
-          <div style={{ textAlign: "center", marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-caption, #9ca3af)" }}>
-            סריקה אחרונה מוצלחת: {new Date(stats.lastSuccessfulPoll).toLocaleString("he-IL")}
+      </div>
+
+      {/* Articles Table */}
+      <section className={styles.articlesSection}>
+        <h2 className={styles.sectionTitle}>מאמרים אחרונים</h2>
+        <div className={styles.goldSeparator} />
+
+        {recentArticles.length === 0 && !loading ? (
+          <Card>
+            <div className={styles.emptyState}>
+              <p>אין מאמרים עדיין</p>
+              <Link href="/content-factory/new" className="btn-primary">
+                צור מאמר ראשון
+              </Link>
+            </div>
+          </Card>
+        ) : (
+          <div className={styles.tableWrapper}>
+            <table className={styles.articlesTable}>
+              <thead>
+                <tr>
+                  <th>{t("contentFactory.col.title")}</th>
+                  <th>{t("contentFactory.col.status")}</th>
+                  <th>אתר</th>
+                  <th>{t("contentFactory.col.updated")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentArticles.map((article) => (
+                  <tr key={article.id}>
+                    <td>
+                      <Link
+                        href={`/content-factory/articles/${article.id}`}
+                        className={styles.articleTitleLink}
+                      >
+                        {article.title}
+                        {article.aiGenerated && (
+                          <span className={styles.aiBadge}>AI</span>
+                        )}
+                      </Link>
+                    </td>
+                    <td>
+                      <StatusBadge status={article.status.toLowerCase()} />
+                    </td>
+                    <td>
+                      <span className={article.sanityId ? styles.sanityYes : styles.sanityNo}>
+                        {article.sanityId ? "✓" : "—"}
+                      </span>
+                    </td>
+                    <td className={styles.dateCell}>
+                      {new Date(article.updatedAt).toLocaleDateString("he-IL")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
+
+      {/* Idea Monitor Link */}
+      {stats && (stats.ideas > 0 || stats.activeSources > 0) && (
+        <section className={styles.ideaMonitorSection}>
+          <Link href="/content-factory/ideas" className={styles.ideaMonitorLink}>
+            <Card>
+              <div className={styles.ideaMonitorInner}>
+                <span className={styles.ideaMonitorTitle}>מקורות רעיונות</span>
+                <span className={styles.ideaMonitorStats}>
+                  {stats.activeSources} מקורות · {stats.ideas} רעיונות
+                  {stats.ideasNewToday > 0 && ` · ${stats.ideasNewToday} חדשים היום`}
+                </span>
+              </div>
+            </Card>
+          </Link>
+        </section>
+      )}
     </div>
   );
 }
