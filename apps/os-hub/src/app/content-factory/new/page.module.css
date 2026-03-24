@@ -175,6 +175,54 @@
   font-size: var(--font-size-body);
 }
 
+/* ── Progress Bar ── */
+
+.progressContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progressStep {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-heading);
+}
+
+.progressPct {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--brand-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.progressTrack {
+  height: 6px;
+  background: var(--border-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand-navy), var(--brand-gold));
+  border-radius: 3px;
+  transition: width 1s ease-out;
+}
+
+.progressHint {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  text-align: center;
+  margin: 0;
+}
+
 /* ── Error ── */
 
 .errorCard {

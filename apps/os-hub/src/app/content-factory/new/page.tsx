@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
@@ -27,7 +27,53 @@ export default function NewArticlePage() {
   const [stage, setStage] = useState<Stage>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [genProgress, setGenProgress] = useState(0);
+  const [genStep, setGenStep] = useState("");
   const dragCount = useRef(0);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Timed progress simulation for draft generation
+  const PROGRESS_STEPS = [
+    { at: 0, label: "מנתח חומרי מקור..." },
+    { at: 15, label: "בונה הנחיות למערכת..." },
+    { at: 25, label: "Claude כותב טיוטה..." },
+    { at: 50, label: "ממשיך לכתוב..." },
+    { at: 75, label: "מסיים כתיבה ומפרסר תוצאות..." },
+    { at: 90, label: "שומר מאמר..." },
+  ];
+
+  function startProgress() {
+    setGenProgress(0);
+    setGenStep(PROGRESS_STEPS[0].label);
+    let elapsed = 0;
+    progressTimer.current = setInterval(() => {
+      elapsed += 1;
+      // Asymptotic progress: fast at start, slows toward 95%
+      const pct = Math.min(95, Math.round(100 * (1 - Math.exp(-elapsed / 60))));
+      setGenProgress(pct);
+      // Find the latest matching step
+      const step = [...PROGRESS_STEPS].reverse().find((s) => pct >= s.at);
+      if (step) setGenStep(step.label);
+    }, 1000);
+  }
+
+  function stopProgress(success: boolean) {
+    if (progressTimer.current) {
+      clearInterval(progressTimer.current);
+      progressTimer.current = null;
+    }
+    if (success) {
+      setGenProgress(100);
+      setGenStep("הטיוטה מוכנה!");
+    }
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (progressTimer.current) clearInterval(progressTimer.current);
+    };
+  }, []);
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -100,6 +146,7 @@ export default function NewArticlePage() {
 
     setStage("generating");
     setErrorMsg("");
+    startProgress();
 
     try {
       const res = await fetch("/api/content-factory/generate-draft", {
@@ -118,12 +165,14 @@ export default function NewArticlePage() {
         throw new Error(data.error || "Draft generation failed");
       }
 
+      stopProgress(true);
       setStage("done");
       showToast({ type: "success", message: `טיוטה נוצרה: ${data.title}` });
 
       // Redirect to article editor
       router.push(`/content-factory/articles/${data.articleId}`);
     } catch (err) {
+      stopProgress(false);
       setStage("error");
       setErrorMsg(err instanceof Error ? err.message : "שגיאה ביצירת טיוטה");
     }
@@ -233,6 +282,27 @@ export default function NewArticlePage() {
               ? t("contentFactory.new.generating")
               : t("contentFactory.new.generateDraft")}
         </button>
+
+        {/* Progress Bar */}
+        {stage === "generating" && (
+          <Card>
+            <div className={styles.progressContainer}>
+              <div className={styles.progressHeader}>
+                <span className={styles.progressStep}>{genStep}</span>
+                <span className={styles.progressPct}>{genProgress}%</span>
+              </div>
+              <div className={styles.progressTrack}>
+                <div
+                  className={styles.progressFill}
+                  style={{ width: `${genProgress}%` }}
+                />
+              </div>
+              <p className={styles.progressHint}>
+                יצירת טיוטה אורכת בדרך כלל 1-3 דקות
+              </p>
+            </div>
+          </Card>
+        )}
 
         {/* Error */}
         {stage === "error" && errorMsg && (
