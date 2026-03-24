@@ -154,8 +154,10 @@ export default function NewArticlePage() {
             onDrop={handleDrop}
             onClick={() => !isWorking && fileInputRef.current?.click()}
           >
-            <div className={styles.dropIcon}>+</div>
-            <p className={styles.dropText}>{t("contentFactory.new.uploadDesc")}</p>
+            <div className={styles.dropIcon}>{stage === "uploading" ? "⏳" : "+"}</div>
+            <p className={styles.dropText}>
+              {stage === "uploading" ? "מעלה ומעבד קבצים..." : t("contentFactory.new.uploadDesc")}
+            </p>
             <p className={styles.dropFormats}>PDF, DOCX — עד 20MB</p>
             <input
               ref={fileInputRef}
@@ -163,7 +165,11 @@ export default function NewArticlePage() {
               accept=".pdf,.docx"
               multiple
               className={styles.hiddenInput}
-              onChange={(e) => e.target.files && handleFiles(e.target.files)}
+              onChange={(e) => {
+                if (e.target.files) handleFiles(e.target.files);
+                // Reset value so re-selecting same file triggers onChange
+                e.target.value = "";
+              }}
             />
           </div>
 
