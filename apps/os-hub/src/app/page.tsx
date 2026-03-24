@@ -31,11 +31,6 @@ const modules: Module[] = [
     href: "/bitan-website",
   },
   {
-    key: "nav.items.contentEngine",
-    descKey: "dashboard.modules.contentEngine.description",
-    href: "/content-engine",
-  },
-  {
     key: "nav.items.contentFactory",
     descKey: "dashboard.modules.contentFactory.description",
     href: "/content-factory",

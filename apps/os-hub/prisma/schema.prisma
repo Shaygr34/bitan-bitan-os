@@ -183,9 +183,10 @@ model Article {
   sanityUrl      String?
   aiGenerated    Boolean   @default(false)
 
-  idea      Idea?      @relation(fields: [ideaId], references: [id])
-  assets    Asset[]
-  artifacts Artifact[]
+  idea       Idea?       @relation(fields: [ideaId], references: [id])
+  assets     Asset[]
+  artifacts  Artifact[]
+  refUploads RefUpload[]
 
   @@index([ideaId])
   @@index([status])
@@ -366,4 +367,20 @@ model AIProposal {
   @@index([entityType, entityId])
   @@index([status])
   @@map("ai_proposals")
+}
+
+/// Reference files uploaded for article draft generation.
+model RefUpload {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  textContent String?  @db.Text
+  url         String?
+  articleId   String?  @db.Uuid
+  article     Article? @relation(fields: [articleId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([articleId])
+  @@map("ref_uploads")
 }

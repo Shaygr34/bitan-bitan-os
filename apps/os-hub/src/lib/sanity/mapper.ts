@@ -3,8 +3,11 @@
  *
  * Creates complete Sanity article documents with resolved references,
  * Portable Text body, SEO fields, and AI disclaimer.
+ *
+ * V2: Uses array fields (authors[], categories[]) matching the website schema.
  */
 
+import crypto from "crypto";
 import { convertBlocksToPortableText, type PTBlock } from "./portable-text";
 import { slugifyHebrew } from "./slugify";
 import { resolveAuthorRef, resolveCategoryRef, resolveTagRefs } from "./reference-cache";
@@ -14,7 +17,15 @@ import { resolveAuthorRef, resolveCategoryRef, resolveTagRefs } from "./referenc
 interface SanityRef {
   _type: "reference";
   _ref: string;
-  _key?: string;
+  _key: string;
+}
+
+interface SanityPTBlock {
+  _type: "block";
+  _key: string;
+  style: string;
+  children: Array<{ _type: "span"; _key: string; text: string; marks: string[] }>;
+  markDefs: Array<Record<string, unknown>>;
 }
 
 export interface SanityArticleDoc {
@@ -26,13 +37,16 @@ export interface SanityArticleDoc {
   body: PTBlock[];
   seoTitle?: string;
   seoDescription?: string;
-  author?: SanityRef;
-  category?: SanityRef;
+  authors?: SanityRef[];
+  categories?: SanityRef[];
   tags?: SanityRef[];
+  excerpt?: string;
   tldr?: string;
   difficulty?: string;
-  checklist?: string[];
+  checklist?: SanityPTBlock[];
   disclaimer?: string;
+  contentType?: string;
+  mainImage?: { _type: "image"; asset: { _type: "reference"; _ref: string } };
 }
 
 interface ArticleInput {
@@ -46,11 +60,34 @@ interface ArticleInput {
   seoDescription?: string | null;
   slug?: string | null;
   aiGenerated?: boolean;
+  excerpt?: string | null;
+  difficulty?: string | null;
+  checklist?: string[] | null;
+  sanityImageRef?: string | null;
 }
 
 interface MapperOptions {
   authorName?: string;
   asDraft?: boolean;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function genKey(): string {
+  return crypto.randomBytes(6).toString("hex");
+}
+
+/**
+ * Convert checklist strings to Portable Text blocks (required by Sanity schema).
+ */
+function checklistToPortableText(items: string[]): SanityPTBlock[] {
+  return items.map((text) => ({
+    _type: "block" as const,
+    _key: genKey(),
+    style: "normal",
+    children: [{ _type: "span" as const, _key: genKey(), text, marks: [] }],
+    markDefs: [],
+  }));
 }
 
 // ── Mapper ──────────────────────────────────────────────────────────────────
@@ -62,7 +99,7 @@ export async function mapArticleToSanityDoc(
   const isDraft = options?.asDraft ?? true;
   const idPrefix = isDraft ? "drafts." : "";
 
-  // Resolve references
+  // Resolve references — use array fields (authors[], categories[])
   const authorRef = options?.authorName
     ? await resolveAuthorRef(options.authorName)
     : null;
@@ -90,27 +127,59 @@ export async function mapArticleToSanityDoc(
     body,
     seoTitle: article.seoTitle || article.title,
     seoDescription: article.seoDescription || article.subtitle || undefined,
+    contentType: "article",
   };
 
+  // Authors (array field with _key)
   if (authorRef) {
-    doc.author = { _type: "reference", _ref: authorRef };
+    doc.authors = [{ _type: "reference", _ref: authorRef, _key: genKey() }];
   }
+
+  // Categories (array field with _key)
   if (categoryRef) {
-    doc.category = { _type: "reference", _ref: categoryRef };
+    doc.categories = [{ _type: "reference", _ref: categoryRef, _key: genKey() }];
   }
+
+  // Tags (array field with _key)
   if (tagRefs.length > 0) {
-    doc.tags = tagRefs.map((ref, i) => ({
+    doc.tags = tagRefs.map((ref) => ({
       _type: "reference" as const,
       _ref: ref,
-      _key: `tag-${i}`,
+      _key: genKey(),
     }));
   }
+
+  // Excerpt
+  if (article.excerpt || article.subtitle) {
+    doc.excerpt = article.excerpt || article.subtitle || undefined;
+  }
+
+  // TL;DR
   if (article.subtitle) {
     doc.tldr = article.subtitle;
   }
 
+  // Difficulty
+  if (article.difficulty) {
+    doc.difficulty = article.difficulty;
+  }
+
+  // Checklist → Portable Text blocks
+  if (article.checklist?.length) {
+    doc.checklist = checklistToPortableText(article.checklist);
+  }
+
+  // Main image (if already generated and pushed to Sanity)
+  if (article.sanityImageRef) {
+    doc.mainImage = {
+      _type: "image",
+      asset: { _type: "reference", _ref: article.sanityImageRef },
+    };
+  }
+
+  // AI disclaimer
   if (article.aiGenerated) {
-    doc.difficulty = "basic";
+    if (!doc.difficulty) doc.difficulty = "basic";
     doc.disclaimer =
       "מאמר זה נכתב בסיוע בינה מלאכותית ונערך על ידי צוות רו\"ח ביטן את ביטן. המידע הינו כללי ואינו מהווה תחליף לייעוץ מקצועי פרטני.";
   }

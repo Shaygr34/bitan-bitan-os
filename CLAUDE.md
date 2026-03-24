@@ -40,10 +40,49 @@
 - puppeteer-extra + stealth plugin + Chromium (Docker only) for BROWSER sources
 - Railway auto-deploy, Docker multi-stage build (node:20-alpine)
 
-### Content Factory Pipeline
+### Content Factory Pipeline (V2)
 ```
+PRIMARY FLOW (new):
+Upload Refs (PDF/DOCX) → AI Draft (Claude streaming) → Edit in OS → Push to Sanity → Generate Image → Newsletter
+
+SECONDARY FLOW (idea sourcing, moved to sub-tab):
 Sources → Poll/Ingest → Ideas (scored) → Draft (Claude AI streaming) → Articles → Publish
 ```
+
+### Content Factory V2 — Key Files
+```
+src/app/content-factory/new/page.tsx          — Upload & draft generation page (main flow)
+src/app/api/content-factory/upload-refs/      — POST: file upload with PDF/DOCX text extraction
+src/app/api/content-factory/generate-draft/   — POST: Claude streaming draft from refs (5min max)
+src/app/api/content-factory/articles/[id]/push-to-sanity/ — POST: enhanced Sanity push (all fields)
+src/app/api/content-factory/articles/[id]/generate-image/ — POST: Gemini Imagen 4 → Sanity CDN
+src/app/api/content-factory/newsletter/       — POST: branded HTML newsletter from article
+src/lib/content-factory/ref-extractor.ts      — PDF/DOCX text extraction (pdf-parse, mammoth)
+src/lib/content-factory/draft-from-refs.ts    — Orchestrator: refs → Claude → Article
+src/lib/content-factory/image-generator.ts    — Gemini image gen + Sanity upload
+src/lib/content-factory/newsletter-sender.ts  — Branded HTML email renderer
+src/lib/sanity/mapper.ts                      — V2: authors[], categories[], checklist PT, excerpt
+```
+
+### Nav Structure (V2)
+```
+לוח בקרה
+Content Factory
+  ├── מאמר חדש        /content-factory/new
+  ├── מאמרים          /content-factory/articles
+  ├── מקורות רעיונות   /content-factory/ideas
+  └── מקורות          /content-factory/sources
+Sumit Sync
+Bitan Website
+מסמכים
+הגדרות
+```
+
+### Content Engine — REMOVED
+Content Engine (DOCX→PDF converter) was removed from UI in V2. Files deleted:
+- `src/app/content-engine/` page
+- `src/components/ContentEngineClient.tsx`
+- API routes under `/api/content-engine/` kept but unused
 
 ### Source Types & Fetcher Chain
 | Type | Fetcher | Used For |
@@ -147,6 +186,7 @@ score = sourceWeight(0-25) + recency(0-25) + keywords(0-30) + category(0-20) - n
 ### Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string
 - `ANTHROPIC_API_KEY` — Claude API
+- `GOOGLE_AI_API_KEY` — Google Gemini for image generation (V2)
 - `CRON_SECRET` — Auth for /api/cron/ingest
 - `CHROMIUM_PATH` — Optional, auto-detected in Docker (usually `/usr/bin/chromium-browser`)
 - `SANITY_*` — Sanity CMS publishing
@@ -170,6 +210,8 @@ score = sourceWeight(0-25) + recency(0-25) + keywords(0-30) + category(0-20) - n
 - **PR #99**: Fix to experimental.serverComponentsExternalPackages (correct key for Next.js 14.x)
 - **PR #100**: Fix startTime scoping in draft route catch block
 - **PR #101**: V2 premium design overhaul — 20 files, align with website design language (colors, shadows, animations, typography)
+- **PR #102**: DB-backed settings page for editable integration links
+- **PR #103**: Content Factory V2 overhaul — upload refs → AI draft → edit → push to Sanity → image gen → newsletter
 
 ### Design System (V2 — March 2026)
 - **Styling**: CSS Modules + globals.css tokens (NOT Tailwind). No UI libraries.

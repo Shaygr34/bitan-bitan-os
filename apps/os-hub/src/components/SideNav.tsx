@@ -13,13 +13,13 @@ interface NavItem {
 
 const mainNav: NavItem[] = [
   { key: "nav.items.dashboard", href: "/" },
-  { key: "nav.items.contentEngine", href: "/content-engine" },
   {
     key: "nav.items.contentFactory",
     href: "/content-factory",
     children: [
+      { key: "nav.items.contentFactory.new", href: "/content-factory/new" },
       { key: "nav.items.contentFactory.articles", href: "/content-factory/articles" },
-      { key: "nav.items.contentFactory.ideas", href: "/content-factory/ideas" },
+      { key: "nav.items.contentFactory.ideaMonitor", href: "/content-factory/ideas" },
       { key: "nav.items.contentFactory.sources", href: "/content-factory/sources" },
     ],
   },

@@ -812,6 +812,10 @@ export default function ArticleDetailPage() {
   const [creatingAsset, setCreatingAsset] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState(PLATFORMS[0]);
   const [publishingToSanity, setPublishingToSanity] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [newsletterHtml, setNewsletterHtml] = useState<string | null>(null);
+  const [showNewsletterPreview, setShowNewsletterPreview] = useState(false);
+  const [preparingNewsletter, setPreparingNewsletter] = useState(false);
   const [errorDetail, setErrorDetail] = useState<{ code: string; message: string } | null>(null);
   const [showError, setShowError] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -941,11 +945,11 @@ export default function ArticleDetailPage() {
     }
   }
 
-  async function handlePublishToSanity() {
+  async function handlePushToSanity() {
     setPublishingToSanity(true);
     setErrorDetail(null);
     try {
-      const res = await fetch(`/api/content-factory/articles/${articleId}/publish-website`, {
+      const res = await fetch(`/api/content-factory/articles/${articleId}/push-to-sanity`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -954,7 +958,7 @@ export default function ArticleDetailPage() {
         setErrorDetail(data?.error ?? null);
         throw new Error(data?.error?.message ?? `${res.status}`);
       }
-      showToast({ type: "success", message: t("contentFactory.publish.sanitySuccess") });
+      showToast({ type: "success", message: t("contentFactory.articles.pushedToSanity") });
       await fetchArticle();
     } catch (err) {
       showToast({
@@ -963,6 +967,49 @@ export default function ArticleDetailPage() {
       });
     } finally {
       setPublishingToSanity(false);
+    }
+  }
+
+  async function handleGenerateImage() {
+    setGeneratingImage(true);
+    try {
+      const res = await fetch(`/api/content-factory/articles/${articleId}/generate-image`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? `${res.status}`);
+      }
+      showToast({ type: "success", message: "תמונה נוצרה בהצלחה" });
+    } catch (err) {
+      showToast({
+        type: "error",
+        message: `שגיאה ביצירת תמונה: ${(err as Error).message}`,
+      });
+    } finally {
+      setGeneratingImage(false);
+    }
+  }
+
+  async function handlePrepareNewsletter() {
+    setPreparingNewsletter(true);
+    try {
+      const res = await fetch("/api/content-factory/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articleId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setNewsletterHtml(data.html);
+      setShowNewsletterPreview(true);
+    } catch (err) {
+      showToast({
+        type: "error",
+        message: `שגיאה בהכנת ניוזלטר: ${(err as Error).message}`,
+      });
+    } finally {
+      setPreparingNewsletter(false);
     }
   }
 
@@ -1167,33 +1214,87 @@ export default function ArticleDetailPage() {
         </div>
       )}
 
-      {/* Publish to Sanity — for APPROVED articles */}
-      {article.status === "APPROVED" && !article.sanityId && (
-        <div className={styles.publishCard}>
-          <div className={styles.publishCardTitle}>פרסום לאתר</div>
-          <p className={styles.publishCardDesc}>פרסום המאמר לאתר ביתן את ביתן דרך Sanity CMS</p>
+      {/* ── V2 Publishing Actions ── */}
+      <div className={styles.publishCard}>
+        <div className={styles.publishCardTitle}>פעולות פרסום</div>
+        <div className={styles.publishActions}>
+          <button
+            className="btn-secondary"
+            onClick={handleGenerateImage}
+            disabled={generatingImage}
+          >
+            {generatingImage
+              ? t("contentFactory.articles.generatingImage")
+              : t("contentFactory.articles.generateImage")}
+          </button>
           <button
             className="btn-primary"
-            onClick={handlePublishToSanity}
+            onClick={handlePushToSanity}
             disabled={publishingToSanity}
           >
-            {publishingToSanity ? "מפרסם..." : "פרסם לאתר"}
+            {publishingToSanity
+              ? t("contentFactory.articles.pushingToSanity")
+              : t("contentFactory.articles.pushToSanity")}
           </button>
+          {article.sanityId && (
+            <button
+              className="btn-secondary"
+              onClick={handlePrepareNewsletter}
+              disabled={preparingNewsletter}
+            >
+              {preparingNewsletter ? "מכין..." : t("contentFactory.articles.sendNewsletter")}
+            </button>
+          )}
         </div>
-      )}
 
-      {/* Sanity link — show if already published */}
-      {article.sanityId && article.sanityUrl && (
-        <div className={`${styles.nextAction} ${styles.nextActionSuccess}`} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <span>{t("contentFactory.publish.sanityPublished")}</span>
-          <a
-            href={article.sanityUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ textDecoration: "underline" }}
-          >
-            {t("contentFactory.publish.openInSanity")}
-          </a>
+        {/* Sanity status */}
+        {article.sanityId && article.sanityUrl && (
+          <div className={styles.sanityStatus}>
+            <span className={styles.sanityStatusDot} />
+            <span>{t("contentFactory.publish.sanityPublished")}</span>
+            <a
+              href={article.sanityUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.sanityLink}
+            >
+              {t("contentFactory.publish.openInSanity")}
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* Newsletter preview modal */}
+      {showNewsletterPreview && newsletterHtml && (
+        <div className={styles.publishCard}>
+          <div className={styles.publishCardTitle}>תצוגה מקדימה — ניוזלטר</div>
+          <p className={styles.publishCardDesc}>
+            העתק את ה-HTML והדבק ב-Summit CRM לשליחת הניוזלטר.
+          </p>
+          <div className={styles.newsletterPreview}>
+            <iframe
+              srcDoc={newsletterHtml}
+              title="Newsletter Preview"
+              style={{ width: "100%", height: "400px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}
+            />
+          </div>
+          <div className={styles.publishActions}>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                navigator.clipboard.writeText(newsletterHtml);
+                showToast({ type: "success", message: "HTML הועתק ללוח" });
+              }}
+            >
+              העתק HTML
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setShowNewsletterPreview(false)}
+            >
+              סגור
+            </button>
+          </div>
         </div>
       )}
 
