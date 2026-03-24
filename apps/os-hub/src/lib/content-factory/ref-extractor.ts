@@ -3,6 +3,7 @@
  * Used to build Claude context for article draft generation.
  */
 
+
 export interface ExtractedRef {
   filename: string;
   text: string;
@@ -13,10 +14,12 @@ export interface ExtractedRef {
  * Extract readable text from a PDF buffer.
  */
 export async function extractPdfText(buffer: Buffer, filename: string): Promise<ExtractedRef> {
-  // Dynamic import to avoid webpack bundling issues
+  // pdf-parse v1: dynamic import, handle CJS/ESM interop
   const pdfModule = await import("pdf-parse");
-  const pdf = (pdfModule as any).default || pdfModule; // eslint-disable-line
-  const data = await pdf(buffer);
+  const pdfFn = typeof pdfModule === "function"
+    ? pdfModule
+    : (pdfModule as any).default || pdfModule; // eslint-disable-line
+  const data = await pdfFn(buffer);
   const text = data.text.trim();
   return { filename, text, charCount: text.length };
 }
