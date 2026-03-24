@@ -56,7 +56,10 @@ export default function SettingsPage() {
         setLinkValues(data);
         setLinksLoaded(true);
       })
-      .catch(() => setLinksLoaded(true));
+      .catch(() => {
+        setLinksLoaded(true);
+        showToast({ type: "error", message: "שגיאה בטעינת הגדרות" });
+      });
   }, []);
 
   useEffect(() => {

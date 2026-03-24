@@ -38,12 +38,15 @@ export default function ContentFactoryHub() {
   const [stats, setStats] = useState<HubStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
     setFailed(false);
+    setRetryAttempt(0);
 
     for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+      setRetryAttempt(attempt);
       try {
         const [articlesRes, statsRes] = await Promise.all([
           fetch("/api/content-factory/articles"),
@@ -89,6 +92,12 @@ export default function ContentFactoryHub() {
       {loading && (
         <div className={styles.loadingBar}>
           <div className={styles.loadingBarInner} />
+        </div>
+      )}
+
+      {loading && retryAttempt > 1 && (
+        <div style={{ textAlign: "center", color: "var(--brand-gold)", fontSize: "var(--font-size-sm)", marginTop: "0.5rem" }}>
+          השרת מתעורר... ניסיון {retryAttempt} מתוך {MAX_RETRY}
         </div>
       )}
 
