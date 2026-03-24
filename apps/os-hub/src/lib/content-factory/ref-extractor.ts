@@ -14,8 +14,13 @@ export interface ExtractedRef {
  * Extract readable text from a PDF buffer.
  */
 export async function extractPdfText(buffer: Buffer, filename: string): Promise<ExtractedRef> {
-  // pdf-parse v1: dynamic import, handle CJS/ESM interop
-  const pdfModule = await import("pdf-parse");
+  let pdfModule;
+  try {
+    pdfModule = await import("pdf-parse");
+  } catch (err) {
+    throw new Error(`Failed to load pdf-parse module. Ensure it is installed: ${(err as Error).message}`);
+  }
+  // pdf-parse v1: handle CJS/ESM interop
   const pdfFn = typeof pdfModule === "function"
     ? pdfModule
     : (pdfModule as any).default || pdfModule; // eslint-disable-line
@@ -28,7 +33,12 @@ export async function extractPdfText(buffer: Buffer, filename: string): Promise<
  * Extract readable text from a DOCX buffer.
  */
 export async function extractDocxText(buffer: Buffer, filename: string): Promise<ExtractedRef> {
-  const mammoth = await import("mammoth");
+  let mammoth;
+  try {
+    mammoth = await import("mammoth");
+  } catch (err) {
+    throw new Error(`Failed to load mammoth module. Ensure it is installed: ${(err as Error).message}`);
+  }
   const result = await mammoth.extractRawText({ buffer });
   const text = result.value.trim();
   return { filename, text, charCount: text.length };

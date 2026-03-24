@@ -31,9 +31,9 @@ export async function POST(req: NextRequest) {
 
     const result = renderArticleNewsletter({
       title: article.title,
-      excerpt: article.subtitle || article.seoDescription || article.title,
+      excerpt: article.subtitle || article.seoDescription || article.bodyText?.slice(0, 200) || article.title,
       slug: article.slug,
-      imageUrl: null, // TODO: resolve Sanity image URL if mainImage exists
+      imageUrl: null, // TODO: resolve Sanity image URL if article.sanityId exists (requires Sanity query)
     });
 
     return NextResponse.json(result);

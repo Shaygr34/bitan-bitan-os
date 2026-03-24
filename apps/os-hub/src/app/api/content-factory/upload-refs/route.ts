@@ -40,6 +40,13 @@ export async function POST(req: NextRequest) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const extracted = await extractText(buffer, file.name, file.type);
 
+      if (!extracted.text.trim()) {
+        return NextResponse.json(
+          { error: "No readable text extracted from file" },
+          { status: 400 },
+        );
+      }
+
       const record = await withRetry(() =>
         prisma.refUpload.create({
           data: {

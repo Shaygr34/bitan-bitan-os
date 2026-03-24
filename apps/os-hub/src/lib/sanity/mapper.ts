@@ -103,6 +103,9 @@ export async function mapArticleToSanityDoc(
   const authorRef = options?.authorName
     ? await resolveAuthorRef(options.authorName)
     : null;
+  if (options?.authorName && !authorRef) {
+    console.warn("[mapper] Author not found in Sanity:", options.authorName);
+  }
   const categoryRef = article.category
     ? await resolveCategoryRef(article.category)
     : null;

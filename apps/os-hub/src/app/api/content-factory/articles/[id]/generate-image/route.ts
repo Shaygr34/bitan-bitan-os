@@ -47,6 +47,7 @@ export async function POST(
     );
 
     // If article already pushed to Sanity, patch the mainImage field
+    let sanityPatchError: string | undefined;
     if (article.sanityId && sanityConfig.apiToken) {
       try {
         const sanityDocId = article.sanityId;
@@ -74,16 +75,17 @@ export async function POST(
           }),
         });
         console.log("[generate-image] Patched mainImage on Sanity doc:", sanityDocId);
-      } catch (err) {
-        console.warn("[generate-image] Failed to patch Sanity mainImage:", err);
-        // Non-fatal — image is still uploaded to CDN
+      } catch (patchErr) {
+        console.warn("[generate-image] Failed to patch Sanity mainImage:", patchErr);
+        sanityPatchError = (patchErr as Error).message;
       }
     }
 
     return NextResponse.json({
       assetId,
       articleId: id,
-      sanityPatched: !!article.sanityId,
+      sanityPatched: !sanityPatchError,
+      sanityPatchError,
     });
   } catch (error) {
     if (isTableOrConnectionError(error)) {

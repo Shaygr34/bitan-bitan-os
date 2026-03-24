@@ -72,7 +72,8 @@ export async function generateDraftFromRefs(
   // 4. Parse response
   const parsed: DraftResponse | null = parseDraftResponse(response.text);
   if (!parsed) {
-    throw new Error("Failed to parse Claude response into article blocks");
+    console.error("[draft-from-refs] Parse failed. Raw response preview:", response.text.slice(0, 500));
+    throw new Error(`Failed to parse Claude response into article blocks. Preview: ${response.text.slice(0, 200)}`);
   }
 
   const validation = validateContentBlocks(parsed.blocks);
