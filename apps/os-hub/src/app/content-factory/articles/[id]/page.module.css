@@ -135,6 +135,42 @@
   margin-bottom: var(--space-md);
 }
 
+/* ——— V2 Publish actions ——— */
+
+.publishActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.sanityStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-body);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.sanityStatusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-success);
+  flex-shrink: 0;
+}
+
+.sanityLink {
+  color: var(--brand-gold);
+  text-decoration: underline;
+}
+
+.newsletterPreview {
+  margin-bottom: var(--space-md);
+}
+
 /* ——— Create asset form ——— */
 .createAssetRow {
   display: flex;
