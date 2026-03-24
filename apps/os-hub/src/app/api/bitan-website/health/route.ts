@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { bitanWebsiteHealthUrl } from "@/config/integrations";
+import { getSetting } from "@/lib/settings";
 
 /**
  * Server-side proxy for website availability check.
@@ -7,7 +8,7 @@ import { bitanWebsiteHealthUrl } from "@/config/integrations";
  * Returns { status: "up" | "down", responseMs, checkedUrl }.
  */
 export async function GET() {
-  const url = bitanWebsiteHealthUrl;
+  const url = await getSetting("integration.health.url") || bitanWebsiteHealthUrl;
   const t0 = performance.now();
 
   try {

@@ -291,6 +291,18 @@ model Artifact {
   @@map("artifacts")
 }
 
+/// Key-value settings editable from the Settings page.
+model Setting {
+  key       String   @id
+  value     String   @db.Text
+  label     String?
+  group     String   @default("general")
+  updatedAt DateTime @updatedAt
+
+  @@index([group])
+  @@map("settings")
+}
+
 /// Audit trail. Generic and lightweight.
 model EventLog {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

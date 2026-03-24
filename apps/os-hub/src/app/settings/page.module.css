@@ -99,9 +99,64 @@
   font-weight: var(--font-weight-normal);
 }
 
+/* ── Integration Links ── */
+
+.linksGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.linkField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.linkField label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-body);
+}
+
+.linkInputRow {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.linkInput {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-body);
+  font-size: var(--font-size-sm);
+  font-family: monospace;
+  direction: ltr;
+  text-align: left;
+}
+
+.linkInput:focus {
+  outline: none;
+  border-color: var(--brand-gold);
+  box-shadow: 0 0 0 2px rgba(197, 165, 114, 0.2);
+}
+
+.linkInputRow button {
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
 @media (max-width: 640px) {
   .formGrid,
   .infoGrid {
     grid-template-columns: 1fr;
+  }
+
+  .linkInputRow {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

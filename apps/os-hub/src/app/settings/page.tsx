@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
 import StatusBadge from "@/components/StatusBadge";
@@ -10,6 +10,16 @@ import { t } from "@/lib/strings";
 import { loadSyncPrefs, saveSyncPrefs, clearSyncPrefs } from "@/lib/syncPrefs";
 import type { SyncPrefs } from "@/lib/syncPrefs";
 import styles from "./page.module.css";
+
+/* ── Integration link definitions (matches keys in lib/settings.ts) ── */
+const LINK_FIELDS = [
+  { key: "integration.site.url", label: "כתובת האתר", placeholder: "https://bitancpa.com" },
+  { key: "integration.studio.url", label: "Sanity Studio", placeholder: "https://bitancpa.com/studio" },
+  { key: "integration.ga4.url", label: "Google Analytics (GA4)", placeholder: "https://analytics.google.com/..." },
+  { key: "integration.railway.url", label: "Railway Dashboard", placeholder: "https://railway.com/project/..." },
+  { key: "integration.github.url", label: "GitHub Repository", placeholder: "https://github.com/..." },
+  { key: "integration.health.url", label: "Health Check URL", placeholder: "https://bitancpa.com" },
+];
 
 interface ServiceHealth {
   status: "healthy" | "error" | "loading";
@@ -34,8 +44,24 @@ export default function SettingsPage() {
   const [totalArticles, setTotalArticles] = useState<number | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
 
+  // Integration links state
+  const [linkValues, setLinkValues] = useState<Record<string, string>>({});
+  const [linksSaving, setLinksSaving] = useState<Record<string, boolean>>({});
+  const [linksLoaded, setLinksLoaded] = useState(false);
+
+  const loadLinks = useCallback(() => {
+    fetch("/api/settings?group=integrations")
+      .then((res) => res.json())
+      .then((data: Record<string, string>) => {
+        setLinkValues(data);
+        setLinksLoaded(true);
+      })
+      .catch(() => setLinksLoaded(true));
+  }, []);
+
   useEffect(() => {
     setPrefs(loadSyncPrefs());
+    loadLinks();
 
     // Ping Sumit Sync API
     const t0 = performance.now();
@@ -43,9 +69,8 @@ export default function SettingsPage() {
       .then((res) => {
         const ms = Math.round(performance.now() - t0);
         if (!res.ok) throw new Error("unhealthy");
-        return res.json().then((data) => {
+        return res.json().then(() => {
           setSyncHealth({ status: "healthy", responseMs: ms });
-          // Use full list for count
           fetch("/api/sumit-sync/runs")
             .then((r) => r.json())
             .then((all) => setTotalRuns(Array.isArray(all) ? all.length : 0))
@@ -70,7 +95,7 @@ export default function SettingsPage() {
       .catch(() => {
         setFactoryHealth({ status: "error", responseMs: null });
       });
-  }, []);
+  }, [loadLinks]);
 
   function handleSave() {
     saveSyncPrefs(prefs);
@@ -88,6 +113,31 @@ export default function SettingsPage() {
     showToast({ type: "success", message: "ההעדפות אופסו" });
   }
 
+  async function saveLink(key: string) {
+    const value = linkValues[key];
+    if (value === undefined) return;
+
+    setLinksSaving((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key,
+          value: value.trim(),
+          group: "integrations",
+          label: LINK_FIELDS.find((f) => f.key === key)?.label ?? key,
+        }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      showToast({ type: "success", message: "הקישור נשמר" });
+    } catch {
+      showToast({ type: "error", message: "שגיאה בשמירה" });
+    } finally {
+      setLinksSaving((prev) => ({ ...prev, [key]: false }));
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -96,7 +146,49 @@ export default function SettingsPage() {
       />
 
       <div className={styles.sections}>
-        {/* Section 1: Sync Preferences */}
+        {/* Section 1: Integration Links */}
+        <Card>
+          <h2 className={styles.sectionTitle}>קישורי אינטגרציה</h2>
+          <p className={styles.sectionDesc}>
+            עריכת כתובות חיצוניות המוצגות במערכת. שינויים ייכנסו לתוקף מיידית.
+          </p>
+          {!linksLoaded ? (
+            <p className={styles.sectionDesc}>טוען...</p>
+          ) : (
+            <div className={styles.linksGrid}>
+              {LINK_FIELDS.map((field) => (
+                <div key={field.key} className={styles.linkField}>
+                  <label htmlFor={field.key}>{field.label}</label>
+                  <div className={styles.linkInputRow}>
+                    <input
+                      id={field.key}
+                      type="url"
+                      className={styles.linkInput}
+                      value={linkValues[field.key] ?? ""}
+                      placeholder={field.placeholder}
+                      onChange={(e) =>
+                        setLinkValues((prev) => ({
+                          ...prev,
+                          [field.key]: e.target.value,
+                        }))
+                      }
+                      dir="ltr"
+                    />
+                    <button
+                      className="btn-primary"
+                      onClick={() => saveLink(field.key)}
+                      disabled={linksSaving[field.key]}
+                    >
+                      {linksSaving[field.key] ? "..." : "שמור"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Section 2: Sync Preferences */}
         <Card>
           <h2 className={styles.sectionTitle}>העדפות סנכרון</h2>
           <div className={styles.formGrid}>
@@ -151,7 +243,7 @@ export default function SettingsPage() {
           </button>
         </Card>
 
-        {/* Section 2: System Info */}
+        {/* Section 3: System Info */}
         <Card>
           <h2 className={styles.sectionTitle}>מידע מערכת</h2>
           <div className={styles.infoGrid}>
@@ -208,7 +300,7 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* Section 3: Data Management */}
+        {/* Section 4: Data Management */}
         <Card>
           <h2 className={styles.sectionTitle}>ניהול נתונים</h2>
           <p className={styles.sectionDesc}>

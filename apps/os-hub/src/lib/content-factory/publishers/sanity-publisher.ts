@@ -18,6 +18,7 @@ import { createOrReplace } from "@/lib/sanity/client";
 import { updateDistributionStatus } from "@/lib/content-factory/distribution";
 import { logEvent } from "@/lib/content-factory/event-log";
 import { sanityConfig, bitanWebsite } from "@/config/integrations";
+import { getSetting } from "@/lib/settings";
 
 export interface PublishResult {
   sanityId: string;
@@ -66,8 +67,9 @@ export async function publishToSanity(
   const result = await createOrReplace(sanityDoc as unknown as Record<string, unknown>);
   const sanityId = result._id;
 
-  // Build Sanity Studio URL
-  const studioBase = bitanWebsite.studio.url.replace(/\/$/, "");
+  // Build Sanity Studio URL (prefer DB setting, fall back to static config)
+  const studioUrlSetting = await getSetting("integration.studio.url");
+  const studioBase = (studioUrlSetting || bitanWebsite.studio.url).replace(/\/$/, "");
   const sanityUrl = `${studioBase}/structure/article;${sanityId.replace("drafts.", "")}`;
 
   // 4-8. Create asset, publish job, update article, recalculate distribution, log — in transaction

@@ -1,6 +1,12 @@
 /* ═══════════════════════════════════════════════════
    External integration URLs — single source of truth.
-   Override via NEXT_PUBLIC_* env vars; defaults below.
+
+   Runtime-editable via Settings page (DB-backed).
+   Fallback chain: DB setting → env var → hardcoded default.
+
+   For server-side code, prefer `getIntegrationSettings()` from
+   `@/lib/settings` which reads from DB. These exports are static
+   fallbacks used when DB is unavailable or for build-time references.
    ═══════════════════════════════════════════════════ */
 
 export interface IntegrationLink {
@@ -9,20 +15,21 @@ export interface IntegrationLink {
   description?: string;   // short helper text (Hebrew)
 }
 
+/** Static fallbacks — used at build time or when DB is unavailable. */
 export const bitanWebsite = {
   site: {
     label: "אתר",
     url:
       process.env.NEXT_PUBLIC_BITAN_WEBSITE_URL ??
-      "https://bitan-bitan-website-production.up.railway.app/",
-    description: "אתר ביטן את ביטן — סביבת Staging",
+      "https://bitancpa.com",
+    description: "אתר ביטן את ביטן",
   } satisfies IntegrationLink,
 
   studio: {
     label: "עריכת תוכן (Sanity Studio)",
     url:
       process.env.NEXT_PUBLIC_BITAN_STUDIO_URL ??
-      "https://bitan-bitan-website-production.up.railway.app/studio",
+      "https://bitancpa.com/studio",
     description: "ממשק ניהול תוכן — Sanity Studio",
   } satisfies IntegrationLink,
 
@@ -30,7 +37,7 @@ export const bitanWebsite = {
     label: "Analytics (GA4)",
     url:
       process.env.NEXT_PUBLIC_BITAN_GA4_URL ??
-      "https://analytics.google.com/analytics/web/?utm_source=marketingplatform.google.com&utm_medium=et&utm_campaign=marketingplatform.google.com%2Fabout%2Fanalytics%2F#/a385303851p525595931/realtime/overview?params=_u..nav%3Dmaui",
+      "https://analytics.google.com/analytics/web/#/a385303851p525595931/realtime/overview",
     description: "Google Analytics 4 — תצוגה בזמן אמת",
   } satisfies IntegrationLink,
 };
@@ -41,7 +48,7 @@ export const bitanWebsiteResources = {
     label: "Railway",
     url:
       process.env.NEXT_PUBLIC_BITAN_RAILWAY_URL ??
-      "https://railway.com/project/19251990-b470-415b-9cae-d436be72240b/service/5a8a5ce3-c146-4919-a506-ab3a8c9ab6bf?environmentId=ed959712-aaae-4fa8-abe7-a7b788509f54",
+      "https://railway.com/project/19251990-b470-415b-9cae-d436be72240b",
     description: "ניהול שרת ודיפלוי — Railway",
   } satisfies IntegrationLink,
 
@@ -57,7 +64,7 @@ export const bitanWebsiteResources = {
 /** Base URL used for server-side health checks (no trailing slash). */
 export const bitanWebsiteHealthUrl =
   process.env.BITAN_WEBSITE_HEALTH_URL ??
-  "https://bitan-bitan-website-production.up.railway.app";
+  "https://bitancpa.com";
 
 /* ═══════════════════════════════════════════════════
    AI — Anthropic Claude

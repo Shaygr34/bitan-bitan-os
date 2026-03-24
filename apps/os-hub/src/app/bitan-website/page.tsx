@@ -18,7 +18,33 @@ export default function BitanWebsitePage() {
     responseMs: null,
   });
 
+  // DB-backed settings override static config
+  const [links, setLinks] = useState({
+    siteUrl: bitanWebsite.site.url,
+    studioUrl: bitanWebsite.studio.url,
+    ga4Url: bitanWebsite.ga4.url,
+    railwayUrl: bitanWebsiteResources.railway.url,
+    githubUrl: bitanWebsiteResources.github.url,
+  });
+
   useEffect(() => {
+    // Load settings from DB
+    fetch("/api/settings?group=integrations")
+      .then((res) => res.json())
+      .then((settings: Record<string, string>) => {
+        setLinks((prev) => ({
+          siteUrl: settings["integration.site.url"] || prev.siteUrl,
+          studioUrl: settings["integration.studio.url"] || prev.studioUrl,
+          ga4Url: settings["integration.ga4.url"] || prev.ga4Url,
+          railwayUrl: settings["integration.railway.url"] || prev.railwayUrl,
+          githubUrl: settings["integration.github.url"] || prev.githubUrl,
+        }));
+      })
+      .catch(() => {
+        // Fall back to static config — already set
+      });
+
+    // Health check
     fetch("/api/bitan-website/health")
       .then((res) => res.json())
       .then((data) => {
@@ -37,19 +63,32 @@ export default function BitanWebsitePage() {
       key: "site",
       label: bitanWebsite.site.label,
       description: bitanWebsite.site.description,
-      url: bitanWebsite.site.url,
+      url: links.siteUrl,
     },
     {
       key: "studio",
       label: bitanWebsite.studio.label,
       description: bitanWebsite.studio.description,
-      url: bitanWebsite.studio.url,
+      url: links.studioUrl,
     },
     {
       key: "ga4",
       label: bitanWebsite.ga4.label,
       description: bitanWebsite.ga4.description,
-      url: bitanWebsite.ga4.url,
+      url: links.ga4Url,
+    },
+  ];
+
+  const resources = [
+    {
+      label: bitanWebsiteResources.railway.label,
+      description: bitanWebsiteResources.railway.description,
+      url: links.railwayUrl,
+    },
+    {
+      label: bitanWebsiteResources.github.label,
+      description: bitanWebsiteResources.github.description,
+      url: links.githubUrl,
     },
   ];
 
@@ -133,26 +172,24 @@ export default function BitanWebsitePage() {
         </h2>
         <div className={styles.goldSeparator} />
         <div className={styles.resourcesGrid}>
-          {[bitanWebsiteResources.railway, bitanWebsiteResources.github].map(
-            (resource) => (
-              <a
-                key={resource.label}
-                href={resource.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles.resourceLink}
-              >
-                <Card className={styles.resourceCard}>
-                  <span className={styles.resourceLabel}>
-                    {resource.label}
-                  </span>
-                  <span className={styles.resourceDesc}>
-                    {resource.description}
-                  </span>
-                </Card>
-              </a>
-            ),
-          )}
+          {resources.map((resource) => (
+            <a
+              key={resource.label}
+              href={resource.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.resourceLink}
+            >
+              <Card className={styles.resourceCard}>
+                <span className={styles.resourceLabel}>
+                  {resource.label}
+                </span>
+                <span className={styles.resourceDesc}>
+                  {resource.description}
+                </span>
+              </Card>
+            </a>
+          ))}
         </div>
       </section>
     </div>
