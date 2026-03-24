@@ -267,8 +267,9 @@ export const strings: Record<string, string> = {
   // Content Factory
   // ═══════════════════════════════════════
   "nav.items.contentFactory": "Content Factory",
+  "nav.items.contentFactory.new": "מאמר חדש",
   "nav.items.contentFactory.articles": "מאמרים",
-  "nav.items.contentFactory.ideas": "רעיונות",
+  "nav.items.contentFactory.ideaMonitor": "מקורות רעיונות",
   "nav.items.contentFactory.sources": "מקורות",
   "contentFactory.title": "Content Factory",
   "contentFactory.subtitle": "ניהול מאמרים, נכסים והפצה",
@@ -358,6 +359,29 @@ export const strings: Record<string, string> = {
 
   // Dashboard
   "dashboard.modules.contentFactory.description": "ניהול מאמרים, נכסים והפצה לפלטפורמות.",
+
+  // Content Factory V2 — New Article Flow
+  "contentFactory.hub.title": "Content Factory",
+  "contentFactory.hub.subtitle": "ניהול מאמרים ותוכן מקצועי",
+  "contentFactory.new.title": "מאמר חדש",
+  "contentFactory.new.subtitle": "העלאת חומרי מקור ויצירת טיוטה",
+  "contentFactory.new.uploadTitle": "חומרי מקור",
+  "contentFactory.new.uploadDesc": "גרור קבצים לכאן או לחץ לבחירה — PDF, DOCX או קישור לדף",
+  "contentFactory.new.addLink": "הוסף קישור",
+  "contentFactory.new.generateDraft": "צור טיוטה",
+  "contentFactory.new.generating": "יוצר טיוטה...",
+  "contentFactory.new.topicLabel": "נושא המאמר (אופציונלי)",
+  "contentFactory.new.topicPlaceholder": "למשל: מענקים לעסקים קטנים 2026",
+  "contentFactory.new.notesLabel": "הנחיות נוספות (אופציונלי)",
+  "contentFactory.new.notesPlaceholder": "הנחיות ספציפיות — קהל יעד, זווית, דגשים...",
+
+  // Content Factory V2 — Publishing Actions
+  "contentFactory.articles.pushToSanity": "העבר לאתר",
+  "contentFactory.articles.generateImage": "צור תמונה",
+  "contentFactory.articles.generatingImage": "יוצר תמונה...",
+  "contentFactory.articles.pushingToSanity": "מעביר לאתר...",
+  "contentFactory.articles.pushedToSanity": "הועבר לאתר בהצלחה",
+  "contentFactory.articles.sendNewsletter": "שלח ניוזלטר",
 
   // ═══════════════════════════════════════
   // Bitan Website (Founder Console)
