@@ -12,6 +12,8 @@ const nextConfig = {
       "puppeteer-core",
       "puppeteer-extra",
       "puppeteer-extra-plugin-stealth",
+      "pdf-parse",
+      "mammoth",
     ],
   },
 };
