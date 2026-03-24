@@ -70,7 +70,7 @@ export async function publishToSanity(
   // Build Sanity Studio URL (prefer DB setting, fall back to static config)
   const studioUrlSetting = await getSetting("integration.studio.url");
   const studioBase = (studioUrlSetting || bitanWebsite.studio.url).replace(/\/$/, "");
-  const sanityUrl = `${studioBase}/structure/article;${sanityId.replace("drafts.", "")}`;
+  const sanityUrl = `${studioBase}/structure/knowledgeCentre;article;${sanityId.replace("drafts.", "")}`;
 
   // 4-8. Create asset, publish job, update article, recalculate distribution, log — in transaction
   const txResult = await prisma.$transaction(async (tx) => {

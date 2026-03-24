@@ -67,7 +67,7 @@ export async function POST(
     // Build Sanity Studio URL
     const studioUrlSetting = await getSetting("integration.studio.url");
     const studioBase = (studioUrlSetting || bitanWebsite.studio.url).replace(/\/$/, "");
-    const sanityUrl = `${studioBase}/structure/article;${sanityId.replace("drafts.", "")}`;
+    const sanityUrl = `${studioBase}/structure/knowledgeCentre;article;${sanityId.replace("drafts.", "")}`;
 
     // 4. Update article + create asset/job in transaction
     const txResult = await prisma.$transaction(async (tx) => {
