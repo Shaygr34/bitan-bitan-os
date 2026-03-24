@@ -210,8 +210,19 @@ score = sourceWeight(0-25) + recency(0-25) + keywords(0-30) + category(0-20) - n
 - **PR #99**: Fix to experimental.serverComponentsExternalPackages (correct key for Next.js 14.x)
 - **PR #100**: Fix startTime scoping in draft route catch block
 - **PR #101**: V2 premium design overhaul — 20 files, align with website design language (colors, shadows, animations, typography)
-- **PR #102**: DB-backed settings page for editable integration links
-- **PR #103**: Content Factory V2 overhaul — upload refs → AI draft → edit → push to Sanity → image gen → newsletter
+- **PR #102**: DB-backed settings page for editable integration links + Content Factory V2 overhaul
+- **Post-merge fixes** (direct to main): pdf-parse v1 downgrade, audit fixes (19 issues), progress bar, Sanity env var fallbacks, Editor token, default authors/category, no AI disclaimer, publishing section uplift, Studio deep link fix
+
+### Content Factory V2 — Tested & Working (March 24, 2026)
+- **End-to-end flow verified**: Upload PDF → AI draft (Claude streaming) → Edit → Push to Sanity → Opens Studio
+- **Test article**: "ניכוי מס במקור וניהול ספרים" from `opening-tax-files-guide.pdf`
+- **Sanity defaults**: authors = רון ביטן + אבי ביטן (`author-ron`, `author-avi`), category = מס הכנסה (`10f65318-...`)
+- **No AI disclaimer** — never mention AI to customers. Standard disclaimer only.
+- **Sanity token**: `os-write` (Editor role) on Railway `SANITY_API_WRITE_TOKEN` — the old `website-write` token was Viewer-only
+- **Studio deep link**: `/structure/knowledgeCentre;article;{id}` (not `/structure/article;{id}`)
+- **pdf-parse**: Must use v1.1.1 (v2 has incompatible class-based API)
+- **Known gaps**: tags still empty, image gen needs `GOOGLE_AI_API_KEY` on Railway, newsletter is copy-paste to Summit (no API send yet)
+- **Assets section**: hidden for new articles (only shows for legacy articles with platform assets)
 
 ### Design System (V2 — March 2026)
 - **Styling**: CSS Modules + globals.css tokens (NOT Tailwind). No UI libraries.
