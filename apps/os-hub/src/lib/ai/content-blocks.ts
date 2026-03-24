@@ -114,6 +114,40 @@ export function validateContentBlocks(blocks: unknown[]): {
  * 3. Repair common JSON issues (trailing commas)
  * 4. If all fail, return null
  */
+/**
+ * Attempt to repair truncated JSON by closing open brackets/braces and
+ * removing trailing partial strings.
+ */
+function repairTruncatedJson(json: string): string {
+  // Remove trailing partial string (unclosed quote)
+  let fixed = json.replace(/,\s*"[^"]*$/, "");
+  // Remove trailing comma before we close brackets
+  fixed = fixed.replace(/,\s*$/, "");
+
+  // Count open vs close brackets
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (const ch of fixed) {
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\") { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") openBraces++;
+    if (ch === "}") openBraces--;
+    if (ch === "[") openBrackets++;
+    if (ch === "]") openBrackets--;
+  }
+
+  // Close any unclosed structures
+  while (openBrackets > 0) { fixed += "]"; openBrackets--; }
+  while (openBraces > 0) { fixed += "}"; openBraces--; }
+
+  return fixed;
+}
+
 export function parseDraftResponse(text: string): DraftResponse | null {
   const jsonCandidates: string[] = [];
   const raw = text.trim();
@@ -167,6 +201,13 @@ export function parseDraftResponse(text: string): DraftResponse | null {
       const repairedResult = tryParseDraft(repaired, `strategy-${i + 1}-repaired`);
       if (repairedResult) return repairedResult;
     }
+
+    // Try with truncation repair: close all open brackets/braces
+    const truncRepaired = repairTruncatedJson(jsonStr);
+    if (truncRepaired !== jsonStr) {
+      const truncResult = tryParseDraft(truncRepaired, `strategy-${i + 1}-trunc-repaired`);
+      if (truncResult) return truncResult;
+    }
   }
 
   console.error("[DRAFT] All parse strategies failed — raw preview:", raw.substring(0, 500));
@@ -198,8 +239,11 @@ function tryParseDraft(jsonStr: string, label: string): DraftResponse | null {
       };
     }
 
+    // Log what we got so we can debug
+    console.warn(`[DRAFT] ${label}: Parsed JSON but missing meta/blocks. Keys:`, Object.keys(parsed), "Type:", typeof parsed);
     return null;
-  } catch {
+  } catch (err) {
+    console.warn(`[DRAFT] ${label}: JSON.parse failed:`, (err as Error).message, "— preview:", jsonStr.slice(0, 100));
     return null;
   }
 }
