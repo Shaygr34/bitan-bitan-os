@@ -90,6 +90,20 @@ function checklistToPortableText(items: string[]): SanityPTBlock[] {
   }));
 }
 
+// ── Default references (hardcoded Sanity _ids) ─────────────────────────────
+
+const DEFAULT_AUTHORS = [
+  { _type: "reference" as const, _ref: "author-ron", _key: genKey() },
+  { _type: "reference" as const, _ref: "author-avi", _key: genKey() },
+];
+
+// מס הכנסה — most common category for Bitan articles
+const DEFAULT_CATEGORY_ID = "10f65318-c333-4186-8080-5fdf932bef9f";
+
+// Standard disclaimer (no mention of AI)
+const STANDARD_DISCLAIMER =
+  "המידע במאמר זה הינו כללי ואינו מהווה תחליף לייעוץ מקצועי פרטני. לקבלת ייעוץ מותאם, פנו למשרדנו.";
+
 // ── Mapper ──────────────────────────────────────────────────────────────────
 
 export async function mapArticleToSanityDoc(
@@ -133,14 +147,18 @@ export async function mapArticleToSanityDoc(
     contentType: "article",
   };
 
-  // Authors (array field with _key)
+  // Authors — always default to Ron + Avi if no specific author resolved
   if (authorRef) {
     doc.authors = [{ _type: "reference", _ref: authorRef, _key: genKey() }];
+  } else {
+    doc.authors = DEFAULT_AUTHORS.map((a) => ({ ...a, _key: genKey() }));
   }
 
-  // Categories (array field with _key)
+  // Categories — use resolved category or default to מס הכנסה
   if (categoryRef) {
     doc.categories = [{ _type: "reference", _ref: categoryRef, _key: genKey() }];
+  } else {
+    doc.categories = [{ _type: "reference", _ref: DEFAULT_CATEGORY_ID, _key: genKey() }];
   }
 
   // Tags (array field with _key)
@@ -180,12 +198,9 @@ export async function mapArticleToSanityDoc(
     };
   }
 
-  // AI disclaimer
-  if (article.aiGenerated) {
-    if (!doc.difficulty) doc.difficulty = "basic";
-    doc.disclaimer =
-      "מאמר זה נכתב בסיוע בינה מלאכותית ונערך על ידי צוות רו\"ח ביטן את ביטן. המידע הינו כללי ואינו מהווה תחליף לייעוץ מקצועי פרטני.";
-  }
+  // Standard disclaimer (never mention AI)
+  doc.disclaimer = STANDARD_DISCLAIMER;
+  if (!doc.difficulty) doc.difficulty = "basic";
 
   return doc;
 }

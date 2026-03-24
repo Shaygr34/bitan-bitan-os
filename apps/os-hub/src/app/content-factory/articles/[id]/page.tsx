@@ -958,8 +958,13 @@ export default function ArticleDetailPage() {
         setErrorDetail(data?.error ?? null);
         throw new Error(data?.error?.message ?? `${res.status}`);
       }
+      const result = await res.json();
       showToast({ type: "success", message: t("contentFactory.articles.pushedToSanity") });
       await fetchArticle();
+      // Auto-open Sanity Studio in new tab
+      if (result.sanityUrl) {
+        window.open(result.sanityUrl, "_blank");
+      }
     } catch (err) {
       showToast({
         type: "error",
@@ -1216,50 +1221,87 @@ export default function ArticleDetailPage() {
       )}
 
       {/* ── V2 Publishing Actions ── */}
-      <div className={styles.publishCard}>
-        <div className={styles.publishCardTitle}>פעולות פרסום</div>
-        <div className={styles.publishActions}>
-          <button
-            className="btn-secondary"
-            onClick={handleGenerateImage}
-            disabled={generatingImage}
-          >
-            {generatingImage
-              ? t("contentFactory.articles.generatingImage")
-              : t("contentFactory.articles.generateImage")}
-          </button>
-          <button
-            className="btn-primary"
-            onClick={handlePushToSanity}
-            disabled={publishingToSanity}
-          >
-            {publishingToSanity
-              ? t("contentFactory.articles.pushingToSanity")
-              : t("contentFactory.articles.pushToSanity")}
-          </button>
-          {article.sanityId && (
-            <button
-              className="btn-secondary"
-              onClick={handlePrepareNewsletter}
-              disabled={preparingNewsletter}
-            >
-              {preparingNewsletter ? "מכין..." : t("contentFactory.articles.sendNewsletter")}
-            </button>
-          )}
+      <div className={styles.publishSection}>
+        <div className={styles.publishSectionHeader}>
+          <h2 className={styles.sectionTitle}>פרסום והפצה</h2>
+          <div className={styles.goldSeparator} />
         </div>
 
-        {/* Sanity status */}
+        <div className={styles.publishGrid}>
+          {/* Step 1: Image */}
+          <div className={styles.publishStep}>
+            <div className={styles.publishStepNumber}>1</div>
+            <div className={styles.publishStepContent}>
+              <div className={styles.publishStepTitle}>תמונה ראשית</div>
+              <p className={styles.publishStepDesc}>יצירת תמונה ממותגת באמצעות AI</p>
+              <button
+                className="btn-secondary"
+                onClick={handleGenerateImage}
+                disabled={generatingImage}
+              >
+                {generatingImage
+                  ? t("contentFactory.articles.generatingImage")
+                  : t("contentFactory.articles.generateImage")}
+              </button>
+            </div>
+          </div>
+
+          {/* Step 2: Push to Sanity */}
+          <div className={styles.publishStep}>
+            <div className={styles.publishStepNumber}>2</div>
+            <div className={styles.publishStepContent}>
+              <div className={styles.publishStepTitle}>העברה לאתר</div>
+              <p className={styles.publishStepDesc}>
+                {article.sanityId
+                  ? "המאמר הועבר — לחץ שוב לעדכון"
+                  : "העברת המאמר ל-Sanity CMS לבדיקה סופית ופרסום"}
+              </p>
+              <button
+                className="btn-primary"
+                onClick={handlePushToSanity}
+                disabled={publishingToSanity}
+              >
+                {publishingToSanity
+                  ? t("contentFactory.articles.pushingToSanity")
+                  : article.sanityId
+                    ? "עדכן באתר"
+                    : t("contentFactory.articles.pushToSanity")}
+              </button>
+            </div>
+          </div>
+
+          {/* Step 3: Newsletter */}
+          <div className={styles.publishStep}>
+            <div className={styles.publishStepNumber}>3</div>
+            <div className={styles.publishStepContent}>
+              <div className={styles.publishStepTitle}>ניוזלטר</div>
+              <p className={styles.publishStepDesc}>הכנת ניוזלטר ממותג לשליחה דרך Summit</p>
+              <button
+                className="btn-secondary"
+                onClick={handlePrepareNewsletter}
+                disabled={preparingNewsletter || !article.sanityId}
+              >
+                {preparingNewsletter ? "מכין..." : t("contentFactory.articles.sendNewsletter")}
+              </button>
+              {!article.sanityId && (
+                <span className={styles.publishStepHint}>יש להעביר לאתר תחילה</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Sanity status bar */}
         {article.sanityId && article.sanityUrl && (
           <div className={styles.sanityStatus}>
             <span className={styles.sanityStatusDot} />
-            <span>{t("contentFactory.publish.sanityPublished")}</span>
+            <span>המאמר באתר — ממתין לפרסום ב-Sanity Studio</span>
             <a
               href={article.sanityUrl}
               target="_blank"
               rel="noopener noreferrer"
               className={styles.sanityLink}
             >
-              {t("contentFactory.publish.openInSanity")}
+              פתח ב-Sanity Studio ←
             </a>
           </div>
         )}
