@@ -77,9 +77,9 @@ export const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? "";
    ═══════════════════════════════════════════════════ */
 
 export const sanityConfig = {
-  projectId: process.env.SANITY_PROJECT_ID ?? "",
-  dataset: process.env.SANITY_DATASET ?? "production",
-  apiToken: process.env.SANITY_API_TOKEN ?? "",
+  projectId: process.env.SANITY_PROJECT_ID || process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "",
+  dataset: process.env.SANITY_DATASET || process.env.NEXT_PUBLIC_SANITY_DATASET || "production",
+  apiToken: process.env.SANITY_API_TOKEN || process.env.SANITY_API_WRITE_TOKEN || "",
 };
 
 /* ═══════════════════════════════════════════════════

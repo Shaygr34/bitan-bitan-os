@@ -978,7 +978,8 @@ export default function ArticleDetailPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? `${res.status}`);
+        const msg = data?.error?.message || (typeof data?.error === "string" ? data.error : `HTTP ${res.status}`);
+        throw new Error(msg);
       }
       showToast({ type: "success", message: "תמונה נוצרה בהצלחה" });
     } catch (err) {
@@ -1298,44 +1299,40 @@ export default function ArticleDetailPage() {
         </div>
       )}
 
-      {/* Assets section */}
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>נכסים</h2>
-        <div className={styles.createAssetRow}>
-          <select
-            className={styles.platformSelect}
-            value={selectedPlatform}
-            onChange={(e) => setSelectedPlatform(e.target.value)}
-          >
-            {PLATFORMS.map((p) => (
-              <option key={p} value={p}>{PLATFORM_HE[p] ?? p}</option>
+      {/* Assets section — only shown for legacy articles that already have assets */}
+      {article.assets.length > 0 && (
+        <>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>נכסים</h2>
+            <div className={styles.createAssetRow}>
+              <select
+                className={styles.platformSelect}
+                value={selectedPlatform}
+                onChange={(e) => setSelectedPlatform(e.target.value)}
+              >
+                {PLATFORMS.map((p) => (
+                  <option key={p} value={p}>{PLATFORM_HE[p] ?? p}</option>
+                ))}
+              </select>
+              <button
+                className="btn-primary"
+                onClick={handleCreateAsset}
+                disabled={creatingAsset}
+              >
+                {creatingAsset ? t("common.status.processing") : "צור נכס"}
+              </button>
+            </div>
+          </div>
+          <div className={styles.assetsGrid}>
+            {article.assets.map((asset) => (
+              <AssetCard
+                key={asset.id}
+                asset={asset}
+                onRefresh={fetchArticle}
+              />
             ))}
-          </select>
-          <button
-            className="btn-primary"
-            onClick={handleCreateAsset}
-            disabled={creatingAsset}
-          >
-            {creatingAsset ? t("common.status.processing") : "צור נכס"}
-          </button>
-        </div>
-      </div>
-
-      {article.assets.length === 0 ? (
-        <EmptyState
-          message={t("contentFactory.assets.empty")}
-          detail={t("contentFactory.assets.emptyDetail")}
-        />
-      ) : (
-        <div className={styles.assetsGrid}>
-          {article.assets.map((asset) => (
-            <AssetCard
-              key={asset.id}
-              asset={asset}
-              onRefresh={fetchArticle}
-            />
-          ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
