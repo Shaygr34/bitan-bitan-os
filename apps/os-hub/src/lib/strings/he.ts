@@ -21,7 +21,7 @@ export const strings: Record<string, string> = {
   "dashboard.modules.sumitSync.description": "סנכרון נתוני סאמיט — ייבוא ועדכון אוטומטי.",
 
   // Placeholder modules (coming soon)
-  "nav.items.customerOnboarding": "Customer Onboarding",
+  "nav.items.customerOnboarding": "קליטת לקוחות",
   "nav.items.analytics": "Analytics",
   "dashboard.modules.customerOnboarding.description": "קליטת לקוחות חכמה — דרך API סאמיט ודף נחיתה ייעודי.",
   "dashboard.modules.analytics.description": "ניתוח נתוני לקוחות — דוחות, תובנות וסטטיסטיקות.",

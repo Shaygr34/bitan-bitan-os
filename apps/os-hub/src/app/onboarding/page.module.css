@@ -1,0 +1,297 @@
+/* Onboarding — Client Intake Link Generator */
+
+/* ── Generate Section ── */
+
+.generateSection {
+  margin-bottom: var(--space-2xl);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--brand-navy);
+  margin: 0 0 var(--space-sm) 0;
+}
+
+.goldSeparator {
+  height: 2px;
+  background: var(--brand-gold);
+  margin-bottom: var(--space-xl);
+  transform-origin: right;
+  animation: underlineGrow 600ms ease-out both;
+}
+
+.generateCard {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2xl);
+  box-shadow: var(--shadow-md);
+}
+
+.inputRow {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-end;
+  margin-bottom: var(--space-lg);
+}
+
+.inputGroup {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.inputLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-heading);
+}
+
+.textInput {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body);
+  font-family: var(--font-sans);
+  color: var(--text-body);
+  background: var(--background);
+  transition: border-color var(--transition-fast);
+  direction: rtl;
+}
+
+.textInput:focus {
+  outline: none;
+  border-color: var(--brand-gold);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.textInput::placeholder {
+  color: var(--text-caption);
+}
+
+.generateBtn {
+  padding: var(--space-sm) var(--space-xl);
+  background: var(--brand-navy);
+  color: var(--text-on-navy);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body);
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.generateBtn:hover:not(:disabled) {
+  background: var(--brand-deep-navy);
+  transform: scale(1.03);
+}
+
+.generateBtn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.generateBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Generated Link Display ── */
+
+.generatedLinkBlock {
+  margin-top: var(--space-lg);
+  padding: var(--space-lg);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  border-right: 3px solid var(--brand-gold);
+}
+
+.generatedLinkLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-caption);
+  margin-bottom: var(--space-sm);
+}
+
+.linkCopyRow {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.linkInput {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  color: var(--text-body);
+  background: var(--background);
+  direction: ltr;
+  text-align: left;
+}
+
+.linkInput:focus {
+  outline: none;
+  border-color: var(--brand-gold);
+}
+
+.copyBtn {
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--brand-gold);
+  color: var(--brand-deep-navy);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.copyBtn:hover {
+  background: #b8955e;
+  transform: scale(1.03);
+}
+
+.copyBtn:active {
+  transform: scale(0.97);
+}
+
+.copyBtn.copied {
+  background: var(--status-success);
+  color: #fff;
+}
+
+.generateError {
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--status-error-bg);
+  border: 1px solid var(--status-error);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--status-error);
+}
+
+/* ── Tokens Table Section ── */
+
+.tokensSection {
+  margin-bottom: var(--space-2xl);
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.tokensTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tokensTable th {
+  text-align: right;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-caption);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+}
+
+.tokensTable td {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+  color: var(--text-body);
+}
+
+.tokensTable tbody tr:hover {
+  background: var(--surface-muted);
+}
+
+.dateCell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-caption);
+}
+
+.tokenCell {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  direction: ltr;
+  text-align: left;
+}
+
+.tableCopyBtn {
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-caption);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-sans);
+  transition: all var(--transition-fast);
+}
+
+.tableCopyBtn:hover {
+  border-color: var(--brand-gold);
+  color: var(--brand-navy);
+}
+
+.tableCopyBtn.copied {
+  border-color: var(--status-success);
+  color: var(--status-success);
+}
+
+.emptyState {
+  text-align: center;
+  padding: var(--space-3xl);
+  color: var(--text-caption);
+  font-size: var(--font-size-sm);
+}
+
+/* ── Loading ── */
+
+.loadingBar {
+  height: 3px;
+  background: var(--border-subtle);
+  margin-bottom: var(--space-lg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.loadingBarInner {
+  height: 100%;
+  width: 40%;
+  background: var(--brand-gold);
+  border-radius: 2px;
+  animation: loadSlide 1.2s ease-in-out infinite;
+}
+
+@keyframes loadSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 640px) {
+  .inputRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .linkCopyRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

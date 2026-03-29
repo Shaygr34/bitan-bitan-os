@@ -43,8 +43,7 @@ const modules: Module[] = [
   {
     key: "nav.items.customerOnboarding",
     descKey: "dashboard.modules.customerOnboarding.description",
-    href: "#",
-    comingSoon: true,
+    href: "/onboarding",
   },
   {
     key: "nav.items.analytics",
