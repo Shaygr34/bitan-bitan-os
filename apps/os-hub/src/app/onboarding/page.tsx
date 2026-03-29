@@ -48,6 +48,7 @@ export default function OnboardingPage() {
   const [generating, setGenerating] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ message: string; names: string[] } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const [clientTypeError, setClientTypeError] = useState(false);
@@ -87,6 +88,7 @@ export default function OnboardingPage() {
     setGenerateError(null);
     setGeneratedUrl(null);
     setCopied(false);
+    setDuplicateWarning(null);
 
     try {
       const res = await fetch("/api/intake/generate", {
@@ -104,8 +106,11 @@ export default function OnboardingPage() {
         throw new Error(data.error ?? "שגיאה ביצירת קישור");
       }
 
-      const data = (await res.json()) as { url: string };
+      const data = (await res.json()) as { url: string; warning?: string; existingClients?: string[] };
       setGeneratedUrl(data.url);
+      if (data.warning && data.existingClients && data.existingClients.length > 0) {
+        setDuplicateWarning({ message: data.warning, names: data.existingClients });
+      }
       loadTokens();
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : "שגיאה לא צפויה");
@@ -120,6 +125,30 @@ export default function OnboardingPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  const handleWhatsAppSend = (url: string) => {
+    const message = `שלום! הנה קישור לטופס קליטת לקוח חדש במשרד ביטן את ביטן:\n${url}`;
+    const encoded = encodeURIComponent(message);
+    window.open(`https://web.whatsapp.com/send?text=${encoded}`, "_blank", "noopener,noreferrer");
+  };
+
+  const handleWhatsAppReminder = (url: string) => {
+    const message = `שלום! רציתי לוודא שקיבלתם את הקישור לטופס הקליטה שלנו. ניתן למלא אותו כאן:\n${url}`;
+    const encoded = encodeURIComponent(message);
+    window.open(`https://web.whatsapp.com/send?text=${encoded}`, "_blank", "noopener,noreferrer");
+  };
+
+  const getStaleBadge = (t: IntakeToken): { label: string; variant: "staleWarning" | "staleDanger" } | null => {
+    const ageMs = Date.now() - new Date(t._createdAt).getTime();
+    const ageDays = ageMs / (1000 * 60 * 60 * 24);
+    if (t.status === "pending" && ageDays > 3) {
+      return { label: "לא נפתח (3+ ימים)", variant: "staleWarning" };
+    }
+    if (t.status === "opened" && ageDays > 5) {
+      return { label: "ממתין להשלמה", variant: "staleDanger" };
+    }
+    return null;
   };
 
   const handleCopyToken = (url: string, tokenKey: string) => {
@@ -311,6 +340,13 @@ export default function OnboardingPage() {
             <div className={styles.generateError}>{generateError}</div>
           )}
 
+          {duplicateWarning && (
+            <div className={styles.duplicateWarning}>
+              <strong>⚠ {duplicateWarning.message}</strong>
+              <span>{duplicateWarning.names.join(", ")}</span>
+            </div>
+          )}
+
           {generatedUrl && (
             <div className={styles.generatedLinkBlock}>
               <div className={styles.generatedLinkLabel}>קישור נוצר בהצלחה</div>
@@ -328,6 +364,12 @@ export default function OnboardingPage() {
                   onClick={handleCopyLink}
                 >
                   {copied ? "הועתק!" : "העתק"}
+                </button>
+                <button
+                  className={styles.whatsappBtn}
+                  onClick={() => handleWhatsAppSend(generatedUrl)}
+                >
+                  📱 שלח בוואטסאפ
                 </button>
               </div>
             </div>
@@ -380,6 +422,8 @@ export default function OnboardingPage() {
                   const clientTypeFromPrefill = prefill?.clientType as string | undefined;
                   const hasDetails = t.status === "completed" && submitted;
 
+                  const staleBadge = getStaleBadge(t);
+
                   return (
                     <Fragment key={t.token}>
                       <tr
@@ -390,16 +434,34 @@ export default function OnboardingPage() {
                         <td>{t.clientName ?? <span style={{ color: "var(--text-caption)" }}>—</span>}</td>
                         <td className={styles.typeCell}>{clientTypeFromPrefill ?? <span style={{ color: "var(--text-caption)" }}>—</span>}</td>
                         <td>
-                          <StatusBadge status={t.status} />
+                          <div className={styles.statusCell}>
+                            <StatusBadge status={t.status} />
+                            {staleBadge && (
+                              <span className={`${styles.staleBadge} ${styles[staleBadge.variant]}`}>
+                                {staleBadge.label}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className={styles.dateCell}>{relativeTime(t._createdAt)}</td>
                         <td>
-                          <button
-                            className={`${styles.tableCopyBtn}${isCopied ? ` ${styles.copied}` : ""}`}
-                            onClick={(e) => { e.stopPropagation(); handleCopyToken(tokenUrl, t.token); }}
-                          >
-                            {isCopied ? "הועתק!" : "העתק קישור"}
-                          </button>
+                          <div className={styles.tableActions}>
+                            <button
+                              className={`${styles.tableCopyBtn}${isCopied ? ` ${styles.copied}` : ""}`}
+                              onClick={(e) => { e.stopPropagation(); handleCopyToken(tokenUrl, t.token); }}
+                            >
+                              {isCopied ? "הועתק!" : "העתק קישור"}
+                            </button>
+                            {staleBadge && (
+                              <button
+                                className={styles.reminderBtn}
+                                onClick={(e) => { e.stopPropagation(); handleWhatsAppReminder(tokenUrl); }}
+                                title="שלח תזכורת בוואטסאפ"
+                              >
+                                תזכורת
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td>
                           {hasDetails && (

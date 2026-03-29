@@ -24,6 +24,32 @@ function generateShortToken(): string {
   return result;
 }
 
+/** Check Summit for existing clients with a similar name. Returns list of matching names or empty array. */
+async function checkSummitDuplicates(clientName: string): Promise<string[]> {
+  const companyId = process.env.SUMMIT_COMPANY_ID || "557813963";
+  const apiKey = process.env.SUMMIT_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const res = await fetch("https://api.sumit.co.il/crm/data/listentities/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        Credentials: { CompanyID: Number(companyId), APIKey: apiKey },
+        Folder: "557688522",
+        Filters: [{ Property: "Customers_FullName", Value: clientName }],
+        Paging: { StartIndex: 0, PageSize: 5 },
+      }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { Data?: Array<Record<string, unknown>> }; // eslint-disable-line
+    if (!Array.isArray(data.Data)) return [];
+    return data.Data.map((e) => String(e.Customers_FullName || "")).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export async function POST(request: NextRequest) {
   let body: GenerateBody = {};
   try {
@@ -47,6 +73,9 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+
+  // Duplicate client check (non-blocking — runs in parallel with token generation)
+  const duplicateNames = clientName ? await checkSummitDuplicates(clientName) : [];
 
   // Build prefill data object
   const prefillData: Record<string, string> = {};
@@ -91,5 +120,12 @@ export async function POST(request: NextRequest) {
   }
 
   const intakeUrl = `https://bitancpa.com/intake/${token}`;
-  return NextResponse.json({ url: intakeUrl, token });
+
+  const responsePayload: Record<string, unknown> = { url: intakeUrl, token };
+  if (duplicateNames.length > 0) {
+    responsePayload.warning = "לקוח עם שם דומה כבר קיים במערכת";
+    responsePayload.existingClients = duplicateNames;
+  }
+
+  return NextResponse.json(responsePayload);
 }
