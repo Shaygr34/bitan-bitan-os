@@ -10,6 +10,18 @@ export const dynamic = "force-dynamic";
 
 interface GenerateBody {
   clientName?: string;
+  clientType?: string;
+  manager?: string;
+}
+
+/** Generate a short 8-char alphanumeric token (no ambiguous chars). */
+function generateShortToken(): string {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789"; // no 0/o, 1/l, i
+  let result = "";
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  for (const b of bytes) result += chars[b % chars.length];
+  return result;
 }
 
 export async function POST(request: NextRequest) {
@@ -17,15 +29,17 @@ export async function POST(request: NextRequest) {
   try {
     body = (await request.json()) as GenerateBody;
   } catch {
-    // empty body is fine — clientName is optional
+    // empty body is fine — fields are optional
   }
 
-  const token = crypto.randomUUID();
+  const token = generateShortToken();
   const clientName = typeof body.clientName === "string" ? body.clientName.trim() || null : null;
+  const clientType = typeof body.clientType === "string" ? body.clientType.trim() || null : null;
+  const manager = typeof body.manager === "string" ? body.manager.trim() || null : null;
 
   const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || sanityConfig.projectId;
   const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || sanityConfig.dataset || "production";
-  const apiToken = process.env.SANITY_API_WRITE_TOKEN || sanityConfig.apiToken;
+  const apiToken = process.env.SANITY_API_WRITE_TOKEN || process.env.SANITY_API_TOKEN || sanityConfig.apiToken;
 
   if (!projectId || !apiToken) {
     return NextResponse.json(
@@ -33,6 +47,12 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+
+  // Build prefill data object
+  const prefillData: Record<string, string> = {};
+  if (clientName) prefillData.clientName = clientName;
+  if (clientType) prefillData.clientType = clientType;
+  if (manager) prefillData.manager = manager;
 
   const doc: Record<string, unknown> = {
     _id: `intakeToken-${token}`,
@@ -43,6 +63,9 @@ export async function POST(request: NextRequest) {
   };
   if (clientName) {
     doc.clientName = clientName;
+  }
+  if (Object.keys(prefillData).length > 0) {
+    doc.prefillData = JSON.stringify(prefillData);
   }
 
   const url = `https://${projectId}.api.sanity.io/v2021-06-07/data/mutate/${dataset}`;
@@ -59,8 +82,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    console.error("Sanity mutation failed:", response.status, body);
+    const respBody = await response.text().catch(() => "");
+    console.error("Sanity mutation failed:", response.status, respBody);
     return NextResponse.json(
       { error: "Failed to create intake token in Sanity" },
       { status: 500 },

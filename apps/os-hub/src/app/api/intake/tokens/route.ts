@@ -14,12 +14,14 @@ interface IntakeToken {
   clientName?: string;
   _createdAt: string;
   summitEntityId?: string;
+  submittedData?: string;
+  prefillData?: string;
 }
 
 export async function GET() {
   const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || sanityConfig.projectId;
   const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || sanityConfig.dataset || "production";
-  const apiToken = process.env.SANITY_API_WRITE_TOKEN || sanityConfig.apiToken;
+  const apiToken = process.env.SANITY_API_WRITE_TOKEN || process.env.SANITY_API_TOKEN || sanityConfig.apiToken;
 
   if (!projectId) {
     return NextResponse.json(
@@ -28,7 +30,7 @@ export async function GET() {
     );
   }
 
-  const groq = `*[_type == "intakeToken"] | order(_createdAt desc) [0...20] { token, status, clientName, _createdAt, summitEntityId }`;
+  const groq = `*[_type == "intakeToken"] | order(_createdAt desc) [0...20] { token, status, clientName, _createdAt, summitEntityId, submittedData, prefillData }`;
 
   const searchParams = new URLSearchParams({ query: groq });
   const url = `https://${projectId}.api.sanity.io/v2021-06-07/data/query/${dataset}?${searchParams}`;
@@ -38,7 +40,7 @@ export async function GET() {
     headers.Authorization = `Bearer ${apiToken}`;
   }
 
-  const response = await fetch(url, { headers });
+  const response = await fetch(url, { headers, cache: "no-store" });
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");

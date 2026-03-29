@@ -1,6 +1,6 @@
 import styles from "./StatusBadge.module.css";
 
-type Status = "uploading" | "processing" | "review" | "completed" | "failed";
+type Status = "uploading" | "processing" | "review" | "completed" | "failed" | "pending";
 
 const STATUS_LABELS: Record<Status, string> = {
   uploading: "מעלה קבצים",
@@ -8,6 +8,7 @@ const STATUS_LABELS: Record<Status, string> = {
   review: "בבדיקה",
   completed: "הושלם",
   failed: "נכשל",
+  pending: "ממתין",
 };
 
 interface StatusBadgeProps {
@@ -33,6 +34,8 @@ function getVariant(status: string): string {
       return "error";
     case "processing":
       return "info";
+    case "pending":
+      return "neutral";
     default:
       return "neutral";
   }
