@@ -26,6 +26,8 @@ const CLIENT_TYPES = [
   "החזר מס",
 ];
 
+const MANAGERS = ["אבי ביטן", "רון ביטן"];
+
 const FIELD_LABELS: Record<string, string> = {
   clientName: "שם לקוח",
   clientType: "סוג לקוח",
@@ -48,10 +50,13 @@ export default function OnboardingPage() {
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [clientTypeError, setClientTypeError] = useState(false);
+
   const [tokens, setTokens] = useState<IntakeToken[]>([]);
   const [tokensLoaded, setTokensLoaded] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   // Internal fields state per token
   const [internalFields, setInternalFields] = useState<Record<string, Record<string, string>>>({});
@@ -73,6 +78,11 @@ export default function OnboardingPage() {
   }, [loadTokens]);
 
   const handleGenerate = async () => {
+    if (!clientType) {
+      setClientTypeError(true);
+      return;
+    }
+    setClientTypeError(false);
     setGenerating(true);
     setGenerateError(null);
     setGeneratedUrl(null);
@@ -120,6 +130,22 @@ export default function OnboardingPage() {
   };
 
   const getTokenUrl = (token: string) => `https://bitancpa.com/intake/${token}`;
+
+  const handleClearTokens = async () => {
+    if (!confirm("למחוק את כל הקישורים הישנים? פעולה זו אינה הפיכה.")) return;
+    setClearing(true);
+    try {
+      const res = await fetch("/api/intake/tokens", { method: "DELETE" });
+      if (res.ok) {
+        setTokens([]);
+        setExpandedToken(null);
+      }
+    } catch {
+      // silently fail — tokens list will remain as-is
+    } finally {
+      setClearing(false);
+    }
+  };
 
   const toggleExpand = (token: string) => {
     setExpandedToken((prev) => (prev === token ? null : token));
@@ -235,33 +261,39 @@ export default function OnboardingPage() {
 
             <div className={styles.inputGroup}>
               <label className={styles.inputLabel} htmlFor="clientType">
-                סוג לקוח
+                סוג לקוח <span className={styles.requiredMark}>*</span>
               </label>
               <select
                 id="clientType"
-                className={styles.selectInput}
+                className={`${styles.selectInput}${clientTypeError ? ` ${styles.selectError}` : ""}`}
                 value={clientType}
-                onChange={(e) => setClientType(e.target.value)}
+                onChange={(e) => { setClientType(e.target.value); setClientTypeError(false); }}
               >
                 <option value="">— בחר סוג —</option>
                 {CLIENT_TYPES.map((ct) => (
                   <option key={ct} value={ct}>{ct}</option>
                 ))}
               </select>
+              {clientTypeError && (
+                <span className={styles.fieldError}>יש לבחור סוג לקוח</span>
+              )}
             </div>
 
             <div className={styles.inputGroup}>
               <label className={styles.inputLabel} htmlFor="manager">
                 מנהל תיק
               </label>
-              <input
+              <select
                 id="manager"
-                type="text"
-                className={styles.textInput}
-                placeholder="שם מנהל/ת התיק"
+                className={styles.selectInput}
                 value={manager}
                 onChange={(e) => setManager(e.target.value)}
-              />
+              >
+                <option value="">— בחר מנהל —</option>
+                {MANAGERS.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -269,7 +301,7 @@ export default function OnboardingPage() {
             <button
               className={styles.generateBtn}
               onClick={handleGenerate}
-              disabled={generating}
+              disabled={generating || !clientType}
             >
               {generating ? "יוצר..." : "צור קישור"}
             </button>
@@ -305,7 +337,18 @@ export default function OnboardingPage() {
 
       {/* Recent Tokens Table */}
       <section className={styles.tokensSection}>
-        <h2 className={styles.sectionTitle}>קישורים אחרונים</h2>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>קישורים אחרונים</h2>
+          {tokensLoaded && tokens.length > 0 && (
+            <button
+              className={styles.clearBtn}
+              onClick={handleClearTokens}
+              disabled={clearing}
+            >
+              {clearing ? "מוחק..." : "נקה קישורים ישנים"}
+            </button>
+          )}
+        </div>
         <div className={styles.goldSeparator} />
 
         {!tokensLoaded ? (
