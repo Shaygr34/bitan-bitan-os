@@ -30,6 +30,8 @@ def _startup_diagnostics():
     logger.info("PORT=%s", os.environ.get("PORT", "(not set, default 8000)"))
     logger.info("DATA_DIR=%s", os.environ.get("DATA_DIR", "/data"))
     logger.info("DATABASE_URL set: %s", "YES" if os.environ.get("DATABASE_URL") else "NO")
+    logger.info("SUMMIT_API_KEY set: %s", "YES" if os.environ.get("SUMMIT_API_KEY") else "NO")
+    logger.info("SUMMIT_COMPANY_ID: %s", os.environ.get("SUMMIT_COMPANY_ID", "(not set)"))
     logger.info("Engine: %s", "created" if engine is not None else "FAILED")
     logger.info("==========================")
 

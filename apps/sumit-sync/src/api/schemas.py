@@ -105,3 +105,8 @@ class DrillDownOut(BaseModel):
     total_rows: int
     columns: List[str]
     rows: List[Dict[str, Any]]
+
+
+class MappingSummaryOut(BaseModel):
+    total_mappings: int
+    with_names: int

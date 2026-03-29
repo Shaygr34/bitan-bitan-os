@@ -19,7 +19,7 @@ import uuid as uuid_mod
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse
@@ -40,6 +40,7 @@ from .schemas import (
     ExecuteResultOut,
     BulkPatchResultOut,
     DrillDownOut,
+    MappingSummaryOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -474,7 +475,7 @@ RESOLUTION_LABELS_HE = {
 
 
 def _read_excel_rows(
-    path: str, sheet_name: str | None, limit: int, offset: int
+    path: str, sheet_name: Optional[str], limit: int, offset: int
 ) -> DrillDownOut:
     """Read an Excel sheet and return paginated rows for drill-down."""
     from openpyxl import load_workbook
@@ -708,5 +709,242 @@ def _run_reconciliation(
         all_warnings.append(
             f"{len(idom_conflicts)} כפילויות IDOM זוהו"
         )
+
+    return result, output_paths, all_warnings
+
+
+# ------------------------------------------------------------------ #
+#  POST /runs/{id}/execute-api  — run reconciliation with Summit API
+# ------------------------------------------------------------------ #
+
+@router.post("/{run_id}/execute-api", response_model=ExecuteResultOut)
+def execute_run_api(run_id: str, db: Session = Depends(get_db)):
+    """
+    Run reconciliation using Summit API as SUMIT data source.
+    Only requires IDOM upload — SUMIT data is fetched directly from the API.
+    """
+    run = _run_or_404(run_id, db)
+
+    if run.status not in ("uploading", "review"):
+        raise HTTPException(400, f"ניתן להריץ רק בסטטוס 'העלאה' או 'בדיקה' (סטטוס נוכחי: {run.status})")
+
+    # Verify IDOM file is uploaded
+    files_by_role = {f.file_role: f for f in run.files}
+    if "idom_upload" not in files_by_role:
+        raise HTTPException(400, "קובץ IDOM טרם הועלה")
+
+    # Transition to processing
+    run.status = "processing"
+    run.started_at = datetime.now(timezone.utc)
+    db.commit()
+
+    t0 = time.monotonic()
+
+    try:
+        result, output_paths, warnings = _run_reconciliation_api(
+            idom_path=files_by_role["idom_upload"].stored_path,
+            report_type=run.report_type,
+            tax_year=run.year,
+            run_id=str(run.id),
+        )
+    except Exception as exc:
+        run.status = "failed"
+        run.completed_at = datetime.now(timezone.utc)
+        db.commit()
+        logger.exception("API reconciliation failed for run %s", run_id)
+        raise HTTPException(500, f"הסנכרון נכשל: {exc}")
+
+    elapsed = time.monotonic() - t0
+
+    # Persist metrics
+    metrics = models.RunMetrics(
+        run_id=run.id,
+        total_idom_records=result.total_idom_records,
+        total_sumit_records=result.total_sumit_records,
+        matched_count=result.matched_count,
+        unmatched_count=result.unmatched_count,
+        changed_count=result.changed_count,
+        unchanged_count=result.unchanged_count,
+        status_completed_count=result.status_completed_count,
+        status_preserved_count=result.status_preserved_count,
+        status_regression_flags=result.status_regression_flags,
+        processing_seconds=round(elapsed, 3),
+    )
+    db.add(metrics)
+
+    # Persist exceptions
+    if not result.exceptions_df.empty:
+        for _, exc_row in result.exceptions_df.iterrows():
+            exc_record = models.Exception(
+                run_id=run.id,
+                exception_type=exc_row.get("exception_type", "no_sumit_match"),
+                idom_ref=str(exc_row.get("מספר_תיק", "")),
+                client_name=str(exc_row.get("שם", "")),
+                description=str(exc_row.get("notes", "רשומת IDOM ללא התאמה בייצוא SUMIT. ייתכן לקוח חדש או סינון ייצוא.")),
+            )
+            db.add(exc_record)
+
+    for rec in result.regression_records:
+        exc_record = models.Exception(
+            run_id=run.id,
+            exception_type="status_regression",
+            idom_ref=rec.get("idom_ref", ""),
+            sumit_ref=rec.get("sumit_ref", ""),
+            client_name=rec.get("client_name", ""),
+            description="סטטוס 'הושלם' ב-SUMIT אך ללא תאריך הגשה ב-IDOM. הסטטוס נשמר — נדרשת בדיקה.",
+        )
+        db.add(exc_record)
+
+    for w in warnings:
+        if "duplicate" in w.lower() or "conflict" in w.lower():
+            exc_record = models.Exception(
+                run_id=run.id,
+                exception_type="idom_duplicate",
+                description=w,
+            )
+            db.add(exc_record)
+
+    # Persist output files
+    output_file_names = []
+    role_map = {
+        "import": "import_output",
+        "diff": "diff_report",
+        "exceptions": "exceptions_report",
+    }
+    for key, path_str in output_paths.items():
+        role = role_map.get(key, key)
+        p = Path(path_str)
+        run_file = models.RunFile(
+            run_id=run.id,
+            file_role=role,
+            original_name=p.name,
+            stored_path=path_str,
+            size_bytes=p.stat().st_size if p.exists() else 0,
+            mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        db.add(run_file)
+        output_file_names.append(p.name)
+
+    has_exceptions = result.unmatched_count > 0 or result.status_regression_flags > 0
+    run.status = "review" if has_exceptions else "completed"
+    run.completed_at = datetime.now(timezone.utc)
+    db.commit()
+
+    logger.info(
+        "API run %s completed in %.2fs: %d matched, %d exceptions, %d API calls",
+        run_id, elapsed, result.matched_count,
+        result.unmatched_count + result.status_regression_flags,
+        0,  # TODO: pass through call count
+    )
+
+    return ExecuteResultOut(
+        run_id=str(run.id),
+        status=run.status,
+        metrics=RunMetricsOut(
+            total_idom_records=result.total_idom_records,
+            total_sumit_records=result.total_sumit_records,
+            matched_count=result.matched_count,
+            unmatched_count=result.unmatched_count,
+            changed_count=result.changed_count,
+            unchanged_count=result.unchanged_count,
+            status_completed_count=result.status_completed_count,
+            status_preserved_count=result.status_preserved_count,
+            status_regression_flags=result.status_regression_flags,
+            processing_seconds=round(elapsed, 3),
+        ),
+        exception_count=result.unmatched_count + result.status_regression_flags,
+        output_files=output_file_names,
+        warnings=result.warnings,
+    )
+
+
+# ------------------------------------------------------------------ #
+#  GET /mapping  — view client mapping summary
+# ------------------------------------------------------------------ #
+
+@router.get("/mapping/summary", response_model=MappingSummaryOut, tags=["mapping"])
+def get_mapping_summary():
+    """Get summary stats for the client ↔ company number mapping store."""
+    from ..core.mapping_store import MappingStore
+    store = MappingStore()
+    return store.to_summary()
+
+
+# ------------------------------------------------------------------ #
+#  POST /mapping/refresh  — rebuild mapping from API
+# ------------------------------------------------------------------ #
+
+@router.post("/mapping/refresh", tags=["mapping"])
+def refresh_mapping():
+    """
+    Rebuild the client mapping by fetching all clients from Summit API.
+    This is a slow operation (takes several minutes due to rate limits).
+    """
+    from ..core.sumit_api_client import SummitAPIClient
+    from ..core.mapping_store import MappingStore
+
+    api = SummitAPIClient()
+    store = MappingStore()
+
+    # Fetch all client IDs
+    client_ids = api.list_entities("557688522")  # לקוחות folder
+
+    resolved = 0
+    for cid in client_ids:
+        if not store.has_client(cid):
+            cn = api.get_client_company_number(cid)
+            if cn:
+                store.add(cid, cn)
+                resolved += 1
+
+    store.save()
+
+    return {
+        "total_clients": len(client_ids),
+        "newly_resolved": resolved,
+        "total_mappings": store.size,
+        "api_calls": api.call_count,
+    }
+
+
+# ------------------------------------------------------------------ #
+#  Internal: run reconciliation with API source
+# ------------------------------------------------------------------ #
+
+def _run_reconciliation_api(
+    idom_path: str,
+    report_type: str,
+    tax_year: int,
+    run_id: str,
+):
+    """
+    Orchestrates reconciliation using Summit API as data source.
+    Only requires IDOM file — SUMIT data comes from API.
+    """
+    from ..core.config import get_config
+    from ..core.idom_parser import parse_idom_file
+    from ..core.sumit_api_source import fetch_sumit_data
+    from ..core.sync_engine import run_sync
+    from ..core.output_writer import write_outputs
+
+    config = get_config(report_type)
+
+    # Parse IDOM input
+    idom_df, idom_conflicts, idom_warnings = parse_idom_file(idom_path)
+
+    # Fetch SUMIT data from API (replaces parse_sumit_file)
+    sumit_df, sumit_lookup, sumit_warnings = fetch_sumit_data(config, tax_year)
+
+    # Run sync
+    result = run_sync(idom_df, sumit_df, sumit_lookup, config, tax_year)
+
+    # Write outputs
+    output_dir = str(file_store.outputs_dir(run_id))
+    output_paths = write_outputs(result, config, output_dir, tax_year)
+
+    # Collect warnings
+    all_warnings = idom_warnings + sumit_warnings + result.warnings
+    if not idom_conflicts.empty:
+        all_warnings.append(f"{len(idom_conflicts)} כפילויות IDOM זוהו")
 
     return result, output_paths, all_warnings

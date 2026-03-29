@@ -10,4 +10,6 @@ build/
 .coverage
 htmlcov/
 .env
+.venv/
+venv/
 *.db
