@@ -237,3 +237,93 @@ score = sourceWeight(0-25) + recency(0-25) + keywords(0-30) + category(0-20) - n
 - **StatusBadge**: pill shape (border-radius: 9999px)
 - **Transitions**: 200ms fast, 300ms normal, 400ms slow
 - **Design reference**: matches `/Users/shay/bitan-bitan-website` visual language
+
+---
+
+## sumit-sync: IDOM→SUMIT Reconciliation Service
+
+### Stack
+- FastAPI 0.109+, Python 3.9+, SQLAlchemy 2, PostgreSQL (shared Railway DB), pandas
+- Railway auto-deploy, Docker (Dockerfile in `apps/sumit-sync/`)
+- Railway Volume at `/data` for file storage and client mapping
+
+### What It Does
+Reconciles SHAAM/IDOM filing status data with Summit CRM report records:
+1. Parse IDOM paste (filing deadlines from tax authority)
+2. Get SUMIT data (report statuses from Summit CRM)
+3. Match by ח.פ/ת"ז → produce import XLSX + diff report + exceptions
+
+### Two Execution Modes
+- **`POST /runs/{id}/execute`** — XLSX-based (original). Requires both IDOM + SUMIT file uploads.
+- **`POST /runs/{id}/execute-api`** — API-based (P0, March 2026). Only requires IDOM upload. SUMIT data fetched directly from Summit API. Eliminates manual XLSX export step.
+
+### Summit API Integration (P0)
+- **Direct HTTP client** (`sumit_api_client.py`) calls `api.sumit.co.il` — bypasses MCP proxy to access `Customers_CompanyNumber` (redacted by MCP security zones)
+- **Rate limiting**: 50 calls/batch, 65s cooldown, exponential backoff on 403 (70s→140s→280s→560s). Summit blocks after ~100-150 rapid calls.
+- **Client mapping** (`mapping_store.py`): JSON on Railway Volume at `/data/client_mapping.json`. Maps client entity ID → ח.פ/ת"ז. Persists across runs — first run resolves all clients (~15min), subsequent runs skip client lookups (~3-4min).
+- **Data flow**: `listentities` (report folder) → `getentity` per report → extract `לקוח` reference → `getentity` on client → `Customers_CompanyNumber`
+- **Entity counts**: ~243 financial reports, ~572 annual reports. ~400 unique clients.
+
+### Summit CRM Folder IDs
+- `1124761700` = דוחות כספיים (financial reports)
+- `1144157121` = דוחות שנתיים (annual reports)
+- `557688522` = לקוחות (clients)
+
+### Key Files
+```
+src/core/
+├── config.py              — Report schemas, column mappings (SINGLE SOURCE OF TRUTH)
+├── idom_parser.py         — SHAAM/IDOM paste parser (DO NOT MODIFY)
+├── sumit_parser.py        — SUMIT XLSX parser (original, DO NOT MODIFY)
+├── sync_engine.py         — Core matching engine (DO NOT MODIFY)
+├── output_writer.py       — XLSX output generation (DO NOT MODIFY)
+├── validation.py          — Input validation (DO NOT MODIFY)
+├── sumit_api_client.py    — Direct Summit API HTTP client with rate limiting
+├── mapping_store.py       — Persistent client ID ↔ ח.פ JSON mapping
+└── sumit_api_source.py    — API data source (drop-in for sumit_parser)
+
+src/api/
+├── routes.py              — All REST endpoints (runs CRUD, execute, execute-api, mapping)
+└── schemas.py             — Pydantic request/response models
+
+src/storage/file_store.py  — Railway Volume file abstraction
+src/db/                    — SQLAlchemy models + connection
+src/main.py                — FastAPI app entry point
+```
+
+### API Endpoints
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/runs` | Create a new reconciliation run |
+| POST | `/runs/{id}/upload` | Upload IDOM or SUMIT file |
+| POST | `/runs/{id}/execute` | Run sync (XLSX mode, needs both files) |
+| POST | `/runs/{id}/execute-api` | Run sync (API mode, IDOM only) |
+| GET | `/runs/{id}` | Run detail with metrics + exceptions |
+| GET | `/runs` | List runs |
+| DELETE | `/runs/{id}` | Delete run + files |
+| GET | `/runs/{id}/files/{fid}/download` | Download output file |
+| GET | `/runs/{id}/drill-down/{metric}` | Row-level metric data |
+| PATCH | `/runs/{id}/exceptions/{eid}` | Resolve exception |
+| PATCH | `/runs/{id}/exceptions/bulk` | Bulk resolve exceptions |
+| POST | `/runs/{id}/complete` | Lock run as completed |
+| GET | `/runs/mapping/summary` | Mapping store stats |
+| POST | `/runs/mapping/refresh` | Rebuild client mapping from API |
+
+### Environment Variables (Railway service: `sumit - sync`)
+- `DATABASE_URL` — shared PostgreSQL
+- `SUMMIT_COMPANY_ID` — `557813963`
+- `SUMMIT_API_KEY` — Summit API key (same as summit-mcp service)
+- `DATA_DIR` — Railway Volume mount (default `/data`)
+
+### Critical Rules
+- **DO NOT modify** `idom_parser.py`, `sync_engine.py`, `output_writer.py`, or `validation.py`
+- API source must produce byte-compatible output with `parse_sumit_file()` — same column names, same "ID: Label" entity reference format, same date types
+- Python 3.9 on macOS — avoid `str | None` syntax, use `Optional[str]`
+- Summit API key may have trailing newline — always `.strip()` env vars
+
+### Testing
+```bash
+cd apps/sumit-sync
+source .venv/bin/activate  # Create with: python3 -m venv .venv && pip install -r requirements.txt
+python -m pytest tests/ -v  # 29 tests
+```
