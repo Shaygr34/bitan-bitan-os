@@ -28,10 +28,23 @@ const CLIENT_TYPES = [
 
 const MANAGERS = ["אבי ביטן", "רון ביטן"];
 
-// Staff lists for internal field dropdowns — must match Sumit entity names exactly
-const STAFF_AUDIT = ["אבי ביטן", "רון ביטן"]; // עובד/ת ביקורת
-const STAFF_ACCOUNTANT = ["חלי", "מיכל", "שירה"]; // מנהל/ת חשבונות — update with actual staff
-const STAFF_PAYROLL = ["חלי", "מיכל"]; // אחראי שכר — update with actual staff
+// Staff lists from Sumit taxonomy folders — exact entity names for 1:1 API mapping
+const STAFF_ACCOUNTANT = [
+  "אבי ביטן", "רון ביטן", "יצחק ביטן", "מלי ביטן",
+  "חלי עזוז", "גיא מחאני", "יעל מחאני", "שי גרייבר",
+  "משי כהן", "חיה כהן גבורה", "גולן קלדרון", "שרה ישראלי",
+  "אירינה ולסנקוב", "נלה פרידמן", "אורטל מיסק", "חיים שיינגרטן",
+  "כרמית אבשלום", "הודיה יוסף", "בתאל וקנין",
+];
+const STAFF_AUDIT = [
+  "אבי ביטן", "רון ביטן", "יצחק ביטן",
+  "גיא מחאני", "שי גרייבר", "משי כהן",
+  "חיה כהן גבורה", "נלה פרידמן", "הודיה יוסף",
+];
+const STAFF_PAYROLL = [
+  "אבי ביטן", "רון ביטן", "משי כהן",
+  "גולן קלדרון", "חיצוני",
+];
 
 const FIELD_LABELS: Record<string, string> = {
   clientName: "שם לקוח",
