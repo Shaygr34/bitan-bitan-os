@@ -28,6 +28,11 @@ const CLIENT_TYPES = [
 
 const MANAGERS = ["אבי ביטן", "רון ביטן"];
 
+// Staff lists for internal field dropdowns — must match Sumit entity names exactly
+const STAFF_AUDIT = ["אבי ביטן", "רון ביטן"]; // עובד/ת ביקורת
+const STAFF_ACCOUNTANT = ["חלי", "מיכל", "שירה"]; // מנהל/ת חשבונות — update with actual staff
+const STAFF_PAYROLL = ["חלי", "מיכל"]; // אחראי שכר — update with actual staff
+
 const FIELD_LABELS: Record<string, string> = {
   clientName: "שם לקוח",
   clientType: "סוג לקוח",
@@ -595,17 +600,17 @@ export default function OnboardingPage() {
                                 </div>
                               )}
 
-                              {/* Summit Link */}
+                              {/* Sumit Link */}
                               {t.summitEntityId && (
                                 <div className={styles.detailSection}>
-                                  <h4 className={styles.detailSectionTitle}>Summit CRM</h4>
+                                  <h4 className={styles.detailSectionTitle}>Sumit CRM</h4>
                                   <a
                                     href={`https://app.sumit.co.il`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={styles.summitLink}
                                   >
-                                    פתח ב-Summit (Entity #{t.summitEntityId})
+                                    פתח ב-Sumit (Entity #{t.summitEntityId})
                                   </a>
                                 </div>
                               )}
@@ -613,7 +618,7 @@ export default function OnboardingPage() {
                               {/* Internal Fields */}
                               {t.summitEntityId && (
                                 <div className={styles.detailSection}>
-                                  <h4 className={styles.detailSectionTitle}>שדות פנימיים (עדכון Summit)</h4>
+                                  <h4 className={styles.detailSectionTitle}>שדות פנימיים (עדכון Sumit)</h4>
                                   <div className={styles.internalFieldsGrid}>
                                     <div className={styles.internalField}>
                                       <label className={styles.inputLabel}>מנהל תיק</label>
@@ -628,33 +633,36 @@ export default function OnboardingPage() {
                                     </div>
                                     <div className={styles.internalField}>
                                       <label className={styles.inputLabel}>עובד/ת ביקורת</label>
-                                      <input
-                                        type="text"
+                                      <select
                                         className={styles.textInput}
                                         value={getInternalField(t.token, "עובד/ת ביקורת")}
                                         onChange={(e) => setInternalField(t.token, "עובד/ת ביקורת", e.target.value)}
-                                        placeholder="שם עובד/ת ביקורת"
-                                      />
+                                      >
+                                        <option value="">בחר...</option>
+                                        {STAFF_AUDIT.map((s) => <option key={s} value={s}>{s}</option>)}
+                                      </select>
                                     </div>
                                     <div className={styles.internalField}>
                                       <label className={styles.inputLabel}>מנהל/ת חשבונות</label>
-                                      <input
-                                        type="text"
+                                      <select
                                         className={styles.textInput}
                                         value={getInternalField(t.token, "מנהל/ת חשבונות")}
                                         onChange={(e) => setInternalField(t.token, "מנהל/ת חשבונות", e.target.value)}
-                                        placeholder="שם מנהל/ת חשבונות"
-                                      />
+                                      >
+                                        <option value="">בחר...</option>
+                                        {STAFF_ACCOUNTANT.map((s) => <option key={s} value={s}>{s}</option>)}
+                                      </select>
                                     </div>
                                     <div className={styles.internalField}>
                                       <label className={styles.inputLabel}>אחראי שכר</label>
-                                      <input
-                                        type="text"
+                                      <select
                                         className={styles.textInput}
                                         value={getInternalField(t.token, "אחראי שכר")}
                                         onChange={(e) => setInternalField(t.token, "אחראי שכר", e.target.value)}
-                                        placeholder="שם אחראי/ת שכר"
-                                      />
+                                      >
+                                        <option value="">בחר...</option>
+                                        {STAFF_PAYROLL.map((s) => <option key={s} value={s}>{s}</option>)}
+                                      </select>
                                     </div>
                                   </div>
                                   <div className={styles.internalActions}>
@@ -663,7 +671,7 @@ export default function OnboardingPage() {
                                       onClick={() => handleSaveInternal(t)}
                                       disabled={savingInternal === t.token}
                                     >
-                                      {savingInternal === t.token ? "שומר..." : "שמור ב-Summit"}
+                                      {savingInternal === t.token ? "שומר..." : "שמור ב-Sumit"}
                                     </button>
                                     {internalSaveMsg[t.token] && (
                                       <span className={styles.saveMsg}>{internalSaveMsg[t.token]}</span>
