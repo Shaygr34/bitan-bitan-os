@@ -31,15 +31,94 @@ const MANAGERS = ["אבי ביטן", "רון ביטן"];
 const FIELD_LABELS: Record<string, string> = {
   clientName: "שם לקוח",
   clientType: "סוג לקוח",
+  onboardingPath: "מסלול קליטה",
   manager: "מנהל תיק",
   businessName: "שם עסק",
   businessId: "ח.פ / ת.ז",
+  fullName: "שם מלא",
+  companyNumber: "ת.ז / ח.פ",
   email: "דוא\"ל",
   phone: "טלפון",
   address: "כתובת",
+  city: "יישוב",
+  businessSector: "תחום עיסוק",
+  estimatedTurnover: "מחזור שנתי משוער",
+  businessAddress: "כתובת העסק",
+  hasEmployees: "מעסיק עובדים",
+  employeeCount: "כמה עובדים",
+  previousCpaName: "רו\"ח קודם",
+  previousCpaEmail: "מייל רו\"ח קודם",
+  previousCpaSoftware: "תוכנות רו\"ח קודם",
+  shareholderDetails: "פרטי בעלי מניות",
   contactName: "איש קשר",
   notes: "הערות",
 };
+
+const ONBOARDING_PATH_LABELS: Record<string, string> = {
+  "new-individual": "עצמאי חדש",
+  "new-company": "חברה חדשה",
+  "transfer-individual": "עצמאי שעובר",
+  "transfer-company": "חברה שעוברת",
+};
+
+// Post-submission checklist per Avi's spec
+function getOnboardingChecklist(path: string, clientType: string): string[] {
+  const isCompany = ["חברה", "חברה שנתי", "שותפות", "עמותה"].includes(clientType);
+  const isTransfer = path.includes("transfer");
+
+  const items: string[] = [
+    "קליטת נתונים — CPA, סאמיט, רבגונית" + (isCompany ? ", ניהולית" : ""),
+    "הגדרת מנהל תיק, מנהל ביקורת, מנה\"ח ועדכון הצוות",
+    "הפקת ייפוי כוח — מ\"ה / מע\"מ / ניכויים / ב\"ל",
+    "שליחת קודי מוסד ללקוח",
+  ];
+
+  if (isTransfer) {
+    items.unshift("שליחת מייל לרו\"ח קודם — שחרור תיק + העברת מסמכים");
+    items.push("קבלת גיבויים מרו\"ח קודם");
+  }
+
+  if (isCompany) {
+    items.push("קליטת מוסמך לדווח ברשת החברות");
+    items.push("חיבור לבנקים — בדיקת בנק ושליחת פירוט מסמכים");
+  }
+
+  items.push(
+    "פתיחת קלסרים — קבע / ניכויים / הנה\"ח / דפי בנק",
+    "מעקב קליטת ייפוי כוח ועדכון תדירות דיווחים",
+    "בקשת ניכוי מס במקור",
+    "שליחת תעודת עוסק מורשה",
+    "שמירת לקוח בנייד המשרדי (וואטסאפ)",
+  );
+
+  return items;
+}
+
+// קודי מוסד letter template
+function getKodeiMosadLetter(clientName: string): string {
+  return `${clientName} שלום,
+
+כחלק מייעול העבודה השוטפת בעניין תשלומים שוטפים למוסדות, נבקש להקים הרשאת חיוב בחשבון הבנק בהתאם לקודי המוסד המפורטים:
+
+2760 – מ"ה מקדמות
+2761 – מע"מ
+2762 – מ"ה ניכויים
+38286 – ב"ל ניכויים
+28900 – ביטוח לאומי עצמאי
+55755 – ביטן
+
+מספר דגשים:
+א. קוד מוסד הנו הרשאת חיוב ספציפית ישירות למוסדות במקום תשלום בשיקים.
+ב. בעת הקמת הרשאת החיוב לא להגביל תאריכים וסכומים אחרת הוראת החיוב לא תאושר ע"י המוסד.
+ג. מילוי מספר אסמכתא / מזהה / מספר לקוח — בעת הקמת הוראת החיוב זה שדה שקיים, צריך למלא מספר ת.ז/ח.פ/תיק ניכויים — חשוב מאוד!
+ד. הוראת החיוב מבוצעת ע"י משרדנו בלבד. (מלבד ב"ל עצמאי שיורד באופן שוטף ובסכום קבוע ואוטומטי ב-22 לחודש).
+ה. לשמור את מסמך הקמת הוראת החיוב ולשלוח למשרדנו. למייל heli@bitancpa.com או לפקס 03-5174298
+
+לאחר סיום הליך הקמת הוראות החיוב לעדכן את משרדנו ע"מ שנעקוב מול הרשויות בקליטתן.
+
+לכל שאלה ניתן לפנות למשרדנו 03-5174295
+ביטן את ביטן — רואי חשבון`;
+}
 
 export default function OnboardingPage() {
   const [clientName, setClientName] = useState("");
@@ -538,12 +617,23 @@ export default function OnboardingPage() {
                                   <div className={styles.internalFieldsGrid}>
                                     <div className={styles.internalField}>
                                       <label className={styles.inputLabel}>מנהל תיק</label>
+                                      <select
+                                        className={styles.textInput}
+                                        value={getInternalField(t.token, "מנהל תיק")}
+                                        onChange={(e) => setInternalField(t.token, "מנהל תיק", e.target.value)}
+                                      >
+                                        <option value="">בחר...</option>
+                                        {MANAGERS.map((m) => <option key={m} value={m}>{m}</option>)}
+                                      </select>
+                                    </div>
+                                    <div className={styles.internalField}>
+                                      <label className={styles.inputLabel}>עובד/ת ביקורת</label>
                                       <input
                                         type="text"
                                         className={styles.textInput}
-                                        value={getInternalField(t.token, "managerTik")}
-                                        onChange={(e) => setInternalField(t.token, "managerTik", e.target.value)}
-                                        placeholder="שם מנהל/ת התיק"
+                                        value={getInternalField(t.token, "עובד/ת ביקורת")}
+                                        onChange={(e) => setInternalField(t.token, "עובד/ת ביקורת", e.target.value)}
+                                        placeholder="שם עובד/ת ביקורת"
                                       />
                                     </div>
                                     <div className={styles.internalField}>
@@ -551,8 +641,8 @@ export default function OnboardingPage() {
                                       <input
                                         type="text"
                                         className={styles.textInput}
-                                        value={getInternalField(t.token, "accountant")}
-                                        onChange={(e) => setInternalField(t.token, "accountant", e.target.value)}
+                                        value={getInternalField(t.token, "מנהל/ת חשבונות")}
+                                        onChange={(e) => setInternalField(t.token, "מנהל/ת חשבונות", e.target.value)}
                                         placeholder="שם מנהל/ת חשבונות"
                                       />
                                     </div>
@@ -561,8 +651,8 @@ export default function OnboardingPage() {
                                       <input
                                         type="text"
                                         className={styles.textInput}
-                                        value={getInternalField(t.token, "payrollManager")}
-                                        onChange={(e) => setInternalField(t.token, "payrollManager", e.target.value)}
+                                        value={getInternalField(t.token, "אחראי שכר")}
+                                        onChange={(e) => setInternalField(t.token, "אחראי שכר", e.target.value)}
                                         placeholder="שם אחראי/ת שכר"
                                       />
                                     </div>
@@ -573,12 +663,61 @@ export default function OnboardingPage() {
                                       onClick={() => handleSaveInternal(t)}
                                       disabled={savingInternal === t.token}
                                     >
-                                      {savingInternal === t.token ? "שומר..." : "שמור"}
+                                      {savingInternal === t.token ? "שומר..." : "שמור ב-Summit"}
                                     </button>
                                     {internalSaveMsg[t.token] && (
                                       <span className={styles.saveMsg}>{internalSaveMsg[t.token]}</span>
                                     )}
                                   </div>
+                                </div>
+                              )}
+
+                              {/* Onboarding Checklist */}
+                              {t.status === "completed" && (
+                                <div className={styles.detailSection}>
+                                  <h4 className={styles.detailSectionTitle}>צ&apos;קליסט קליטה</h4>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                    {getOnboardingChecklist(
+                                      submitted?.onboardingPath || "new-individual",
+                                      submitted?.clientType || ""
+                                    ).map((item, i) => (
+                                      <label key={i} style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+                                        <input type="checkbox" style={{ marginTop: "0.2rem", accentColor: "#C5A572" }} />
+                                        <span>{item}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* קודי מוסד Letter */}
+                              {t.status === "completed" && (
+                                <div className={styles.detailSection}>
+                                  <h4 className={styles.detailSectionTitle}>קודי מוסד — מכתב ללקוח</h4>
+                                  <button
+                                    className={styles.saveBtn}
+                                    onClick={() => {
+                                      const name = submitted?.fullName || t.clientName || "לקוח יקר";
+                                      const letter = getKodeiMosadLetter(name);
+                                      navigator.clipboard.writeText(letter).then(() => {
+                                        alert("המכתב הועתק! ניתן להדביק בוואטסאפ או במייל.");
+                                      });
+                                    }}
+                                  >
+                                    העתק מכתב קודי מוסד
+                                  </button>
+                                  <button
+                                    className={styles.saveBtn}
+                                    style={{ marginRight: "0.5rem" }}
+                                    onClick={() => {
+                                      const name = submitted?.fullName || t.clientName || "לקוח יקר";
+                                      const letter = getKodeiMosadLetter(name);
+                                      const encoded = encodeURIComponent(letter);
+                                      window.open(`https://web.whatsapp.com/send?text=${encoded}`, "_blank", "noopener,noreferrer");
+                                    }}
+                                  >
+                                    שלח בוואטסאפ
+                                  </button>
                                 </div>
                               )}
                             </div>
