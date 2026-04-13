@@ -17,6 +17,7 @@ interface IntakeToken {
   summitEntityId?: string;
   submittedData?: string;
   prefillData?: string;
+  summitError?: string;
 }
 
 export async function GET() {
@@ -31,7 +32,7 @@ export async function GET() {
     );
   }
 
-  const groq = `*[_type == "intakeToken"] | order(_createdAt desc) [0...20] { token, status, clientName, _createdAt, summitEntityId, submittedData, prefillData }`;
+  const groq = `*[_type == "intakeToken"] | order(_createdAt desc) [0...20] { token, status, clientName, _createdAt, summitEntityId, submittedData, prefillData, summitError }`;
 
   const searchParams = new URLSearchParams({ query: groq });
   const url = `https://${projectId}.api.sanity.io/v2021-06-07/data/query/${dataset}?${searchParams}`;

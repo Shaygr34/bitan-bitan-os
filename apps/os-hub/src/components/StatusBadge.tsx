@@ -1,6 +1,6 @@
 import styles from "./StatusBadge.module.css";
 
-type Status = "uploading" | "processing" | "review" | "completed" | "failed" | "pending" | "opened";
+type Status = "uploading" | "processing" | "review" | "completed" | "failed" | "pending" | "opened" | "summit_failed";
 
 const STATUS_LABELS: Record<Status, string> = {
   uploading: "מעלה קבצים",
@@ -10,6 +10,7 @@ const STATUS_LABELS: Record<Status, string> = {
   failed: "נכשל",
   pending: "ממתין",
   opened: "נפתח",
+  summit_failed: "נכשל בסאמיט",
 };
 
 interface StatusBadgeProps {
@@ -32,6 +33,7 @@ function getVariant(status: string): string {
     case "review":
       return "warning";
     case "failed":
+    case "summit_failed":
       return "error";
     case "processing":
       return "info";

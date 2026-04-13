@@ -15,6 +15,7 @@ interface IntakeToken {
   summitEntityId?: string;
   submittedData?: string;
   prefillData?: string;
+  summitError?: string;
 }
 
 const CLIENT_TYPES = [
@@ -553,6 +554,19 @@ export default function OnboardingPage() {
                                       </li>
                                     ))}
                                   </ul>
+                                </div>
+                              )}
+
+                              {/* Summit Error */}
+                              {t.summitError && (
+                                <div className={styles.detailSection}>
+                                  <h4 className={styles.detailSectionTitle} style={{ color: '#C53030' }}>שגיאת סאמיט</h4>
+                                  <p style={{ color: '#C53030', fontSize: '0.85rem', background: '#FFF5F5', border: '1px solid #FEB2B2', borderRadius: '8px', padding: '0.75rem', direction: 'ltr', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                    {t.summitError}
+                                  </p>
+                                  <p style={{ fontSize: '0.8rem', color: '#718096', marginTop: '0.5rem' }}>
+                                    הלקוח מילא את הטופס אבל יצירת הכרטיס בסאמיט נכשלה. יש לבדוק את הנתונים וליצור ידנית.
+                                  </p>
                                 </div>
                               )}
 
