@@ -11,9 +11,14 @@ from dataclasses import dataclass, field
 import logging
 
 from .config import (
-    ReportConfig, ReportType, 
+    ReportConfig, ReportType,
     STATUS_COMPLETED, STATUS_COMPLETED_LABEL,
     IMPORT_MAPPINGS
+)
+from .write_plan import WritePlan, WriteOperation, OpType
+from .taxonomy import (
+    resolve_tax_year, resolve_status, resolve_pkid_shoma, resolve_sug_tik,
+    STATUS_COMPLETED_ID,
 )
 
 logger = logging.getLogger(__name__)
@@ -344,6 +349,203 @@ class SyncEngine:
         if isinstance(value, (datetime, pd.Timestamp)):
             return value.strftime('%Y-%m-%d')
         return str(value)
+
+    # ── Write Plan Builder ──────────────────────────────────────
+
+    def build_write_plan(
+        self,
+        idom_df: pd.DataFrame,
+        sumit_df: pd.DataFrame,
+        sumit_lookup: Dict[str, pd.Series],
+        tax_year: int,
+        client_mapping=None,
+    ) -> WritePlan:
+        """
+        Build a WritePlan from IDOM data and Summit state.
+
+        For each IDOM record:
+        - Matched + changes needed → UPDATE_REPORT
+        - Matched + no changes → SKIP
+        - Unmatched + client exists → CREATE_REPORT
+        - Unmatched + client missing → FLAG
+        Also builds UPDATE_CLIENT ops for פקיד שומה / סוג תיק.
+        """
+        plan = WritePlan()
+        folder_id = {
+            "financial": "1124761700",
+            "annual": "1144157121",
+        }[self.config.report_type.value]
+
+        year_entity_id = resolve_tax_year(tax_year)
+        client_updates_planned = set()  # avoid duplicate client updates
+
+        for _, idom_row in idom_df.iterrows():
+            match_key = str(idom_row.get("מספר_תיק", ""))
+            client_name = str(idom_row.get("שם", ""))
+            has_submission = pd.notna(idom_row.get("תאריך_הגשה"))
+
+            # Try match
+            sumit_row = sumit_lookup.get(match_key)
+            if sumit_row is None and match_key:
+                normalized = match_key.lstrip("0")
+                if normalized != match_key:
+                    for sk in sumit_lookup:
+                        if sk.lstrip("0") == normalized:
+                            sumit_row = sumit_lookup[sk]
+                            break
+
+            if sumit_row is not None:
+                self._plan_update(plan, idom_row, sumit_row, folder_id, match_key, client_name, has_submission)
+            else:
+                self._plan_create_or_flag(plan, idom_row, folder_id, match_key, client_name, has_submission, tax_year, year_entity_id, client_mapping)
+
+            # Client-level updates
+            if match_key and match_key not in client_updates_planned and client_mapping:
+                self._plan_client_update(plan, idom_row, match_key, client_name, client_mapping)
+                client_updates_planned.add(match_key)
+
+        logger.info(
+            "Write plan: %d total (%d updates, %d creates, %d client, %d skips, %d flags)",
+            plan.total, plan.updates, plan.creates, plan.client_updates, plan.skips, plan.flags,
+        )
+        return plan
+
+    def _plan_update(self, plan, idom_row, sumit_row, folder_id, match_key, client_name, has_submission):
+        """Build UPDATE_REPORT or SKIP operation for a matched record."""
+        entity_id = sumit_row.get("מזהה", "")
+        entity_id_str = str(entity_id)
+        if entity_id_str.endswith(".0"):
+            entity_id_str = entity_id_str[:-2]
+        entity_id_int = int(entity_id_str) if entity_id_str else None
+
+        properties = {}
+        old_values = {}
+
+        # Status
+        current_status = str(sumit_row.get("סטטוס", ""))
+        if has_submission and str(STATUS_COMPLETED_ID) not in current_status:
+            properties["סטטוס"] = STATUS_COMPLETED_ID
+            old_values["סטטוס"] = current_status
+
+        # Extension date (אורכה מ"ה)
+        idom_ext = idom_row.get("תאריך_ארכה")
+        if pd.notna(idom_ext):
+            ext_str = idom_ext.strftime("%d/%m/%Y") if hasattr(idom_ext, "strftime") else str(idom_ext)
+            old_ext = sumit_row.get('תאריך אורכה מ"ה', "")
+            properties['תאריך אורכה מ"ה'] = ext_str
+            old_values['תאריך אורכה מ"ה'] = str(old_ext) if pd.notna(old_ext) else ""
+
+        # Submission date
+        idom_sub = idom_row.get("תאריך_הגשה")
+        if pd.notna(idom_sub):
+            sub_str = idom_sub.strftime("%d/%m/%Y") if hasattr(idom_sub, "strftime") else str(idom_sub)
+            old_sub = sumit_row.get("תאריך הגשה", "")
+            properties["תאריך הגשה"] = sub_str
+            old_values["תאריך הגשה"] = str(old_sub) if pd.notna(old_sub) else ""
+
+        if properties:
+            plan.add(WriteOperation(
+                op_type=OpType.UPDATE_REPORT,
+                entity_id=entity_id_int,
+                folder_id=folder_id,
+                client_name=client_name,
+                match_key=match_key,
+                properties=properties,
+                old_values=old_values,
+                reason="Matched — updating from IDOM",
+            ))
+        else:
+            plan.add(WriteOperation(
+                op_type=OpType.SKIP,
+                entity_id=entity_id_int,
+                folder_id=folder_id,
+                client_name=client_name,
+                match_key=match_key,
+                properties={},
+                old_values={},
+                reason="Matched — no changes needed",
+            ))
+
+    def _plan_create_or_flag(self, plan, idom_row, folder_id, match_key, client_name, has_submission, tax_year, year_entity_id, client_mapping):
+        """Build CREATE_REPORT or FLAG operation for an unmatched record."""
+        client_id = None
+        if client_mapping:
+            cid_str = client_mapping.get_client_id(match_key)
+            if cid_str:
+                client_id = int(cid_str)
+
+        if client_id:
+            properties = {"לקוח": client_id}
+            if year_entity_id:
+                properties["שנת מס"] = year_entity_id
+            properties["סטטוס"] = resolve_status(has_submission)
+
+            idom_ext = idom_row.get("תאריך_ארכה")
+            if pd.notna(idom_ext):
+                properties['תאריך אורכה מ"ה'] = idom_ext.strftime("%d/%m/%Y") if hasattr(idom_ext, "strftime") else str(idom_ext)
+
+            idom_sub = idom_row.get("תאריך_הגשה")
+            if pd.notna(idom_sub):
+                properties["תאריך הגשה"] = idom_sub.strftime("%d/%m/%Y") if hasattr(idom_sub, "strftime") else str(idom_sub)
+
+            plan.add(WriteOperation(
+                op_type=OpType.CREATE_REPORT,
+                entity_id=None,
+                folder_id=folder_id,
+                client_name=client_name,
+                match_key=match_key,
+                client_entity_id=client_id,
+                properties=properties,
+                old_values={},
+                reason="New report — client exists (ID %d), no report for %d" % (client_id, tax_year),
+            ))
+        else:
+            plan.add(WriteOperation(
+                op_type=OpType.FLAG,
+                entity_id=None,
+                folder_id=folder_id,
+                client_name=client_name,
+                match_key=match_key,
+                properties={},
+                old_values={},
+                reason="Client not found in Summit — needs manual review",
+            ))
+
+    def _plan_client_update(self, plan, idom_row, match_key, client_name, client_mapping):
+        """Build UPDATE_CLIENT operation for פקיד שומה / סוג תיק."""
+        cid_str = client_mapping.get_client_id(match_key)
+        if not cid_str:
+            return
+
+        client_id = int(cid_str)
+        client_props = {}
+        client_old = {}
+
+        ps_code = str(idom_row.get("פקיד_שומה", "")).strip()
+        if ps_code and ps_code != "nan":
+            ps = resolve_pkid_shoma(ps_code)
+            if ps:
+                client_props["פקיד שומה"] = ps["id"]
+                client_old["פקיד שומה"] = ""
+
+        st_code = str(idom_row.get("סוג_תיק", "")).strip()
+        if st_code and st_code != "nan":
+            st = resolve_sug_tik(st_code)
+            if st:
+                client_props["סוג תיק"] = st["id"]
+                client_old["סוג תיק"] = ""
+
+        if client_props:
+            plan.add(WriteOperation(
+                op_type=OpType.UPDATE_CLIENT,
+                entity_id=client_id,
+                folder_id="557688522",
+                client_name=client_name,
+                match_key=match_key,
+                properties=client_props,
+                old_values=client_old,
+                reason="Client-level fields from IDOM",
+            ))
 
 
 def run_sync(
