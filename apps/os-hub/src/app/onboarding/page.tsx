@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState, useRef, useCallback } from "react";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
 import { relativeTime } from "@/lib/formatters";
+import CompletionDashboard from "./CompletionDashboard";
 import styles from "./page.module.css";
 
 interface IntakeToken {
@@ -123,6 +124,7 @@ function getKodeiMosadLetter(clientName: string): string {
 }
 
 export default function OnboardingPage() {
+  const [activeTab, setActiveTab] = useState<"intake" | "completion">("intake");
   const [clientName, setClientName] = useState("");
   const [clientType, setClientType] = useState("");
   const [manager, setManager] = useState("");
@@ -283,6 +285,25 @@ export default function OnboardingPage() {
         description="יצירת קישורי קליטה ללקוחות חדשים"
       />
 
+      {/* Tab Bar */}
+      <div className={styles.tabBar}>
+        <button
+          className={`${styles.tab}${activeTab === "intake" ? ` ${styles.tabActive}` : ""}`}
+          onClick={() => setActiveTab("intake")}
+        >
+          קליטה חדשה
+        </button>
+        <button
+          className={`${styles.tab}${activeTab === "completion" ? ` ${styles.tabActive}` : ""}`}
+          onClick={() => setActiveTab("completion")}
+        >
+          השלמת נתונים
+        </button>
+      </div>
+
+      {activeTab === "completion" && <CompletionDashboard />}
+
+      {activeTab === "intake" && (<>
       {/* Generate Section */}
       <section className={styles.generateSection}>
         <h2 className={styles.sectionTitle}>יצירת קישור חדש</h2>
@@ -610,6 +631,7 @@ export default function OnboardingPage() {
           </div>
         )}
       </section>
+      </>)}
     </div>
   );
 }

@@ -653,3 +653,199 @@
     align-items: stretch;
   }
 }
+
+/* ── Tab Bar ── */
+
+.tabBar {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: var(--space-xl);
+}
+
+.tab {
+  padding: var(--space-sm) var(--space-xl);
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  font-size: var(--font-size-body);
+  font-family: var(--font-sans);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-caption);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--brand-navy);
+}
+
+.tabActive {
+  color: var(--brand-navy);
+  font-weight: var(--font-weight-semibold);
+  border-bottom-color: var(--brand-gold);
+}
+
+/* ── Completion Dashboard ── */
+
+.completionWrapper {
+  animation: fadeUp 400ms ease-out both;
+}
+
+/* ── Stat Grid ── */
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.statCard {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+}
+
+.statCard:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.statNumber {
+  font-size: 2rem;
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--brand-gold);
+  line-height: 1.2;
+  animation: statPop 500ms ease-out both;
+}
+
+.statLabel {
+  font-size: var(--font-size-sm);
+  color: var(--text-caption);
+  margin-top: var(--space-xs);
+}
+
+/* ── Filter Bar ── */
+
+.filterBar {
+  display: flex;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.filterBar .selectInput {
+  flex: 1;
+  min-width: 180px;
+}
+
+/* ── Completion Table ── */
+
+.completionTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.completionTable th {
+  text-align: right;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-caption);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+}
+
+.completionTable td {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+  color: var(--text-body);
+}
+
+.completionTable tbody tr:hover {
+  background: var(--surface-muted);
+}
+
+/* ── Progress Bar ── */
+
+.progressBarWrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.progressBar {
+  flex: 1;
+  height: 8px;
+  background: var(--border-subtle, #E2E0DB);
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 600ms ease-out;
+}
+
+.progressLabel {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-caption);
+  min-width: 36px;
+  text-align: left;
+}
+
+/* ── Doc Dots ── */
+
+.docDots {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.docDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  cursor: default;
+}
+
+.docDotGreen {
+  background: var(--status-success, #22c55e);
+}
+
+.docDotRed {
+  background: var(--status-error, #dc3545);
+}
+
+.docDotGray {
+  background: var(--border, #ccc);
+}
+
+/* ── Responsive — Completion ── */
+
+@media (max-width: 768px) {
+  .statGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filterBar {
+    flex-direction: column;
+  }
+
+  .filterBar .selectInput {
+    min-width: auto;
+  }
+}
