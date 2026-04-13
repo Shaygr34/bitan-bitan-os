@@ -537,6 +537,11 @@ export default function RunDetailPage() {
         </section>
       )}
 
+      {/* Write-back section */}
+      {run.metrics && (isReview || isCompleted) && (
+        <WritePlanSection runId={id} />
+      )}
+
       {/* Completion confirmation dialog */}
       <ConfirmDialog
         open={confirmOpen}
@@ -741,6 +746,215 @@ function InlineChanges({ runId, changedCount }: { runId: string; changedCount: n
           </tbody>
         </table>
       )}
+    </section>
+  );
+}
+
+/* ── Write Plan Section ── */
+
+const OP_TYPE_LABELS: Record<string, string> = {
+  update_report: "עדכון דוח",
+  create_report: "יצירת דוח חדש",
+  update_client: "עדכון לקוח",
+  skip: "ללא שינוי",
+  flag: "דורש טיפול ידני",
+};
+
+const OP_TYPE_STYLES: Record<string, string> = {
+  update_report: "opUpdate",
+  create_report: "opCreate",
+  update_client: "opClient",
+  skip: "opSkip",
+  flag: "opFlag",
+};
+
+interface WriteOp {
+  op_type: string;
+  entity_id: number | null;
+  folder_id: string;
+  client_name: string;
+  match_key: string;
+  properties: Record<string, unknown>;
+  old_values: Record<string, unknown>;
+  reason: string;
+}
+
+interface WritePlanData {
+  summary: Record<string, number>;
+  operations: WriteOp[];
+}
+
+interface WriteResultData {
+  dry_run: boolean;
+  total_attempted: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  errors: Array<Record<string, string>>;
+}
+
+function WritePlanSection({ runId }: { runId: string }) {
+  const [plan, setPlan] = useState<WritePlanData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [result, setResult] = useState<WriteResultData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [liveConfirm, setLiveConfirm] = useState(false);
+
+  const loadPlan = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/sumit-sync/runs/${runId}/write-plan`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || data.error || `${res.status}`);
+      }
+      const data = await res.json();
+      setPlan(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בטעינת תוכנית כתיבה");
+    } finally {
+      setLoading(false);
+    }
+  }, [runId]);
+
+  const executeWriteBack = useCallback(async (mode: "dry-run" | "live") => {
+    setExecuting(true);
+    setError(null);
+    setResult(null);
+    setLiveConfirm(false);
+    try {
+      const res = await fetch(`/api/sumit-sync/runs/${runId}/write-back?mode=${mode}`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || data.error || `${res.status}`);
+      }
+      const data = await res.json();
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בביצוע כתיבה");
+    } finally {
+      setExecuting(false);
+    }
+  }, [runId]);
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle}>כתיבה ל-Summit</h2>
+        {!plan && (
+          <button className="btn-primary" onClick={loadPlan} disabled={loading}>
+            {loading ? "טוען תוכנית..." : "טען תוכנית כתיבה"}
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className={styles.errorBanner}>
+          <span className={styles.errorIcon}>!</span>
+          {error}
+        </div>
+      )}
+
+      {/* Result banner */}
+      {result && (
+        <div className={`${styles.writeResultBanner} ${result.failed > 0 ? styles.writeResultError : styles.writeResultSuccess}`}>
+          <strong>{result.dry_run ? "תוצאת Dry Run:" : "תוצאת כתיבה:"}</strong>
+          {" "}{result.succeeded} הצליחו, {result.failed} נכשלו, {result.skipped} דולגו
+          {result.errors.length > 0 && (
+            <ul className={styles.writeErrorList}>
+              {result.errors.map((e, i) => (
+                <li key={i}>{e.client_name} ({e.match_key}): {e.error}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Plan summary + operations */}
+      {plan && (
+        <>
+          <div className={styles.planSummary}>
+            <div className={styles.planCard}><span className={styles.planCardNum}>{plan.summary.updates}</span><span>עדכוני דוח</span></div>
+            <div className={styles.planCard}><span className={styles.planCardNum}>{plan.summary.creates}</span><span>דוחות חדשים</span></div>
+            <div className={styles.planCard}><span className={styles.planCardNum}>{plan.summary.client_updates}</span><span>עדכוני לקוח</span></div>
+            <div className={styles.planCard}><span className={styles.planCardNum}>{plan.summary.skips}</span><span>ללא שינוי</span></div>
+            <div className={`${styles.planCard} ${plan.summary.flags > 0 ? styles.planCardWarning : ""}`}>
+              <span className={styles.planCardNum}>{plan.summary.flags}</span><span>דורשים טיפול</span>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className={styles.writeBtnGroup}>
+            <button
+              className="btn-secondary"
+              onClick={() => executeWriteBack("dry-run")}
+              disabled={executing}
+            >
+              {executing ? "מריץ..." : "Dry Run (ללא כתיבה)"}
+            </button>
+            <button
+              className="btn-primary"
+              onClick={() => setLiveConfirm(true)}
+              disabled={executing || (result !== null && !result.dry_run)}
+            >
+              כתוב ל-Summit
+            </button>
+          </div>
+
+          {/* Operations table */}
+          <table className={styles.changesTable}>
+            <thead>
+              <tr>
+                <th>פעולה</th>
+                <th>שם לקוח</th>
+                <th>ח.פ/ת&quot;ז</th>
+                <th>שדות</th>
+                <th>סיבה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plan.operations.filter(o => o.op_type !== "skip").map((op, i) => (
+                <tr key={i} className={styles[OP_TYPE_STYLES[op.op_type] || ""]}>
+                  <td>
+                    <span className={`${styles.changeTypeBadge} ${styles[`badge_${op.op_type}`] || ""}`}>
+                      {OP_TYPE_LABELS[op.op_type] || op.op_type}
+                    </span>
+                  </td>
+                  <td>{op.client_name || "—"}</td>
+                  <td className={styles.numericCell}>{op.match_key || "—"}</td>
+                  <td className={styles.descCell}>
+                    {Object.entries(op.properties).map(([k, v]) => (
+                      <div key={k}><strong>{k}:</strong> {String(v)}</div>
+                    ))}
+                  </td>
+                  <td className={styles.descCell}>{op.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {plan.operations.filter(o => o.op_type === "skip").length > 0 && (
+            <p className={styles.skipNote}>
+              + {plan.operations.filter(o => o.op_type === "skip").length} רשומות ללא שינוי (מוסתרות)
+            </p>
+          )}
+        </>
+      )}
+
+      {/* Live execution confirmation */}
+      <ConfirmDialog
+        open={liveConfirm}
+        title="כתיבה ל-Summit CRM"
+        body={`פעולה זו תכתוב ${plan?.summary.updates || 0} עדכונים, ${plan?.summary.creates || 0} דוחות חדשים, ו-${plan?.summary.client_updates || 0} עדכוני לקוח ל-Summit. לא ניתן לבטל. להמשיך?`}
+        cancelLabel="ביטול"
+        confirmLabel="כתוב ל-Summit"
+        onCancel={() => setLiveConfirm(false)}
+        onConfirm={() => executeWriteBack("live")}
+      />
     </section>
   );
 }

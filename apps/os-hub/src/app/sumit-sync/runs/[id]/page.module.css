@@ -485,3 +485,85 @@
   color: var(--status-info);
   white-space: nowrap;
 }
+
+/* ——— Write plan section ——— */
+.planSummary {
+  display: flex;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.planCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  min-width: 100px;
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+}
+
+.planCardNum {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.planCardWarning {
+  border-color: var(--status-warning);
+  background: var(--status-warning-bg);
+}
+
+.writeBtnGroup {
+  display: flex;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.opUpdate { }
+.opCreate { background: var(--status-success-bg); }
+.opClient { background: var(--status-info-bg); }
+.opSkip { opacity: 0.5; }
+.opFlag { background: var(--status-warning-bg); }
+
+.badge_create_report { background: var(--status-success-bg); color: var(--status-success); }
+.badge_update_client { background: var(--status-api-bg); color: var(--status-api); }
+.badge_flag { background: var(--status-warning-bg); color: var(--status-warning); }
+
+.skipNote {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  margin-top: var(--space-md);
+  text-align: center;
+}
+
+.writeResultBanner {
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.writeResultSuccess {
+  background: var(--status-success-bg);
+  border: 1px solid var(--status-success);
+  color: var(--status-success);
+}
+
+.writeResultError {
+  background: var(--status-error-bg);
+  border: 1px solid var(--status-error);
+  color: var(--status-error);
+}
+
+.writeErrorList {
+  margin-top: var(--space-sm);
+  padding-inline-start: var(--space-lg);
+  font-size: var(--font-size-xs);
+}
