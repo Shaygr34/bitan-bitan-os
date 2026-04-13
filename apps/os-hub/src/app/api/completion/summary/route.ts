@@ -1,15 +1,12 @@
 /**
- * GET /api/completion/summary — Returns client completion data.
+ * GET /api/completion/summary — Returns client completion data from Summit CRM.
  *
- * MVP: Returns mock data for 20 sample clients.
- * TODO: Wire up real Summit API fetch with rate limiting + caching.
+ * Fetches all clients from Summit (folder 557688522), checks document + data fields,
+ * computes completion % per client. Results cached in-memory for 1 hour.
  *
- * Real implementation plan:
- * 1. Call Summit listentities (folder 557688522, pageSize 1000)
- * 2. For each client, call getentity with 500ms delay, 50-batch with 10s pause
- * 3. Check document fields + non-doc fields for completion
- * 4. Cache result in-memory or JSON file with 1h TTL
- * 5. ?refresh=true to force refresh
+ * Query params:
+ *   ?refresh=true — force refetch from Summit (takes ~10 minutes with rate limiting)
+ *   ?scan=start  — trigger background scan (returns immediately, populates cache async)
  */
 
 import { NextResponse } from "next/server";
@@ -27,62 +24,176 @@ interface ClientCompletion {
   fields: Record<string, boolean>;
 }
 
-// Document fields to check (from Summit schema)
-const DOC_FIELD_KEYS = [
-  "idCard",           // ת.ז/ רישיון בעלים
-  "bankApproval",     // אישור ניהול חשבון
-  "osekMurshe",       // תעודת עוסק מורשה
-  "teudatHitagdut",   // תעודת התאגדות
-  "takanonCompany",   // תקנון חברה
-  "protokolSignature", // פרוטוקול מורשה חתימה
-  "nesachCompany",    // נסח חברה
-  "ptichaTikRashuyot", // פתיחת תיק רשויות / ייפוי כח
-];
+// Summit field name → our key mapping
+const DOC_FIELDS_MAP: Record<string, string> = {
+  "ת.ז/ רישיון בעלים": "idCard",
+  "אישור ניהול חשבון": "bankApproval",
+  "תעודת עוסק מורשה": "osekMurshe",
+  "תעודת התאגדות": "teudatHitagdut",
+  "תקנון חברה": "takanonCompany",
+  "פרוטוקול מורשה חתימה": "protokolSignature",
+  "נסח חברה": "nesachCompany",
+  "פתיחת תיק רשויות / ייפוי כח": "ptichaTikRashuyot",
+};
 
-const NON_DOC_FIELD_KEYS = ["birthdate", "address", "city", "shareholderDetails"];
+const NON_DOC_FIELDS_MAP: Record<string, string> = {
+  Customers_Birthdate: "birthdate",
+  Customers_Address: "address",
+  Customers_City: "city",
+  "פרטי בעלי מניות": "shareholderDetails",
+};
 
-const CLIENT_TYPES = ["עוסק מורשה", "חברה בע\"מ", "עוסק פטור", "שותפות", "עמותה", "עסק זעיר"];
-const MANAGERS = ["אבי ביטן", "רון ביטן"];
+// Client type entity IDs → labels (from Summit taxonomy folder 1099290064)
+const CLIENT_TYPE_LABELS: Record<string, string> = {
+  "1099570216": "עצמאי",
+  "1099570129": "עצמאי שנתי",
+  "1099570010": "חברה",
+  "1099569991": "חברה שנתי",
+  "1099570246": "פטור",
+  "1099570170": "שותפות",
+  "1099570107": "עמותה",
+  "1099570213": "עסק זעיר",
+  "1179325026": "החזר מס",
+};
 
-const MOCK_NAMES = [
-  "ישראל ישראלי", "יוסף כהן", "אברהם לוי", "משה דוד", "שרה גולדברג",
-  "רחל אבידן", "דניאל פרידמן", "יעקב בן-דוד", "נעמי שפירא", "אלי מזרחי",
-  "חיים ברקוביץ", "מיכל שטרן", "אורי קליין", "דינה רוזנברג", "עמית חדד",
-  "ליאת סגל", "גדעון וולף", "תמר אשכנזי", "רון מלכה", "שירה נחום",
-];
+// Manager entity IDs → labels
+const MANAGER_LABELS: Record<string, string> = {
+  "1081739391": "אבי ביטן",
+  "1081739392": "רון ביטן",
+};
 
-function generateMockClients(): ClientCompletion[] {
-  const clients: ClientCompletion[] = [];
+// ─── Summit API helpers ─── //
 
-  for (let i = 0; i < 20; i++) {
-    const docs: Record<string, boolean> = {};
-    const fields: Record<string, boolean> = {};
+async function summitRequest(endpoint: string, body: object) {
+  const res = await fetch(`https://api.sumit.co.il${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      Credentials: {
+        CompanyID: Number(process.env.SUMMIT_COMPANY_ID || "557813963"),
+        APIKey: (process.env.SUMMIT_API_KEY || "").trim(),
+      },
+      ...body,
+    }),
+  });
+  return res;
+}
 
-    // Randomly fill docs
-    for (const key of DOC_FIELD_KEYS) {
-      docs[key] = Math.random() > 0.55;
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isFieldFilled(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  return true;
+}
+
+function resolveEntityRef(value: unknown): string {
+  // Entity references come as arrays of objects or strings
+  if (Array.isArray(value) && value.length > 0) {
+    const first = value[0];
+    if (typeof first === "object" && first !== null) {
+      return String((first as Record<string, unknown>).ID || (first as Record<string, unknown>).EntityID || "");
     }
-    // Randomly fill fields
-    for (const key of NON_DOC_FIELD_KEYS) {
-      fields[key] = Math.random() > 0.4;
-    }
-
-    const totalFields = DOC_FIELD_KEYS.length + NON_DOC_FIELD_KEYS.length;
-    const filledCount =
-      Object.values(docs).filter(Boolean).length +
-      Object.values(fields).filter(Boolean).length;
-    const completionPercent = Math.round((filledCount / totalFields) * 100);
-
-    clients.push({
-      entityId: String(1000000 + i),
-      name: MOCK_NAMES[i],
-      clientType: CLIENT_TYPES[i % CLIENT_TYPES.length],
-      manager: MANAGERS[i % MANAGERS.length],
-      completionPercent,
-      docs,
-      fields,
-    });
+    return String(first);
   }
+  if (typeof value === "string") return value;
+  return "";
+}
+
+// ─── Real Summit fetch ─── //
+
+async function fetchCompletionData(): Promise<ClientCompletion[]> {
+  // Step 1: Get all entity IDs
+  const listRes = await summitRequest("/crm/data/listentities/", {
+    Folder: "557688522",
+    PageSize: 1000,
+    StartIndex: 0,
+  });
+
+  if (!listRes.ok) {
+    console.error("Summit listentities failed:", listRes.status);
+    return [];
+  }
+
+  const listJson = await listRes.json(); // eslint-disable-line
+  const entities: { ID: number }[] = listJson?.Data?.Entities || [];
+  console.log(`[completion] Fetched ${entities.length} entity IDs`);
+
+  // Step 2: Fetch each entity with rate limiting
+  const clients: ClientCompletion[] = [];
+  let consecutiveErrors = 0;
+
+  for (let i = 0; i < entities.length; i++) {
+    const entityId = entities[i].ID;
+
+    // Rate limiting: 500ms between calls
+    if (i > 0) await delay(500);
+
+    // Batch pause: every 50 calls, pause 10s
+    if (i > 0 && i % 50 === 0) {
+      console.log(`[completion] Batch pause at ${i}/${entities.length}`);
+      await delay(10_000);
+    }
+
+    try {
+      const entityRes = await summitRequest("/crm/data/getentity/", {
+        EntityID: entityId,
+        Folder: "557688522",
+      });
+
+      if (entityRes.status === 403) {
+        console.warn(`[completion] Rate limited at entity ${i}, waiting 65s`);
+        await delay(65_000);
+        // Retry once
+        const retry = await summitRequest("/crm/data/getentity/", {
+          EntityID: entityId,
+          Folder: "557688522",
+        });
+        if (!retry.ok) {
+          consecutiveErrors++;
+          if (consecutiveErrors > 5) {
+            console.error(`[completion] Too many errors, stopping at ${i}`);
+            break;
+          }
+          continue;
+        }
+        const retryJson = await retry.json(); // eslint-disable-line
+        const retryEntity = retryJson?.Data?.Entity || retryJson?.Entity;
+        if (retryEntity) {
+          clients.push(parseEntity(retryEntity));
+          consecutiveErrors = 0;
+        }
+        continue;
+      }
+
+      if (!entityRes.ok) {
+        // Empty/archived entity — skip
+        consecutiveErrors++;
+        if (consecutiveErrors > 10) break;
+        continue;
+      }
+
+      const entityJson = await entityRes.json(); // eslint-disable-line
+      const entity = entityJson?.Data?.Entity || entityJson?.Entity;
+
+      if (!entity) {
+        // Archived or deleted
+        continue;
+      }
+
+      clients.push(parseEntity(entity));
+      consecutiveErrors = 0;
+    } catch (err) {
+      console.error(`[completion] Error fetching entity ${entityId}:`, err);
+      consecutiveErrors++;
+      if (consecutiveErrors > 10) break;
+    }
+  }
+
+  console.log(`[completion] Parsed ${clients.length} clients`);
 
   // Sort by lowest completion first
   clients.sort((a, b) => a.completionPercent - b.completionPercent);
@@ -90,55 +201,117 @@ function generateMockClients(): ClientCompletion[] {
   return clients;
 }
 
-// In-memory cache
+function parseEntity(entity: Record<string, unknown>): ClientCompletion {
+  const entityId = String(entity.ID || "");
+  const name = String(
+    (Array.isArray(entity.Customers_FullName)
+      ? entity.Customers_FullName[0]
+      : entity.Customers_FullName) || "ללא שם"
+  );
+
+  // Resolve entity references for client type and manager
+  const clientTypeRef = resolveEntityRef(entity["סוג לקוח"]);
+  const managerRef = resolveEntityRef(entity["מנהל תיק"]);
+  const clientType = CLIENT_TYPE_LABELS[clientTypeRef] || clientTypeRef || "";
+  const manager = MANAGER_LABELS[managerRef] || managerRef || "";
+
+  // Check document fields
+  const docs: Record<string, boolean> = {};
+  for (const [summitKey, ourKey] of Object.entries(DOC_FIELDS_MAP)) {
+    docs[ourKey] = isFieldFilled(entity[summitKey]);
+  }
+
+  // Check non-doc fields
+  const fields: Record<string, boolean> = {};
+  for (const [summitKey, ourKey] of Object.entries(NON_DOC_FIELDS_MAP)) {
+    fields[ourKey] = isFieldFilled(entity[summitKey]);
+  }
+
+  // Compute completion %
+  const allKeys = [...Object.values(docs), ...Object.values(fields)];
+  const filled = allKeys.filter(Boolean).length;
+  const completionPercent = allKeys.length > 0 ? Math.round((filled / allKeys.length) * 100) : 0;
+
+  return { entityId, name, clientType, manager, completionPercent, docs, fields };
+}
+
+// ─── Cache ─── //
+
 let cachedData: { clients: ClientCompletion[]; timestamp: number } | null = null;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+let scanInProgress = false;
+
+function buildResponse(clients: ClientCompletion[], cached: boolean) {
+  return {
+    total: clients.length,
+    avgCompletion:
+      clients.length > 0
+        ? Math.round(clients.reduce((s, c) => s + c.completionPercent, 0) / clients.length)
+        : 0,
+    zeroDocsCount: clients.filter((c) => Object.values(c.docs).every((v) => !v)).length,
+    allDocsCount: clients.filter((c) => Object.values(c.docs).every(Boolean)).length,
+    clients,
+    cached,
+    scanInProgress,
+    lastUpdated: cachedData?.timestamp ? new Date(cachedData.timestamp).toISOString() : null,
+  };
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const refresh = url.searchParams.get("refresh") === "true";
+  const scan = url.searchParams.get("scan");
 
-  if (!refresh && cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
-    const clients = cachedData.clients;
+  // Background scan: trigger fetch and return immediately
+  if (scan === "start") {
+    if (scanInProgress) {
+      return NextResponse.json({ message: "Scan already in progress", scanInProgress: true });
+    }
+    scanInProgress = true;
+
+    // Fire and forget — don't await
+    fetchCompletionData()
+      .then((clients) => {
+        cachedData = { clients, timestamp: Date.now() };
+        console.log(`[completion] Scan complete: ${clients.length} clients cached`);
+      })
+      .catch((err) => {
+        console.error("[completion] Scan failed:", err);
+      })
+      .finally(() => {
+        scanInProgress = false;
+      });
+
     return NextResponse.json({
-      total: clients.length,
-      avgCompletion: Math.round(clients.reduce((s, c) => s + c.completionPercent, 0) / clients.length),
-      zeroDocsCount: clients.filter((c) => Object.values(c.docs).every((v) => !v)).length,
-      allDocsCount: clients.filter((c) => Object.values(c.docs).every(Boolean)).length,
-      clients,
-      cached: true,
+      message: "Scan started. Poll GET /api/completion/summary to check results.",
+      scanInProgress: true,
     });
   }
 
-  // TODO: Replace with real Summit API fetch
-  // Real implementation would:
-  // 1. summitRequest('/crm/data/listentities/', { Folder: "557688522", PageSize: 1000, StartIndex: 0 })
-  // 2. For each entity, summitRequest('/crm/data/getentity/', { EntityID: id, Folder: "557688522" })
-  //    with 500ms delay between calls, 10s pause every 50 calls, 65s pause on 403
-  // 3. Map Summit field names to our schema:
-  //    "ת.ז/ רישיון בעלים" → idCard
-  //    "אישור ניהול חשבון" → bankApproval
-  //    "תעודת עוסק מורשה" → osekMurshe
-  //    "תעודת התאגדות" → teudatHitagdut
-  //    "תקנון חברה" → takanonCompany
-  //    "פרוטוקול מורשה חתימה" → protokolSignature
-  //    "נסח חברה" → nesachCompany
-  //    "פתיחת תיק רשויות / ייפוי כח" → ptichaTikRashuyot
-  //    "Customers_Birthdate" → birthdate
-  //    "Customers_Address" → address
-  //    "Customers_City" → city
-  //    "פרטי בעלי מניות" → shareholderDetails
+  // Serve from cache if available and fresh
+  if (!refresh && cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
+    return NextResponse.json(buildResponse(cachedData.clients, true));
+  }
 
-  const clients = generateMockClients();
+  // Synchronous fetch (blocking — will timeout on large datasets)
+  // For production, use ?scan=start instead
+  if (!process.env.SUMMIT_API_KEY) {
+    return NextResponse.json(
+      { error: "Summit API key not configured", clients: [] },
+      { status: 500 },
+    );
+  }
 
-  cachedData = { clients, timestamp: Date.now() };
-
-  return NextResponse.json({
-    total: clients.length,
-    avgCompletion: Math.round(clients.reduce((s, c) => s + c.completionPercent, 0) / clients.length),
-    zeroDocsCount: clients.filter((c) => Object.values(c.docs).every((v) => !v)).length,
-    allDocsCount: clients.filter((c) => Object.values(c.docs).every(Boolean)).length,
-    clients,
-    cached: false,
-  });
+  try {
+    const clients = await fetchCompletionData();
+    cachedData = { clients, timestamp: Date.now() };
+    return NextResponse.json(buildResponse(clients, false));
+  } catch (err) {
+    console.error("[completion] Fetch failed:", err);
+    // Return stale cache if available
+    if (cachedData) {
+      return NextResponse.json(buildResponse(cachedData.clients, true));
+    }
+    return NextResponse.json({ error: "Failed to fetch completion data", clients: [] }, { status: 500 });
+  }
 }

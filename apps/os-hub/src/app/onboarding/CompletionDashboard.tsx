@@ -19,6 +19,11 @@ interface SummaryResponse {
   zeroDocsCount: number;
   allDocsCount: number;
   clients: ClientCompletion[];
+  cached?: boolean;
+  scanInProgress?: boolean;
+  lastUpdated?: string | null;
+  error?: string;
+  message?: string;
 }
 
 const DOC_LABELS: Record<string, string> = {
@@ -44,6 +49,8 @@ export default function CompletionDashboard() {
   const [generatingLink, setGeneratingLink] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [scanInProgress, setScanInProgress] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -54,13 +61,15 @@ export default function CompletionDashboard() {
         return r.json();
       })
       .then((data: SummaryResponse) => {
-        setClients(data.clients);
+        setClients(data.clients || []);
         setSummary({
-          total: data.total,
-          avgCompletion: data.avgCompletion,
-          zeroDocsCount: data.zeroDocsCount,
-          allDocsCount: data.allDocsCount,
+          total: data.total || 0,
+          avgCompletion: data.avgCompletion || 0,
+          zeroDocsCount: data.zeroDocsCount || 0,
+          allDocsCount: data.allDocsCount || 0,
         });
+        setScanInProgress(data.scanInProgress || false);
+        setLastUpdated(data.lastUpdated || null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Error"))
       .finally(() => setLoading(false));
@@ -153,6 +162,49 @@ export default function CompletionDashboard() {
           <div className={styles.statNumber}>{summary.allDocsCount}</div>
           <div className={styles.statLabel}>הושלם במלואו</div>
         </div>
+      </div>
+
+      {/* Scan Controls */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', padding: '0.75rem 1rem', background: '#F8F7F4', borderRadius: '8px', fontSize: '0.8rem', color: '#718096' }}>
+        <div>
+          {lastUpdated && <span>עדכון אחרון: {new Date(lastUpdated).toLocaleString('he-IL')}</span>}
+          {scanInProgress && <span style={{ color: '#C5A572', fontWeight: 600, marginRight: '0.75rem' }}>⏳ סריקה מתבצעת...</span>}
+          {!lastUpdated && !scanInProgress && <span>אין נתונים — יש להפעיל סריקה</span>}
+        </div>
+        <button
+          onClick={() => {
+            setScanInProgress(true);
+            fetch('/api/completion/summary?scan=start')
+              .then(() => {
+                // Poll every 15s until scan finishes
+                const interval = setInterval(() => {
+                  fetch('/api/completion/summary')
+                    .then(r => r.json())
+                    .then((data: SummaryResponse) => {
+                      if (!data.scanInProgress && data.clients && data.clients.length > 0) {
+                        clearInterval(interval);
+                        loadData();
+                      }
+                    })
+                    .catch(() => clearInterval(interval));
+                }, 15000);
+              })
+              .catch(() => setScanInProgress(false));
+          }}
+          disabled={scanInProgress}
+          style={{
+            background: scanInProgress ? '#CBD5E0' : '#C5A572',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '0.4rem 1rem',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            cursor: scanInProgress ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {scanInProgress ? 'סורק...' : 'סרוק מסאמיט'}
+        </button>
       </div>
 
       {/* Filter Bar */}
