@@ -110,3 +110,29 @@ class DrillDownOut(BaseModel):
 class MappingSummaryOut(BaseModel):
     total_mappings: int
     with_names: int
+
+
+class WriteOperationOut(BaseModel):
+    op_type: str
+    entity_id: Optional[int]
+    folder_id: str
+    client_name: str
+    match_key: str
+    properties: Dict[str, Any]
+    old_values: Dict[str, Any]
+    reason: str
+    client_entity_id: Optional[int] = None
+
+
+class WritePlanOut(BaseModel):
+    summary: Dict[str, int]
+    operations: List[WriteOperationOut]
+
+
+class WriteResultOut(BaseModel):
+    dry_run: bool
+    total_attempted: int
+    succeeded: int
+    failed: int
+    skipped: int
+    errors: List[Dict[str, str]]

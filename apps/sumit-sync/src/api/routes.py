@@ -948,3 +948,108 @@ def _run_reconciliation_api(
         all_warnings.append(f"{len(idom_conflicts)} כפילויות IDOM זוהו")
 
     return result, output_paths, all_warnings
+
+
+# ------------------------------------------------------------------ #
+#  Write-back endpoints
+# ------------------------------------------------------------------ #
+
+def _build_write_plan_for_run(run: models.Run):
+    """Helper: build write plan from a run's data."""
+    files_by_role = {f.file_role: f for f in run.files}
+    if "idom_upload" not in files_by_role:
+        raise HTTPException(400, "קובץ IDOM לא נמצא")
+
+    from ..core.config import get_config
+    from ..core.idom_parser import parse_idom_file
+    from ..core.sumit_api_source import fetch_sumit_data
+    from ..core.sync_engine import SyncEngine
+    from ..core.mapping_store import MappingStore
+    from ..core.taxonomy import load_full_taxonomies, is_loaded
+    from ..core.sumit_api_client import SummitAPIClient
+
+    config = get_config(run.report_type)
+    idom_df, _, _ = parse_idom_file(files_by_role["idom_upload"].stored_path)
+    sumit_df, sumit_lookup, _ = fetch_sumit_data(config, run.year)
+    mapping = MappingStore()
+
+    # Ensure full taxonomy tables are loaded
+    if not is_loaded():
+        try:
+            api = SummitAPIClient()
+            load_full_taxonomies(api)
+        except Exception as e:
+            logger.warning("Could not load full taxonomies: %s", e)
+
+    engine = SyncEngine(config)
+    return engine.build_write_plan(idom_df, sumit_df, sumit_lookup, run.year, mapping)
+
+
+def _save_write_logs(run_id, audit_log, db: Session):
+    """Persist audit log entries to DB."""
+    for entry in audit_log:
+        log = models.WriteLog(
+            run_id=run_id,
+            op_type=entry.get("op_type", ""),
+            entity_id=entry.get("entity_id"),
+            folder_id=entry.get("folder_id", ""),
+            match_key=entry.get("match_key", ""),
+            client_name=entry.get("client_name", ""),
+            properties_written=entry.get("properties_written"),
+            old_values=entry.get("old_values"),
+            status=entry.get("status", ""),
+            error_message=entry.get("error", ""),
+        )
+        db.add(log)
+    db.commit()
+
+
+@router.get("/{run_id}/write-plan", tags=["write-back"])
+def get_write_plan(run_id: str, db: Session = Depends(get_db)):
+    """Generate write plan for a completed sync run."""
+    run = _run_or_404(run_id, db)
+    if run.status not in ("review", "completed"):
+        raise HTTPException(400, "תוכנית כתיבה דורשת הרצת סנכרון שהושלמה")
+
+    plan = _build_write_plan_for_run(run)
+
+    return {
+        "summary": plan.summary(),
+        "operations": [op.to_dict() for op in plan.operations],
+    }
+
+
+@router.post("/{run_id}/write-back/dry-run", tags=["write-back"])
+def write_back_dry_run(run_id: str, db: Session = Depends(get_db)):
+    """Execute write plan in dry-run mode (validates without writing)."""
+    run = _run_or_404(run_id, db)
+    if run.status not in ("review", "completed"):
+        raise HTTPException(400, "כתיבה חוזרת דורשת הרצת סנכרון שהושלמה")
+
+    plan = _build_write_plan_for_run(run)
+
+    from ..core.write_executor import WriteExecutor
+    executor = WriteExecutor(dry_run=True)
+    result = executor.execute(plan)
+
+    _save_write_logs(run.id, result.audit_log, db)
+
+    return result.to_dict()
+
+
+@router.post("/{run_id}/write-back", tags=["write-back"])
+def write_back_live(run_id: str, db: Session = Depends(get_db)):
+    """Execute write plan LIVE — writes to Summit CRM. Use with caution."""
+    run = _run_or_404(run_id, db)
+    if run.status not in ("review", "completed"):
+        raise HTTPException(400, "כתיבה חוזרת דורשת הרצת סנכרון שהושלמה")
+
+    plan = _build_write_plan_for_run(run)
+
+    from ..core.write_executor import WriteExecutor
+    executor = WriteExecutor(dry_run=False)
+    result = executor.execute(plan)
+
+    _save_write_logs(run.id, result.audit_log, db)
+
+    return result.to_dict()

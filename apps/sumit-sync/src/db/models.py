@@ -148,3 +148,26 @@ class Exception(Base):
             name="valid_resolution",
         ),
     )
+
+
+class WriteLog(Base):
+    """
+    Audit trail for Summit API write operations.
+    Every update/create is logged with before/after values.
+    """
+    __tablename__ = "write_logs"
+
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    run_id = Column(Uuid, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False)
+    op_type = Column(String(20), nullable=False)
+    entity_id = Column(Integer, nullable=True)
+    folder_id = Column(String(20), nullable=False)
+    match_key = Column(String(50), nullable=True)
+    client_name = Column(String(255), nullable=True)
+    properties_written = Column(JSON, nullable=True)
+    old_values = Column(JSON, nullable=True)
+    status = Column(String(20), nullable=False)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    run = relationship("Run", backref="write_logs")
