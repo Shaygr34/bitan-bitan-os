@@ -187,6 +187,8 @@ score = sourceWeight(0-25) + recency(0-25) + keywords(0-30) + category(0-20) - n
 - `DATABASE_URL` — PostgreSQL connection string
 - `ANTHROPIC_API_KEY` — Claude API
 - `GOOGLE_AI_API_KEY` — Google Gemini for image generation (V2)
+- `SUMMIT_API_KEY` — Summit CRM API key (shared with sumit-sync service, set on Railway April 2026)
+- `SUMMIT_COMPANY_ID` — Summit company ID (`557813963`, set on Railway April 2026)
 - `CRON_SECRET` — Auth for /api/cron/ingest
 - `CHROMIUM_PATH` — Optional, auto-detected in Docker (usually `/usr/bin/chromium-browser`)
 - `SANITY_*` — Sanity CMS publishing
