@@ -122,6 +122,16 @@ async function fetchCompletionData(): Promise<ClientCompletion[]> {
   const entities: { ID: number }[] = listJson?.Data?.Entities || [];
   console.log(`[completion] Fetched ${entities.length} entity IDs`);
 
+  // Initialize progress
+  scanProgress = {
+    current: 0,
+    total: entities.length,
+    parsed: 0,
+    startedAt: new Date().toISOString(),
+    estimatedSecondsLeft: Math.round(entities.length * 0.6),
+  };
+  const scanStartTime = Date.now();
+
   // Step 2: Fetch each entity with rate limiting
   const clients: ClientCompletion[] = [];
   let consecutiveErrors = 0;
@@ -191,6 +201,13 @@ async function fetchCompletionData(): Promise<ClientCompletion[]> {
       consecutiveErrors++;
       if (consecutiveErrors > 10) break;
     }
+
+    // Update progress
+    scanProgress.current = i + 1;
+    scanProgress.parsed = clients.length;
+    const elapsed = (Date.now() - scanStartTime) / 1000;
+    const rate = (i + 1) / elapsed;
+    scanProgress.estimatedSecondsLeft = rate > 0 ? Math.round((entities.length - i - 1) / rate) : null;
   }
 
   console.log(`[completion] Parsed ${clients.length} clients`);
@@ -241,6 +258,15 @@ let cachedData: { clients: ClientCompletion[]; timestamp: number } | null = null
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 let scanInProgress = false;
 
+// Scan progress tracking
+let scanProgress = {
+  current: 0,
+  total: 0,
+  parsed: 0,
+  startedAt: null as string | null,
+  estimatedSecondsLeft: null as number | null,
+};
+
 function buildResponse(clients: ClientCompletion[], cached: boolean) {
   return {
     total: clients.length,
@@ -253,6 +279,7 @@ function buildResponse(clients: ClientCompletion[], cached: boolean) {
     clients,
     cached,
     scanInProgress,
+    scanProgress: scanInProgress ? scanProgress : null,
     lastUpdated: cachedData?.timestamp ? new Date(cachedData.timestamp).toISOString() : null,
   };
 }
@@ -265,7 +292,7 @@ export async function GET(request: Request) {
   // Background scan: trigger fetch and return immediately
   if (scan === "start") {
     if (scanInProgress) {
-      return NextResponse.json({ message: "Scan already in progress", scanInProgress: true });
+      return NextResponse.json({ message: "Scan already in progress", scanInProgress: true, scanProgress });
     }
     scanInProgress = true;
 

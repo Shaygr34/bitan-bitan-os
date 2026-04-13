@@ -13,6 +13,14 @@ interface ClientCompletion {
   fields: Record<string, boolean>;
 }
 
+interface ScanProgress {
+  current: number;
+  total: number;
+  parsed: number;
+  startedAt: string | null;
+  estimatedSecondsLeft: number | null;
+}
+
 interface SummaryResponse {
   total: number;
   avgCompletion: number;
@@ -21,6 +29,7 @@ interface SummaryResponse {
   clients: ClientCompletion[];
   cached?: boolean;
   scanInProgress?: boolean;
+  scanProgress?: ScanProgress | null;
   lastUpdated?: string | null;
   error?: string;
   message?: string;
@@ -50,6 +59,7 @@ export default function CompletionDashboard() {
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [scanInProgress, setScanInProgress] = useState(false);
+  const [scanProgressData, setScanProgressData] = useState<ScanProgress | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
@@ -69,6 +79,7 @@ export default function CompletionDashboard() {
           allDocsCount: data.allDocsCount || 0,
         });
         setScanInProgress(data.scanInProgress || false);
+        setScanProgressData(data.scanProgress || null);
         setLastUpdated(data.lastUpdated || null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Error"))
@@ -165,46 +176,78 @@ export default function CompletionDashboard() {
       </div>
 
       {/* Scan Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', padding: '0.75rem 1rem', background: '#F8F7F4', borderRadius: '8px', fontSize: '0.8rem', color: '#718096' }}>
-        <div>
-          {lastUpdated && <span>עדכון אחרון: {new Date(lastUpdated).toLocaleString('he-IL')}</span>}
-          {scanInProgress && <span style={{ color: '#C5A572', fontWeight: 600, marginRight: '0.75rem' }}>⏳ סריקה מתבצעת...</span>}
-          {!lastUpdated && !scanInProgress && <span>אין נתונים — יש להפעיל סריקה</span>}
+      <div style={{ marginBottom: '1rem', padding: '1rem', background: '#F8F7F4', borderRadius: '10px', fontSize: '0.8rem', color: '#718096' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: scanInProgress ? '0.75rem' : 0 }}>
+          <div>
+            {lastUpdated && !scanInProgress && <span>עדכון אחרון: {new Date(lastUpdated).toLocaleString('he-IL')}</span>}
+            {scanInProgress && scanProgressData && (
+              <span style={{ color: '#1B2A4A', fontWeight: 600 }}>
+                סורק {scanProgressData.current} / {scanProgressData.total} לקוחות
+                {scanProgressData.parsed > 0 && ` · ${scanProgressData.parsed} תקינים`}
+                {scanProgressData.estimatedSecondsLeft != null && scanProgressData.estimatedSecondsLeft > 0 && (
+                  <span style={{ color: '#718096', fontWeight: 400 }}>
+                    {' · '}עוד {scanProgressData.estimatedSecondsLeft > 60
+                      ? `${Math.round(scanProgressData.estimatedSecondsLeft / 60)} דקות`
+                      : `${scanProgressData.estimatedSecondsLeft} שניות`}
+                  </span>
+                )}
+              </span>
+            )}
+            {scanInProgress && !scanProgressData && <span style={{ color: '#C5A572', fontWeight: 600 }}>⏳ מתחיל סריקה...</span>}
+            {!lastUpdated && !scanInProgress && <span>אין נתונים — יש להפעיל סריקה ראשונה</span>}
+          </div>
+          <button
+            onClick={() => {
+              setScanInProgress(true);
+              setScanProgressData(null);
+              fetch('/api/completion/summary?scan=start')
+                .then(() => {
+                  // Poll every 5s for progress, load full data when done
+                  const interval = setInterval(() => {
+                    fetch('/api/completion/summary')
+                      .then(r => r.json())
+                      .then((data: SummaryResponse) => {
+                        setScanProgressData(data.scanProgress || null);
+                        if (!data.scanInProgress) {
+                          clearInterval(interval);
+                          setScanInProgress(false);
+                          loadData();
+                        }
+                      })
+                      .catch(() => clearInterval(interval));
+                  }, 5000);
+                })
+                .catch(() => setScanInProgress(false));
+            }}
+            disabled={scanInProgress}
+            style={{
+              background: scanInProgress ? '#CBD5E0' : '#C5A572',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '0.5rem 1.25rem',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: scanInProgress ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {scanInProgress ? 'סורק...' : 'סרוק מסאמיט'}
+          </button>
         </div>
-        <button
-          onClick={() => {
-            setScanInProgress(true);
-            fetch('/api/completion/summary?scan=start')
-              .then(() => {
-                // Poll every 15s until scan finishes
-                const interval = setInterval(() => {
-                  fetch('/api/completion/summary')
-                    .then(r => r.json())
-                    .then((data: SummaryResponse) => {
-                      if (!data.scanInProgress && data.clients && data.clients.length > 0) {
-                        clearInterval(interval);
-                        loadData();
-                      }
-                    })
-                    .catch(() => clearInterval(interval));
-                }, 15000);
-              })
-              .catch(() => setScanInProgress(false));
-          }}
-          disabled={scanInProgress}
-          style={{
-            background: scanInProgress ? '#CBD5E0' : '#C5A572',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '0.4rem 1rem',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            cursor: scanInProgress ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {scanInProgress ? 'סורק...' : 'סרוק מסאמיט'}
-        </button>
+
+        {/* Progress bar */}
+        {scanInProgress && scanProgressData && scanProgressData.total > 0 && (
+          <div style={{ background: '#E2E0DB', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+            <div style={{
+              background: '#C5A572',
+              height: '100%',
+              width: `${Math.round((scanProgressData.current / scanProgressData.total) * 100)}%`,
+              borderRadius: '4px',
+              transition: 'width 0.5s ease',
+            }} />
+          </div>
+        )}
       </div>
 
       {/* Filter Bar */}
