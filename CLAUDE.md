@@ -202,6 +202,41 @@ score = sourceWeight(0-25) + recency(0-25) + keywords(0-30) + category(0-20) - n
 - `maxDuration=300` on draft route (streaming), default on other routes
 - **Zsh glob escaping**: file paths with `[brackets]` must be quoted in git/shell commands (e.g., `git add "apps/os-hub/src/app/api/content-factory/ideas/[id]/draft/route.ts"`)
 
+### Onboarding System (April 2026)
+
+Client intake + data completion system.
+
+**Key Files:**
+```
+src/app/onboarding/page.tsx                    — Main page with 2 tabs (קליטה חדשה / השלמת נתונים)
+src/app/onboarding/CompletionDashboard.tsx     — Data completion dashboard (stat cards, filters, client table)
+src/app/onboarding/page.module.css             — Styles (tabs, stats, completion table, progress bars)
+src/app/api/intake/generate/route.ts           — POST: generate intake token
+src/app/api/intake/tokens/route.ts             — GET/DELETE: list/clear tokens
+src/app/api/completion/summary/route.ts        — GET: client completion data from Summit API (background scan)
+src/app/api/completion/generate-link/route.ts  — POST: create update-mode link with Summit data pre-fill
+src/components/StatusBadge.tsx                 — Status badges (includes summit_failed state)
+```
+
+**Onboarding page tabs:**
+- **קליטה חדשה**: Generate intake links for new clients. Shows submissions table with status, data, Sumit link.
+- **השלמת נתונים**: Data completion dashboard for existing clients. Scans Summit for field completion %, filters by client type/manager/missing doc, generates update-mode links.
+
+**Completion scan flow:**
+1. Click "סרוק מסאמיט" → triggers `GET /api/completion/summary?scan=start`
+2. Background fetch: all clients from Summit with rate limiting (500ms/call, 50-batch, 65s backoff)
+3. Dashboard polls every 15s until cache populated
+4. Results cached 1h in-memory, `?refresh=true` to force
+
+**Summit CRM integration:**
+- Sumit link opens actual client card: `https://app.sumit.co.il/f557688522/c{entityId}/`
+- Internal fields (מנהל תיק, etc.) managed directly in Sumit UI — removed from OS
+- Summit errors surfaced: token shows `summit_failed` with error details
+- File uploads go to Sanity CDN (Summit API cannot accept files)
+
+**Client type entity IDs** (folder 1099290064):
+`עצמאי=1099570216, חברה=1099570010, פטור=1099570246, שותפות=1099570170, עמותה=1099570107, עסק זעיר=1099570213, החזר מס=1179325026`
+
 ### Session History (PRs merged)
 - **PR #93**: Initial stabilization — source filter, scoring fixes
 - **PR #94**: Session 1B — data quality gates, draft timeout, scan feedback
