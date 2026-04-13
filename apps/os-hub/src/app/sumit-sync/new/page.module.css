@@ -33,6 +33,10 @@
   margin-bottom: var(--space-xl);
 }
 
+.uploadSingle {
+  margin-bottom: var(--space-xl);
+}
+
 .uploadBox {
   display: flex;
   flex-direction: column;
@@ -64,6 +68,79 @@
   font-family: var(--font-mono);
 }
 
+/* Mode toggle */
+.modeToggle {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+}
+
+.modeOption {
+  flex: 1;
+  padding: var(--space-md) var(--space-lg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  text-align: center;
+}
+
+.modeOption:hover {
+  border-color: var(--brand-gold);
+}
+
+.modeOptionActive {
+  border-color: var(--brand-navy);
+  background: rgba(27, 42, 74, 0.04);
+}
+
+.modeLabel {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  color: var(--text-heading);
+  display: block;
+  margin-bottom: var(--space-xs);
+}
+
+.modeDesc {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+}
+
+.modeRecommended {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  background: var(--status-success-bg);
+  color: var(--status-success);
+  padding: 2px 6px;
+  border-radius: 9999px;
+  margin-left: var(--space-xs);
+}
+
+/* Mapping indicator */
+.mappingIndicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  margin-bottom: var(--space-lg);
+}
+
+.mappingWarm {
+  background: var(--status-success-bg);
+  color: var(--status-success);
+}
+
+.mappingCold {
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+}
+
 /* Executing state */
 .executingState {
   display: flex;
@@ -89,6 +166,45 @@
 .progressText {
   font-size: var(--font-size-sm);
   color: var(--text-caption);
+}
+
+/* Progress stages */
+.progressStages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: 100%;
+  max-width: 400px;
+}
+
+.progressStage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-caption);
+}
+
+.stageActive {
+  color: var(--brand-navy);
+  font-weight: var(--font-weight-semibold);
+}
+
+.stageDone {
+  color: var(--status-success);
+}
+
+.stageIcon {
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.timeEstimate {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  text-align: center;
+  margin-top: var(--space-md);
 }
 
 /* Error states */

@@ -31,6 +31,7 @@ export default function SettingsPage() {
     defaultYear: new Date().getFullYear(),
     defaultReportType: "financial",
     defaultNotes: "",
+    defaultMode: "api",
   });
   const [syncHealth, setSyncHealth] = useState<ServiceHealth>({
     status: "loading",
@@ -111,6 +112,7 @@ export default function SettingsPage() {
       defaultYear: new Date().getFullYear(),
       defaultReportType: "financial",
       defaultNotes: "",
+      defaultMode: "api",
     });
     setConfirmClear(false);
     showToast({ type: "success", message: "ההעדפות אופסו" });

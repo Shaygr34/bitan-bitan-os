@@ -257,6 +257,15 @@ Reconciles SHAAM/IDOM filing status data with Summit CRM report records:
 - **`POST /runs/{id}/execute`** — XLSX-based (original). Requires both IDOM + SUMIT file uploads.
 - **`POST /runs/{id}/execute-api`** — API-based (P0, March 2026). Only requires IDOM upload. SUMIT data fetched directly from Summit API. Eliminates manual XLSX export step.
 
+### Frontend Sync Modes (April 2026)
+- **API mode (recommended, default)**: User uploads IDOM file only. Summit data fetched automatically via API.
+  - Mapping cache warm (~400 clients): ~3-4 min
+  - Mapping cache cold (first run): ~10-15 min
+  - Frontend polls `GET /runs/{id}` every 10s during execution (handles HTTP timeouts gracefully)
+- **Manual mode**: User uploads both IDOM + SUMIT XLSX files. Faster but requires manual export from Summit.
+- Mode preference saved to localStorage (`bb-sync-prefs`). API mode is default.
+- Proxy routes: `/api/sumit-sync/runs/{id}/execute-api`, `/api/sumit-sync/runs/mapping/summary`
+
 ### Summit API Integration (P0)
 - **Direct HTTP client** (`sumit_api_client.py`) calls `api.sumit.co.il` — bypasses MCP proxy to access `Customers_CompanyNumber` (redacted by MCP security zones)
 - **Rate limiting**: 50 calls/batch, 65s cooldown, exponential backoff on 403 (70s→140s→280s→560s). Summit blocks after ~100-150 rapid calls.

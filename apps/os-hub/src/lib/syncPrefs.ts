@@ -4,12 +4,14 @@ export interface SyncPrefs {
   defaultYear: number;
   defaultReportType: "financial" | "annual";
   defaultNotes: string;
+  defaultMode: "api" | "manual";
 }
 
 const DEFAULTS: SyncPrefs = {
   defaultYear: new Date().getFullYear(),
   defaultReportType: "financial",
   defaultNotes: "",
+  defaultMode: "api",
 };
 
 export function loadSyncPrefs(): SyncPrefs {
