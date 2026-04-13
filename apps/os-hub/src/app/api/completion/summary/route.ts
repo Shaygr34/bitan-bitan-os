@@ -58,6 +58,7 @@ async function summitRequest(endpoint: string, body: object) {
       },
       ...body,
     }),
+    cache: "no-store", // Disable Next.js fetch cache — avoids EACCES on Docker
   });
   return res;
 }
