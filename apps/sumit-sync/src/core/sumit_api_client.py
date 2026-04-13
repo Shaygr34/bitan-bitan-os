@@ -270,6 +270,51 @@ class SummitAPIClient:
             {"Folder": folder_id, "IncludeProperties": True},
         )
 
+    def update_entity(
+        self,
+        entity_id: int,
+        folder_id: str,
+        properties: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Update fields on an existing entity.
+        Only changed fields need to be included in properties.
+        Returns the updated entity dict.
+        """
+        logger.info("Updating entity %d in folder %s (%d fields)", entity_id, folder_id, len(properties))
+        data = self._post(
+            "/crm/data/updateentity/",
+            {
+                "Entity": {
+                    "ID": entity_id,
+                    "Folder": folder_id,
+                    "Properties": properties,
+                }
+            },
+        )
+        return data.get("Entity", {})
+
+    def create_entity(
+        self,
+        folder_id: str,
+        properties: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Create a new entity in a folder.
+        Returns the created entity dict (includes new ID).
+        """
+        logger.info("Creating entity in folder %s (%d fields)", folder_id, len(properties))
+        data = self._post(
+            "/crm/data/createentity/",
+            {
+                "Entity": {
+                    "Folder": folder_id,
+                    "Properties": properties,
+                }
+            },
+        )
+        return data.get("Entity", {})
+
     @property
     def call_count(self) -> int:
         """Total API calls made by this client instance."""
