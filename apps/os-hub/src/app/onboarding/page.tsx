@@ -28,23 +28,7 @@ const CLIENT_TYPES = [
 
 const MANAGERS = ["אבי ביטן", "רון ביטן"];
 
-// Staff lists from Sumit taxonomy folders — exact entity names for 1:1 API mapping
-const STAFF_ACCOUNTANT = [
-  "אבי ביטן", "רון ביטן", "יצחק ביטן", "מלי ביטן",
-  "חלי עזוז", "גיא מחאני", "יעל מחאני", "שי גרייבר",
-  "משי כהן", "חיה כהן גבורה", "גולן קלדרון", "שרה ישראלי",
-  "אירינה ולסנקוב", "נלה פרידמן", "אורטל מיסק", "חיים שיינגרטן",
-  "כרמית אבשלום", "הודיה יוסף", "בתאל וקנין",
-];
-const STAFF_AUDIT = [
-  "אבי ביטן", "רון ביטן", "יצחק ביטן",
-  "גיא מחאני", "שי גרייבר", "משי כהן",
-  "חיה כהן גבורה", "נלה פרידמן", "הודיה יוסף",
-];
-const STAFF_PAYROLL = [
-  "אבי ביטן", "רון ביטן", "משי כהן",
-  "גולן קלדרון", "חיצוני",
-];
+
 
 const FIELD_LABELS: Record<string, string> = {
   clientName: "שם לקוח",
@@ -156,10 +140,7 @@ export default function OnboardingPage() {
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
 
-  // Internal fields state per token
-  const [internalFields, setInternalFields] = useState<Record<string, Record<string, string>>>({});
-  const [savingInternal, setSavingInternal] = useState<string | null>(null);
-  const [internalSaveMsg, setInternalSaveMsg] = useState<Record<string, string>>({});
+
 
   const linkInputRef = useRef<HTMLInputElement>(null);
 
@@ -292,65 +273,6 @@ export default function OnboardingPage() {
       return Array.isArray(files) ? files : [];
     } catch {
       return [];
-    }
-  };
-
-  const getInternalField = (token: string, field: string) => {
-    return internalFields[token]?.[field] ?? "";
-  };
-
-  const setInternalField = (token: string, field: string, value: string) => {
-    setInternalFields((prev) => ({
-      ...prev,
-      [token]: { ...(prev[token] || {}), [field]: value },
-    }));
-  };
-
-  const handleSaveInternal = async (t: IntakeToken) => {
-    if (!t.summitEntityId) return;
-    setSavingInternal(t.token);
-    setInternalSaveMsg((prev) => ({ ...prev, [t.token]: "" }));
-
-    const fields = internalFields[t.token] || {};
-    // Filter out empty fields
-    const properties: Record<string, string> = {};
-    for (const [k, v] of Object.entries(fields)) {
-      if (v.trim()) properties[k] = v.trim();
-    }
-
-    if (Object.keys(properties).length === 0) {
-      setInternalSaveMsg((prev) => ({ ...prev, [t.token]: "אין שדות לשמור" }));
-      setSavingInternal(null);
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/intake/update-internal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          summitEntityId: Number(t.summitEntityId),
-          folder: 557688522,
-          properties,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? "שגיאה בשמירה");
-      }
-
-      setInternalSaveMsg((prev) => ({ ...prev, [t.token]: "נשמר בהצלחה!" }));
-      setTimeout(() => {
-        setInternalSaveMsg((prev) => ({ ...prev, [t.token]: "" }));
-      }, 3000);
-    } catch (err) {
-      setInternalSaveMsg((prev) => ({
-        ...prev,
-        [t.token]: err instanceof Error ? err.message : "שגיאה",
-      }));
-    } finally {
-      setSavingInternal(null);
     }
   };
 
@@ -625,71 +547,6 @@ export default function OnboardingPage() {
                                   >
                                     פתח ב-Sumit (Entity #{t.summitEntityId})
                                   </a>
-                                </div>
-                              )}
-
-                              {/* Internal Fields */}
-                              {t.summitEntityId && (
-                                <div className={styles.detailSection}>
-                                  <h4 className={styles.detailSectionTitle}>שדות פנימיים (עדכון Sumit)</h4>
-                                  <div className={styles.internalFieldsGrid}>
-                                    <div className={styles.internalField}>
-                                      <label className={styles.inputLabel}>מנהל תיק</label>
-                                      <select
-                                        className={styles.textInput}
-                                        value={getInternalField(t.token, "מנהל תיק")}
-                                        onChange={(e) => setInternalField(t.token, "מנהל תיק", e.target.value)}
-                                      >
-                                        <option value="">בחר...</option>
-                                        {MANAGERS.map((m) => <option key={m} value={m}>{m}</option>)}
-                                      </select>
-                                    </div>
-                                    <div className={styles.internalField}>
-                                      <label className={styles.inputLabel}>עובד/ת ביקורת</label>
-                                      <select
-                                        className={styles.textInput}
-                                        value={getInternalField(t.token, "עובד/ת ביקורת")}
-                                        onChange={(e) => setInternalField(t.token, "עובד/ת ביקורת", e.target.value)}
-                                      >
-                                        <option value="">בחר...</option>
-                                        {STAFF_AUDIT.map((s) => <option key={s} value={s}>{s}</option>)}
-                                      </select>
-                                    </div>
-                                    <div className={styles.internalField}>
-                                      <label className={styles.inputLabel}>מנהל/ת חשבונות</label>
-                                      <select
-                                        className={styles.textInput}
-                                        value={getInternalField(t.token, "מנהל/ת חשבונות")}
-                                        onChange={(e) => setInternalField(t.token, "מנהל/ת חשבונות", e.target.value)}
-                                      >
-                                        <option value="">בחר...</option>
-                                        {STAFF_ACCOUNTANT.map((s) => <option key={s} value={s}>{s}</option>)}
-                                      </select>
-                                    </div>
-                                    <div className={styles.internalField}>
-                                      <label className={styles.inputLabel}>אחראי שכר</label>
-                                      <select
-                                        className={styles.textInput}
-                                        value={getInternalField(t.token, "אחראי שכר")}
-                                        onChange={(e) => setInternalField(t.token, "אחראי שכר", e.target.value)}
-                                      >
-                                        <option value="">בחר...</option>
-                                        {STAFF_PAYROLL.map((s) => <option key={s} value={s}>{s}</option>)}
-                                      </select>
-                                    </div>
-                                  </div>
-                                  <div className={styles.internalActions}>
-                                    <button
-                                      className={styles.saveBtn}
-                                      onClick={() => handleSaveInternal(t)}
-                                      disabled={savingInternal === t.token}
-                                    >
-                                      {savingInternal === t.token ? "שומר..." : "שמור ב-Sumit"}
-                                    </button>
-                                    {internalSaveMsg[t.token] && (
-                                      <span className={styles.saveMsg}>{internalSaveMsg[t.token]}</span>
-                                    )}
-                                  </div>
                                 </div>
                               )}
 
