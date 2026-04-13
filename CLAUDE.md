@@ -268,6 +268,35 @@ Reconciles SHAAM/IDOM filing status data with Summit CRM report records:
 - Mode preference saved to localStorage (`bb-sync-prefs`). API mode is default.
 - Proxy routes: `/api/sumit-sync/runs/{id}/execute-api`, `/api/sumit-sync/runs/mapping/summary`
 
+### Write-Back System (April 2026)
+Direct API writes to Summit CRM — replaces manual XLSX import.
+
+**Architecture: Two-level writes**
+- **Report cards** (דוחות שנתיים/כספיים): UPDATE existing + CREATE new for missing reports
+- **Client cards** (לקוחות): UPDATE פקיד שומה, סוג תיק from IDOM data
+
+**Key files:**
+- `taxonomy.py` — maps IDOM values → Summit entity reference IDs (status, year, פקיד שומה, סוג תיק). Disk cache at `/data/taxonomy_cache.json`.
+- `write_plan.py` — WritePlan model: list of WriteOperations (update_report/create_report/update_client/skip/flag)
+- `write_executor.py` — executes plan in dry-run (validate only) or live (write to API) mode
+- `sync_engine.py:build_write_plan()` — classifies records: matched→update, unmatched+client exists→create, unmatched+no client→flag
+
+**Safety model:**
+1. Dry-run first (validates without writing)
+2. Operator approval before live execution (confirmation dialog)
+3. Every write logged to `write_logs` table with before/after values
+4. Never writes: שם, מספר_תיק (identifying fields)
+5. Skips: קוד_שידור, מח (no Summit counterpart)
+
+**API routes:** `GET /runs/{id}/write-plan`, `POST /runs/{id}/write-back/dry-run`, `POST /runs/{id}/write-back`
+**Frontend proxy:** `/api/sumit-sync/runs/{id}/write-plan`, `/api/sumit-sync/runs/{id}/write-back?mode=dry-run|live`
+
+**Taxonomy folders (entity references):**
+- שנת מס: folder 1125523044 (2022-2026)
+- סטטוס דוח: folder 1125161773 (9 statuses, 1→9)
+- פקיד שומה: folder 1081741878 (33 tax assessor offices)
+- סוג תיק: folder 1081741713 (25 file types)
+
 ### Summit API Integration (P0)
 - **Direct HTTP client** (`sumit_api_client.py`) calls `api.sumit.co.il` — bypasses MCP proxy to access `Customers_CompanyNumber` (redacted by MCP security zones)
 - **Rate limiting**: 50 calls/batch, 65s cooldown, exponential backoff on 403 (70s→140s→280s→560s). Summit blocks after ~100-150 rapid calls.
