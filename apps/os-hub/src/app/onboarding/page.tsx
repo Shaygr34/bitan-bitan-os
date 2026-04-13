@@ -330,7 +330,7 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           summitEntityId: Number(t.summitEntityId),
-          folder: 0,
+          folder: 557688522,
           properties,
         }),
       });
@@ -618,7 +618,7 @@ export default function OnboardingPage() {
                                 <div className={styles.detailSection}>
                                   <h4 className={styles.detailSectionTitle}>Sumit CRM</h4>
                                   <a
-                                    href={`https://app.sumit.co.il`}
+                                    href={`https://app.sumit.co.il/f557688522/c${t.summitEntityId}/`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={styles.summitLink}
