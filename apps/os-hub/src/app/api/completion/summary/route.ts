@@ -43,24 +43,7 @@ const NON_DOC_FIELDS_MAP: Record<string, string> = {
   "פרטי בעלי מניות": "shareholderDetails",
 };
 
-// Client type entity IDs → labels (from Summit taxonomy folder 1099290064)
-const CLIENT_TYPE_LABELS: Record<string, string> = {
-  "1099570216": "עצמאי",
-  "1099570129": "עצמאי שנתי",
-  "1099570010": "חברה",
-  "1099569991": "חברה שנתי",
-  "1099570246": "פטור",
-  "1099570170": "שותפות",
-  "1099570107": "עמותה",
-  "1099570213": "עסק זעיר",
-  "1179325026": "החזר מס",
-};
-
-// Manager entity IDs → labels
-const MANAGER_LABELS: Record<string, string> = {
-  "1081739391": "אבי ביטן",
-  "1081739392": "רון ביטן",
-};
+// Entity refs come as objects with .Name — extract directly
 
 // ─── Summit API helpers ─── //
 
@@ -91,11 +74,11 @@ function isFieldFilled(value: unknown): boolean {
 }
 
 function resolveEntityRef(value: unknown): string {
-  // Entity references come as arrays of objects or strings
+  // Entity references come as arrays of { ID, Name, ... } objects
   if (Array.isArray(value) && value.length > 0) {
     const first = value[0];
     if (typeof first === "object" && first !== null) {
-      return String((first as Record<string, unknown>).ID || (first as Record<string, unknown>).EntityID || "");
+      return String((first as Record<string, unknown>).Name || "");
     }
     return String(first);
   }
@@ -106,21 +89,39 @@ function resolveEntityRef(value: unknown): string {
 // ─── Real Summit fetch ─── //
 
 async function fetchCompletionData(): Promise<ClientCompletion[]> {
-  // Step 1: Get all entity IDs
-  const listRes = await summitRequest("/crm/data/listentities/", {
-    Folder: "557688522",
-    PageSize: 1000,
-    StartIndex: 0,
-  });
+  // Step 1: Get all entity IDs (Summit caps at 10 per page — must paginate)
+  const entities: { ID: number }[] = [];
+  let startIndex = 0;
+  let hasMore = true;
 
-  if (!listRes.ok) {
-    console.error("Summit listentities failed:", listRes.status);
-    return [];
+  while (hasMore) {
+    const listRes = await summitRequest("/crm/data/listentities/", {
+      Folder: "557688522",
+      PageSize: 100, // Summit ignores this, returns 10, but we ask anyway
+      StartIndex: startIndex,
+    });
+
+    if (!listRes.ok) {
+      console.error("Summit listentities failed at page", startIndex, ":", listRes.status);
+      break;
+    }
+
+    const listJson = await listRes.json(); // eslint-disable-line
+    if (listJson?.Status !== 0) {
+      console.error("Summit listentities error:", listJson?.UserErrorMessage);
+      break;
+    }
+
+    const page = listJson?.Data?.Entities || [];
+    entities.push(...page);
+    hasMore = listJson?.Data?.HasNextPage === true;
+    startIndex += page.length;
+
+    // Brief pause between list pages
+    if (hasMore) await delay(300);
   }
 
-  const listJson = await listRes.json(); // eslint-disable-line
-  const entities: { ID: number }[] = listJson?.Data?.Entities || [];
-  console.log(`[completion] Fetched ${entities.length} entity IDs`);
+  console.log(`[completion] Fetched ${entities.length} entity IDs in ${Math.ceil(startIndex / 10)} pages`);
 
   // Initialize progress
   scanProgress = {
@@ -226,11 +227,9 @@ function parseEntity(entity: Record<string, unknown>): ClientCompletion {
       : entity.Customers_FullName) || "ללא שם"
   );
 
-  // Resolve entity references for client type and manager
-  const clientTypeRef = resolveEntityRef(entity["סוג לקוח"]);
-  const managerRef = resolveEntityRef(entity["מנהל תיק"]);
-  const clientType = CLIENT_TYPE_LABELS[clientTypeRef] || clientTypeRef || "";
-  const manager = MANAGER_LABELS[managerRef] || managerRef || "";
+  // Entity refs have .Name directly
+  const clientType = resolveEntityRef(entity["סוג לקוח"]);
+  const manager = resolveEntityRef(entity["מנהל תיק"]);
 
   // Check document fields
   const docs: Record<string, boolean> = {};
