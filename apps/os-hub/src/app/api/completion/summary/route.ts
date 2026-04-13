@@ -319,25 +319,19 @@ export async function GET(request: Request) {
     return NextResponse.json(buildResponse(cachedData.clients, true));
   }
 
-  // Synchronous fetch (blocking — will timeout on large datasets)
-  // For production, use ?scan=start instead
-  if (!process.env.SUMMIT_API_KEY) {
-    return NextResponse.json(
-      { error: "Summit API key not configured", clients: [] },
-      { status: 500 },
-    );
-  }
-
-  try {
-    const clients = await fetchCompletionData();
-    cachedData = { clients, timestamp: Date.now() };
-    return NextResponse.json(buildResponse(clients, false));
-  } catch (err) {
-    console.error("[completion] Fetch failed:", err);
-    // Return stale cache if available
-    if (cachedData) {
-      return NextResponse.json(buildResponse(cachedData.clients, true));
-    }
-    return NextResponse.json({ error: "Failed to fetch completion data", clients: [] }, { status: 500 });
-  }
+  // No cache available — return empty data immediately.
+  // User must click "סרוק מסאמיט" to trigger background scan.
+  // NEVER do synchronous fetch — it takes 10+ minutes and times out.
+  return NextResponse.json({
+    total: 0,
+    avgCompletion: 0,
+    zeroDocsCount: 0,
+    allDocsCount: 0,
+    clients: [],
+    cached: false,
+    scanInProgress,
+    scanProgress: scanInProgress ? scanProgress : null,
+    lastUpdated: null,
+    needsScan: true,
+  });
 }
