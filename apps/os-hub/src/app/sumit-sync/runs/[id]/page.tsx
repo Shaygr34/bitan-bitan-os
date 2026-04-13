@@ -265,6 +265,11 @@ export default function RunDetailPage() {
         title={`הרצה — ${TYPE_LABELS[run.report_type] ?? run.report_type} ${run.year}`}
       />
 
+      {/* Insights banner */}
+      {run.metrics && !isCompleted && (
+        <InsightsBanner metrics={run.metrics} exceptionsCount={run.exceptions.length} />
+      )}
+
       {/* Completed banner */}
       {isCompleted && (
         <div className={styles.completedBanner}>
@@ -375,6 +380,11 @@ export default function RunDetailPage() {
             />
           </div>
         </section>
+      )}
+
+      {/* Inline changes */}
+      {run.metrics && run.metrics.changed_count > 0 && (
+        <InlineChanges runId={id} changedCount={run.metrics.changed_count} />
       )}
 
       {/* Output files */}
@@ -598,5 +608,139 @@ function MetricCard({
       <span className={styles.metricValue}>{value}</span>
       {accent && <span className={styles.metricAccent}>{accent}</span>}
     </div>
+  );
+}
+
+/* ── Insights Banner ── */
+
+const CHANGE_TYPE_LABELS: Record<string, string> = {
+  status_completion: "סטטוס → הושלם",
+  extension_update: "עדכון אורכה",
+  update: "עדכון שדה",
+  status_preserved: "סטטוס נשמר",
+};
+
+function InsightsBanner({
+  metrics,
+  exceptionsCount,
+}: {
+  metrics: RunMetrics;
+  exceptionsCount: number;
+}) {
+  const { total_idom_records, matched_count, unmatched_count, changed_count, status_completed_count, status_regression_flags } = metrics;
+  const matchPct = total_idom_records > 0 ? ((matched_count / total_idom_records) * 100).toFixed(0) : "0";
+
+  const lines: string[] = [];
+
+  if (Number(matchPct) >= 90) {
+    lines.push(`${matchPct}% התאמה — תוצאה תקינה`);
+  } else if (Number(matchPct) >= 70) {
+    lines.push(`${matchPct}% התאמה — ייתכן שחלק מהלקוחות לא סונכרנו`);
+  } else {
+    lines.push(`${matchPct}% התאמה בלבד — יש לבדוק את קובץ ה-IDOM או את ייצוא ה-SUMIT`);
+  }
+
+  if (status_completed_count > 0) {
+    lines.push(`${status_completed_count} תיקים סומנו כ"הושלם" (הוגשו לשע"מ)`);
+  }
+  if (changed_count > 0) {
+    lines.push(`${changed_count} שינויים לעדכון ב-Summit`);
+  }
+  if (unmatched_count > 0) {
+    lines.push(`${unmatched_count} רשומות IDOM ללא התאמה — ייתכן לקוחות חדשים`);
+  }
+  if (status_regression_flags > 0) {
+    lines.push(`${status_regression_flags} נסיגות סטטוס — תיקים שסומנו "הושלם" ב-Summit אך ללא הגשה ב-IDOM`);
+  }
+
+  if (lines.length === 0) return null;
+
+  const isGood = Number(matchPct) >= 90 && status_regression_flags === 0;
+
+  return (
+    <div className={`${styles.insightsBanner} ${isGood ? styles.insightsGood : styles.insightsAttention}`}>
+      {lines.map((line, i) => (
+        <p key={i} className={styles.insightLine}>{line}</p>
+      ))}
+    </div>
+  );
+}
+
+/* ── Inline Changes ── */
+
+interface ChangeRow {
+  [key: string]: string | number;
+}
+
+function InlineChanges({ runId, changedCount }: { runId: string; changedCount: number }) {
+  const [rows, setRows] = useState<ChangeRow[]>([]);
+  const [columns, setColumns] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const loadChanges = useCallback(async () => {
+    if (rows.length > 0) {
+      setExpanded(!expanded);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/sumit-sync/runs/${runId}/drill-down/changed?limit=100`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setColumns(data.columns || []);
+      setRows(data.rows || []);
+      setExpanded(true);
+    } catch {
+      // Silent fail — drill-down is supplementary
+    } finally {
+      setLoading(false);
+    }
+  }, [runId, rows.length, expanded]);
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle}>שינויים ({changedCount})</h2>
+        <button
+          className="btn-ghost"
+          onClick={loadChanges}
+          disabled={loading}
+        >
+          {loading ? "טוען..." : expanded ? "הסתר" : "הצג שינויים"}
+        </button>
+      </div>
+      {expanded && rows.length > 0 && (
+        <table className={styles.changesTable}>
+          <thead>
+            <tr>
+              <th>שם</th>
+              <th>שדה</th>
+              <th>ערך קודם</th>
+              <th>ערך חדש</th>
+              <th>סוג</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              const changeType = String(row["change_type"] || row["סוג"] || "");
+              return (
+                <tr key={i}>
+                  <td>{row["שם"] || row["name"] || "—"}</td>
+                  <td>{row["field"] || row["שדה"] || "—"}</td>
+                  <td className={styles.oldValue}>{row["old_value"] || row["ערך קודם"] || "—"}</td>
+                  <td className={styles.newValue}>{row["new_value"] || row["ערך חדש"] || "—"}</td>
+                  <td>
+                    <span className={styles.changeTypeBadge}>
+                      {CHANGE_TYPE_LABELS[changeType] || changeType || "—"}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }

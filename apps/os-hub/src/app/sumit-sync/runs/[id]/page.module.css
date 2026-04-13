@@ -405,3 +405,83 @@
 .resolvedMark {
   color: var(--text-caption);
 }
+
+/* ——— Insights banner ——— */
+.insightsBanner {
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-xl);
+  line-height: 1.7;
+}
+
+.insightsGood {
+  background: var(--status-success-bg);
+  border: 1px solid var(--status-success);
+  color: var(--status-success);
+}
+
+.insightsAttention {
+  background: var(--status-info-bg);
+  border: 1px solid var(--status-info);
+  color: var(--text-body);
+}
+
+.insightLine {
+  margin: 0;
+}
+
+.insightLine::before {
+  content: "• ";
+}
+
+/* ——— Inline changes table ——— */
+.changesTable {
+  width: 100%;
+  border-collapse: collapse;
+  direction: rtl;
+}
+
+.changesTable thead th {
+  background: var(--table-header-bg);
+  color: var(--table-header-text);
+  font-weight: var(--font-weight-semibold);
+  border-bottom: 2px solid var(--brand-gold);
+  padding: var(--space-sm) var(--space-lg);
+  text-align: start;
+  font-size: var(--font-size-sm);
+}
+
+.changesTable tbody tr:nth-child(even) {
+  background: var(--table-row-alt);
+}
+
+.changesTable tbody td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-sm);
+}
+
+.oldValue {
+  color: var(--status-error);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.newValue {
+  color: var(--status-success);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.changeTypeBadge {
+  display: inline-block;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  background: var(--status-info-bg);
+  color: var(--status-info);
+  white-space: nowrap;
+}
