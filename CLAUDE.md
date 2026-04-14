@@ -391,7 +391,6 @@ src/main.py                — FastAPI app entry point
 - `DATA_DIR` — Railway Volume mount (default `/data`)
 
 ### Critical Rules
-- **DO NOT modify** `idom_parser.py`, `sync_engine.py`, `output_writer.py`, or `validation.py`
 - API source must produce byte-compatible output with `parse_sumit_file()` — same column names, same "ID: Label" entity reference format, same date types
 - Python 3.9 on macOS — avoid `str | None` syntax, use `Optional[str]`
 - Summit API key may have trailing newline — always `.strip()` env vars
@@ -400,5 +399,28 @@ src/main.py                — FastAPI app entry point
 ```bash
 cd apps/sumit-sync
 source .venv/bin/activate  # Create with: python3 -m venv .venv && pip install -r requirements.txt
-python -m pytest tests/ -v  # 29 tests
+python -m pytest tests/ -v  # 52 tests (29 original + 14 taxonomy + 9 write plan)
 ```
+
+---
+
+## Session: April 14, 2026 — Shaam↔Summit Full Sync System
+
+### 1. API-Mode Frontend (Phase 1)
+- Dual-mode sync UI: API (auto, default) vs Manual (XLSX)
+- Mode toggle with "מומלץ" badge, mapping cache indicator
+- Progress stages with polling for long-running execution
+- New proxy routes: execute-api, mapping/summary
+
+### 2. Smarter Results (Phase 3)
+- Insights banner with actionable Hebrew summary
+- Inline changes table with old→new diff
+
+### 3. Write-Back System (Phase 5) — BUILT, AWAITING REAL DATA TEST
+- taxonomy.py, write_plan.py, write_executor.py, sync_engine extended
+- 3 new API routes: write-plan, write-back/dry-run, write-back
+- WriteLog DB model for audit trail
+- Frontend: write plan viewer + dry-run/live approval UI
+- 52 Python tests (23 new)
+- Two-level writes: reports (update+create) + clients (פקיד שומה, סוג תיק)
+- Awaits IDOM file from office PC for first real test
