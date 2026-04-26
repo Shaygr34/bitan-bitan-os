@@ -1,0 +1,44 @@
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.header {
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-heading);
+  margin-block-end: var(--space-lg);
+  padding-block-end: var(--space-sm);
+  border-bottom: 1px solid var(--separator-gold);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md) var(--space-xl);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fieldLabel {
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-caption);
+  letter-spacing: var(--tracking-wide);
+}
+
+.fieldValue {
+  font-size: 13px;
+  color: var(--text-body);
+}
+
+.empty {
+  color: var(--text-caption);
+  font-style: italic;
+}
