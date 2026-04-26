@@ -117,3 +117,38 @@ export async function createIfNotExists(
   const result = (await response.json()) as SanityMutationResult;
   return { _id: result.results?.[0]?.id ?? (doc._id as string) };
 }
+
+/**
+ * Patch a document in Sanity (set / unset fields).
+ */
+export async function patch(
+  id: string,
+  operations: { set?: Record<string, unknown>; unset?: string[] },
+): Promise<{ _id: string }> {
+  const { projectId, dataset, apiToken } = sanityConfig;
+
+  if (!projectId || !apiToken) {
+    throw new Error("Sanity credentials not configured");
+  }
+
+  const url = `https://${projectId}.api.sanity.io/v2021-06-07/data/mutate/${dataset}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiToken}`,
+    },
+    body: JSON.stringify({
+      mutations: [{ patch: { id, ...operations } }],
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Sanity patch failed: ${response.status} ${body}`);
+  }
+
+  const result = (await response.json()) as SanityMutationResult;
+  return { _id: result.results?.[0]?.id ?? id };
+}
