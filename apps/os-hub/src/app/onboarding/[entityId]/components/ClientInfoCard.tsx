@@ -8,6 +8,10 @@ interface Props {
     email?: string
     sector?: string
     address?: string
+    clientType?: string
+    accountManager?: string
+    auditWorker?: string
+    bookkeeper?: string
   }
   clientName: string
   clientType?: string
@@ -17,12 +21,15 @@ interface Props {
 export default function ClientInfoCard({ summitData, clientName, clientType, companyNumber }: Props) {
   const fields: Array<{ label: string; value: string | undefined }> = [
     { label: 'שם לקוח', value: clientName },
-    { label: 'סוג לקוח', value: clientType },
+    { label: 'סוג לקוח', value: clientType || summitData.clientType },
     { label: 'ח.פ / ת.ז', value: companyNumber },
     { label: 'טלפון', value: summitData.phone },
     { label: 'אימייל', value: summitData.email },
     { label: 'תחום עיסוק', value: summitData.sector },
     { label: 'כתובת', value: summitData.address },
+    { label: 'מנהל תיק', value: summitData.accountManager },
+    { label: 'עובד/ת ביקורת', value: summitData.auditWorker },
+    { label: 'מנהל/ת חשבונות', value: summitData.bookkeeper },
   ]
 
   return (

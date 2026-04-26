@@ -16,6 +16,10 @@ interface SummitData {
   email?: string
   sector?: string
   address?: string
+  clientType?: string
+  accountManager?: string
+  auditWorker?: string
+  bookkeeper?: string
 }
 
 interface DocItem {
@@ -78,17 +82,20 @@ export default function ClientDetailPage() {
       let summitData: SummitData = {}
       let companyNumber = ''
       let summitName = ''
+      let docUrls: Record<string, string> = {}
       if (entityRes.ok) {
         const entityData = await entityRes.json() as {
           stage: number
           clientData: SummitData
           companyNumber?: string
           clientName?: string
+          docUrls?: Record<string, string>
         }
         currentStage = entityData.stage || 0
         summitData = entityData.clientData || {}
         companyNumber = entityData.companyNumber || ''
         summitName = entityData.clientName || ''
+        docUrls = entityData.docUrls || {}
       }
 
       // If no onboarding record exists, auto-create one in Sanity with checklist template
@@ -119,17 +126,15 @@ export default function ClientDetailPage() {
         }
       }
 
-      // Build document list based on client type
-      const clientType = record?.clientType || ''
+      // Build document list based on client type, enriched with URLs from Summit הערות
+      const clientType = summitData.clientType || record?.clientType || ''
       const docCat = getDocCategory(clientType)
       const requiredKeys = REQUIRED_DOCS[docCat] || []
 
-      // For now, build doc items from required docs -- no separate Sanity doc fetch needed
-      // since uploaded docs are tracked through intake submissions
       const documents: DocItem[] = requiredKeys.map((key) => ({
         docType: key,
         label: key,
-        url: undefined, // Will be populated when Sanity clientDocument schema is ready
+        url: docUrls[key] || undefined,
       }))
 
       setState({
@@ -295,7 +300,7 @@ export default function ClientDetailPage() {
           <ClientInfoCard
             summitData={state.summitData}
             clientName={record?.clientName || ''}
-            clientType={record?.clientType}
+            clientType={state.summitData.clientType || record?.clientType}
             companyNumber={state.companyNumber}
           />
           <DocumentsCard

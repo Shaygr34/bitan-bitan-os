@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSummitEntity, extractStageFromEntity, extractClientData } from '@/lib/onboarding/summit-client'
+import { getSummitEntity, extractStageFromEntity, extractClientData, extractDocUrls } from '@/lib/onboarding/summit-client'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -24,6 +24,8 @@ export async function GET(request: Request) {
         stage: 0,
         clientData: {},
         companyNumber: '',
+        clientName: '',
+        docUrls: {},
       })
     }
 
@@ -31,12 +33,14 @@ export async function GET(request: Request) {
     const clientData = extractClientData(entity)
     const companyNumber = (entity['Customers_CompanyNumber'] as string[])?.[0] || ''
     const clientName = (entity['Customers_FullName'] as string[])?.[0] || ''
+    const docUrls = extractDocUrls(entity)
 
     return NextResponse.json({
       stage,
       clientData,
       companyNumber,
       clientName,
+      docUrls,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'

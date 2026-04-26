@@ -40,5 +40,38 @@ export function extractClientData(entity: Record<string, unknown>) {
     email: (entity['Customers_EmailAddress'] as string[])?.[0] ?? '',
     sector: (entity['תחום עיסוק'] as Array<{ Name: string }>)?.[0]?.Name ?? '',
     address: (entity['Customers_Address'] as string[])?.[0] ?? '',
+    clientType: (entity['סוג לקוח'] as Array<{ Name: string }>)?.[0]?.Name ?? '',
+    accountManager: (entity['מנהל תיק'] as Array<{ Name: string }>)?.[0]?.Name ?? '',
+    auditWorker: (entity['עובד/ת ביקורת'] as Array<{ Name: string }>)?.[0]?.Name ?? '',
+    bookkeeper: (entity['מנהל/ת חשבונות'] as Array<{ Name: string }>)?.[0]?.Name ?? '',
   }
+}
+
+/** Extract uploaded doc URLs from Summit הערות field */
+export function extractDocUrls(entity: Record<string, unknown>): Record<string, string> {
+  const notes = entity['הערות'] as Array<{ Item1?: string; Item2?: string }> | undefined
+  const text = notes?.[0]?.Item2 || notes?.[0]?.Item1 || ''
+  if (!text) return {}
+
+  const docs: Record<string, string> = {}
+  const lines = text.split('\n')
+  for (const line of lines) {
+    const match = line.match(/^(.+?):\s*(https:\/\/cdn\.sanity\.io\/.+)$/i)
+    if (match) {
+      const label = match[1].trim()
+      const url = match[2].trim()
+      // Map Hebrew label back to doc key
+      if (label.includes('ת.ז')) docs.idCard = url
+      else if (label.includes('רישיון')) docs.driverLicense = url
+      else if (label.includes('ניהול חשבון') || label.includes('שיק')) docs.bankApproval = url
+      else if (label.includes('עוסק מורשה')) docs.osekMurshe = url
+      else if (label.includes('מע"מ') || label.includes('מעמ')) docs.ptihaTikMaam = url
+      else if (label.includes('התאגדות')) docs.teudatHitagdut = url
+      else if (label.includes('תקנון')) docs.takanonHevra = url
+      else if (label.includes('מורשה חתימה') || label.includes('פרוטוקול')) docs.protokolMurshe = url
+      else if (label.includes('נסח')) docs.nesahHevra = url
+      else if (label.includes('שכירות')) docs.rentalContract = url
+    }
+  }
+  return docs
 }
