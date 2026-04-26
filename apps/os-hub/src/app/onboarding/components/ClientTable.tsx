@@ -202,12 +202,14 @@ export default function ClientTable({ clients, onNavigate, onDelete }: Props) {
                             <span className={styles.detailValue}>{client.summitData.sector}</span>
                           </div>
                         )}
-                        <div className={styles.detailItem}>
-                          <span className={styles.detailLabel}>מסמכים:</span>
-                          <span className={styles.detailValue}>
-                            {client.uploadedDocsCount}/{client.requiredDocsCount}
-                          </span>
-                        </div>
+                        {client.checklistItems && client.checklistItems.length > 0 && (
+                          <div className={styles.detailItem}>
+                            <span className={styles.detailLabel}>משימות:</span>
+                            <span className={styles.detailValue}>
+                              {client.checklistItems.filter(i => i.completed).length}/{client.checklistItems.length}
+                            </span>
+                          </div>
+                        )}
                         <div className={styles.detailItem}>
                           <span className={styles.detailLabel}>ימים בתהליך:</span>
                           <span className={styles.detailValue}>{days}</span>

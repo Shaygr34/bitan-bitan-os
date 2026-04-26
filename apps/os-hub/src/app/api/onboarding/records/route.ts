@@ -44,6 +44,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'clientName is required' }, { status: 400 })
     }
 
+    // Prevent duplicates: check if record already exists for this summitEntityId
+    if (summitEntityId) {
+      const existing = await query<OnboardingRecord[]>(
+        `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id, _createdAt, summitEntityId, clientName, clientType, accountManager, intakeToken, startDate, checklistItems, notes }`,
+        { eid: summitEntityId }
+      )
+      if (existing && existing.length > 0) {
+        return NextResponse.json({ record: existing[0] }, { status: 200 })
+      }
+    }
+
     const isTransfer = onboardingPath === 'transfer'
     const checklistItems = buildChecklist(clientType, isTransfer)
     const id = `onboarding-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`

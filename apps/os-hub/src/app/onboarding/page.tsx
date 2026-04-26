@@ -103,9 +103,12 @@ export default function OnboardingPage() {
       // Build pipeline clients from onboarding records
       const fromRecords = fetchedRecords.map(buildPipelineClient)
 
-      // Build pipeline clients from legacy intake tokens (that don't have an onboarding record)
+      // Dedup legacy tokens: exclude those that have a matching onboardingRecord by token OR summitEntityId
       const recordTokens = new Set(fetchedRecords.map(r => r.intakeToken).filter(Boolean))
-      const legacyTokens = tokensData.filter(t => !recordTokens.has(t.token))
+      const recordEntityIds = new Set(fetchedRecords.map(r => r.summitEntityId).filter(Boolean))
+      const legacyTokens = tokensData.filter(t =>
+        !recordTokens.has(t.token) && !(t.summitEntityId && recordEntityIds.has(t.summitEntityId))
+      )
       const fromTokens = legacyTokens.map(tokenToPipelineClient)
 
       const allClients = [...fromRecords, ...fromTokens]
@@ -142,13 +145,18 @@ export default function OnboardingPage() {
   const handleDelete = async (clientId: string) => {
     if (!confirm('למחוק את רשומת הקליטה?')) return
     try {
+      // For legacy tokens (ID starts with "token-"), delete the intakeToken doc
+      const isLegacyToken = clientId.startsWith('token-')
+      const sanityId = isLegacyToken ? `intakeToken-${clientId.replace('token-', '')}` : clientId
+
       const res = await fetch('/api/onboarding/records', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recordId: clientId }),
+        body: JSON.stringify({ recordId: sanityId }),
       })
       if (res.ok) {
-        loadData()
+        // Remove from local state immediately for snappy UX
+        setClients(prev => prev.filter(c => c._id !== clientId))
       }
     } catch {
       // Silently handle

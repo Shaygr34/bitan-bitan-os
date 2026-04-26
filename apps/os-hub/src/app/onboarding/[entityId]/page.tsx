@@ -106,7 +106,8 @@ export default function ClientDetailPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               clientName: summitName,
-              clientType: '',
+              clientType: summitData.clientType || '',
+              accountManager: summitData.accountManager || '',
               summitEntityId: entityId,
             }),
           })
