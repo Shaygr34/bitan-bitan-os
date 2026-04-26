@@ -1,6 +1,5 @@
 'use client'
 
-import { Fragment, useState } from 'react'
 import { PipelineClient, STAGE_LABELS, STAGE_COLORS } from '@/lib/onboarding/types'
 import styles from './ClientTable.module.css'
 
@@ -28,14 +27,10 @@ function daysFromStart(dateStr?: string): number {
 }
 
 export default function ClientTable({ clients, onNavigate }: Props) {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const handleRowClick = (client: PipelineClient) => {
-    // Navigate to detail page if has Summit entity, otherwise just expand
     if (client.summitEntityId) {
       onNavigate(client.summitEntityId)
-    } else {
-      setExpandedId(expandedId === client._id ? null : client._id)
     }
   }
 
@@ -90,19 +85,20 @@ export default function ClientTable({ clients, onNavigate }: Props) {
             <th>פעולות</th>
           </tr>
         </thead>
-        <tbody>
-          {clients.map((client) => {
-            const isExpanded = expandedId === client._id
-            const stageColor = STAGE_COLORS[client.currentStage] || '#999'
-            const days = daysFromStart(client.startDate)
+        {clients.map((client) => {
+          const stageColor = STAGE_COLORS[client.currentStage] || '#999'
+          const stageLabel = client.currentStage > 0
+            ? (STAGE_LABELS[client.currentStage] || `שלב ${client.currentStage}`)
+            : 'ממתין'
+          const days = daysFromStart(client.startDate)
 
-            return (
-              <Fragment key={client._id}>
-                <tr
-                  className={styles.row}
-                  style={{ '--row-stage-color': stageColor } as React.CSSProperties}
-                  onClick={() => handleRowClick(client)}
-                >
+          return (
+            <tbody key={client._id} className={styles.rowGroup}>
+              <tr
+                className={styles.row}
+                style={{ '--row-stage-color': stageColor } as React.CSSProperties}
+                onClick={() => handleRowClick(client)}
+              >
                   <td>
                     <div className={styles.clientName}>{client.clientName}</div>
                     <div className={styles.clientMeta}>
@@ -114,7 +110,7 @@ export default function ClientTable({ clients, onNavigate }: Props) {
                       className={styles.stagePill}
                       style={{ backgroundColor: stageColor }}
                     >
-                      {STAGE_LABELS[client.currentStage] || `שלב ${client.currentStage}`}
+                      {stageLabel}
                     </span>
                   </td>
                   <td>
@@ -122,10 +118,7 @@ export default function ClientTable({ clients, onNavigate }: Props) {
                       <div className={styles.progressBar}>
                         <div
                           className={styles.progressFill}
-                          style={{
-                            width: `${client.completionPercent}%`,
-                            backgroundColor: stageColor,
-                          }}
+                          style={{ width: `${client.completionPercent}%` }}
                         />
                       </div>
                       <span className={styles.progressPercent}>{client.completionPercent}%</span>
@@ -174,7 +167,7 @@ export default function ClientTable({ clients, onNavigate }: Props) {
                 </tr>
                 <tr className={styles.detailRow}>
                   <td colSpan={6}>
-                    <div className={`${styles.detailContent} ${isExpanded ? styles.detailExpanded : ''}`}>
+                    <div className={styles.detailContent}>
                       <div className={styles.detailGrid}>
                         {client.summitData?.phone && (
                           <div className={styles.detailItem}>
@@ -208,10 +201,9 @@ export default function ClientTable({ clients, onNavigate }: Props) {
                     </div>
                   </td>
                 </tr>
-              </Fragment>
-            )
-          })}
-        </tbody>
+            </tbody>
+          )
+        })}
       </table>
     </div>
   )

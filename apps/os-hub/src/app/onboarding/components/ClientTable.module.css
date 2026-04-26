@@ -89,12 +89,13 @@
   height: 100%;
   border-radius: 3px;
   transition: width var(--transition-normal);
+  background: linear-gradient(90deg, var(--brand-gold), #D4B98A);
 }
 
 .progressPercent {
   font-size: 11px;
-  font-weight: var(--font-weight-medium);
-  color: var(--text-body);
+  font-weight: var(--font-weight-bold);
+  color: var(--brand-gold);
   min-width: 32px;
   text-align: end;
 }
@@ -169,7 +170,12 @@
   background: #0F1D35;
 }
 
-/* Expandable detail row */
+/* Row group: each client is a <tbody> for CSS hover targeting */
+.rowGroup:hover .row {
+  background: rgba(197, 165, 114, 0.06);
+}
+
+/* Expandable detail row — revealed on hover */
 .detailRow td {
   padding: 0;
   border-bottom: 1px solid var(--border-subtle);
@@ -179,14 +185,16 @@
   max-height: 0;
   opacity: 0;
   overflow: hidden;
-  transition: max-height 300ms ease, opacity 300ms ease, padding 300ms ease;
+  transition: max-height 300ms ease, opacity 200ms ease, padding 300ms ease;
   padding: 0 var(--space-lg);
+  border-top: 1px dashed transparent;
 }
 
-.detailExpanded {
+.rowGroup:hover .detailContent {
   max-height: 200px;
   opacity: 1;
   padding: var(--space-md) var(--space-lg);
+  border-top-color: var(--border);
 }
 
 .detailGrid {
