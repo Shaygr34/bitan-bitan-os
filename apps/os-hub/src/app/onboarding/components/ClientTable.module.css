@@ -1,0 +1,201 @@
+.wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  direction: rtl;
+  font-variant-numeric: tabular-nums;
+}
+
+.table thead th {
+  background: var(--table-header-bg);
+  color: var(--table-header-text);
+  font-weight: var(--font-weight-semibold);
+  border-bottom: 2px solid var(--brand-gold);
+  padding: var(--space-sm) var(--space-lg);
+  text-align: start;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.row {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.row:hover {
+  background: rgba(197, 165, 114, 0.04);
+}
+
+.row td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-sm);
+  vertical-align: middle;
+}
+
+/* Left border colored per stage (in RTL, visual left = inline-end) */
+.row td:last-child {
+  border-inline-start: 3px solid var(--row-stage-color, transparent);
+}
+
+/* Actually we want the first visual column in RTL to have the border */
+.row td:first-child {
+  border-inline-end: 3px solid var(--row-stage-color, transparent);
+}
+
+.clientName {
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-heading);
+  line-height: var(--line-height-tight);
+}
+
+.clientMeta {
+  font-size: 11px;
+  color: var(--text-caption);
+  margin-top: 2px;
+}
+
+.stagePill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  color: white;
+  white-space: nowrap;
+}
+
+.progressCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.progressBar {
+  flex: 1;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width var(--transition-normal);
+}
+
+.progressPercent {
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-body);
+  min-width: 32px;
+  text-align: end;
+}
+
+.dateCell {
+  font-size: 13px;
+  color: var(--text-body);
+  white-space: nowrap;
+}
+
+.missingDocs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.missingPill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  background: var(--status-error-bg);
+  color: var(--status-error);
+}
+
+.allGood {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  background: var(--status-success-bg);
+  color: var(--status-success);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.actionBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  line-height: 1;
+}
+
+.actionBtn:hover {
+  background: var(--surface-muted);
+}
+
+/* Expandable detail row */
+.detailRow td {
+  padding: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detailContent {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 300ms ease, opacity 300ms ease, padding 300ms ease;
+  padding: 0 var(--space-lg);
+}
+
+.detailExpanded {
+  max-height: 200px;
+  opacity: 1;
+  padding: var(--space-md) var(--space-lg);
+}
+
+.detailGrid {
+  display: flex;
+  gap: var(--space-xl);
+  font-size: 13px;
+  color: var(--text-body);
+  flex-wrap: wrap;
+}
+
+.detailItem {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.detailLabel {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-caption);
+}
+
+.detailValue {
+  color: var(--text-heading);
+}
+
+.empty {
+  text-align: center;
+  padding: var(--space-2xl);
+  color: var(--text-caption);
+  font-size: var(--font-size-sm);
+}
