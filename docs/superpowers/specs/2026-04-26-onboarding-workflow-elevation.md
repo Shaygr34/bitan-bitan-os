@@ -114,13 +114,11 @@ onboardingRecord {
   accountManager: string        // אבי/רון
   intakeTokenRef: reference     // → intakeToken
   startDate: datetime           // when link was created
-  currentStage: number (1-6)    // mirrors Summit status
   checklistItems: array of {
     key: string                 // unique identifier
     label: string               // display text
     completed: boolean
     completedAt: datetime
-    completedBy: string         // user who checked it
     stageRelevance: number (1-6) // which stage this belongs to
   }
   notes: text                   // free text for employee notes
@@ -174,22 +172,40 @@ Weighted equally: each checklist item and each required doc counts as 1 unit.
 
 ## Data Flow
 
+### Source of Truth: Summit Status vs Sanity
+
+**Summit is the source of truth for client stage.** The `onboardingRecord` does NOT store `currentStage`. Instead, the dashboard fetches the current stage from Summit on each load via the OS Summit API helper (same pattern as existing completion scan). This avoids sync drift if someone advances a client via Summit UI or MCP.
+
+The `onboardingRecord` stores only: checklist progress, metadata, and notes.
+
+### Summit Data Access
+
+OS already has Summit API credentials (`SUMMIT_COMPANY_ID`, `SUMMIT_API_KEY` on Railway). The existing `/api/completion/summary/route.ts` calls Summit directly. New endpoints follow the same pattern — direct HTTP calls to `api.sumit.co.il`, NOT MCP (which is a Claude tool, not a programmatic API).
+
+### No Auth — `completedBy` Removed
+
+OS hub has no user authentication. The checklist model omits `completedBy`. If auth is added later, the field can be reintroduced.
+
+### Sanity Client: Add Patch Support
+
+The existing Sanity client (`src/lib/sanity/client.ts`) supports `createOrReplace`, `createIfNotExists`, and `query`. Checklist updates need `patch`. **Prerequisite task:** add a `patch` helper to the Sanity client before building the checklist PATCH endpoint.
+
 ### Dashboard Load
 1. Fetch all `onboardingRecord` docs from Sanity (GROQ: `*[_type == "onboardingRecord"]`)
 2. For each record, check if matching `intakeToken` is completed (has submittedData)
-3. Fetch Summit pipeline data via MCP or direct API for current status counts
+3. Fetch Summit client statuses via direct API (batch, same as completion scan pattern)
 4. Compute completion % per client
 5. Render pipeline funnel + client table
 
 ### Client Detail Load
 1. Fetch `onboardingRecord` by summitEntityId
 2. Fetch `clientDocument` records for this entity (`*[_type == "clientDocument" && summitEntityId == $id]`)
-3. Fetch Summit entity for latest field data (phone, email, etc.)
-4. Render stepper + info + docs + checklist
+3. Fetch Summit entity for latest field data (phone, email, sector, status) via direct API
+4. Render stepper (stage from Summit) + info + docs + checklist (from Sanity)
 
 ### Checklist Update
-1. Employee clicks checkbox → PATCH onboardingRecord in Sanity
-2. Update `completed`, `completedAt`, `completedBy` on the item
+1. Employee clicks checkbox → PATCH onboardingRecord in Sanity (via new patch helper)
+2. Update `completed`, `completedAt` on the item
 3. Recompute completion %
 4. If all items for current stage complete → prompt to advance Summit status
 
@@ -220,11 +236,13 @@ Weighted equally: each checklist item and each required doc counts as 1 unit.
 | `src/app/api/onboarding/records/route.ts` | **Create** — CRUD for onboardingRecord |
 | `src/app/api/onboarding/checklist/route.ts` | **Create** — PATCH checklist item |
 
-### Sanity Schema (bitan-bitan-website repo)
+### Sanity Schema (bitan-bitan-website repo — deploy FIRST)
 | File | Action |
 |------|--------|
 | `src/sanity/schemas/onboardingRecord.ts` | **Create** — New schema |
 | `src/sanity/schemas/index.ts` | **Modify** — Register schema |
+
+**Cross-repo dependency:** The `onboardingRecord` schema must be deployed to Sanity (via bitan-bitan-website push) BEFORE the OS hub code can create these documents. Plan task order accordingly.
 
 ---
 
