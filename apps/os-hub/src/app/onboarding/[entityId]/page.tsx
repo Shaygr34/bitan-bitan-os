@@ -207,6 +207,29 @@ export default function ClientDetailPage() {
     window.open(`https://app.sumit.co.il/f557688522/c${entityId}/`, '_blank')
   }
 
+  const handleAdvanceStage = async () => {
+    const nextStage = state.currentStage + 1
+    if (nextStage > 6) return
+    const nextLabel = STAGE_LABELS[nextStage] || `שלב ${nextStage}`
+    if (!confirm(`לקדם ל${nextLabel}?`)) return
+
+    try {
+      const res = await fetch('/api/onboarding/advance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityId, targetStage: nextStage }),
+      })
+      if (res.ok) {
+        loadData()
+      } else {
+        const data = await res.json().catch(() => ({})) // eslint-disable-line
+        alert(`שגיאה בקידום: ${data.error || 'Unknown error'}`)
+      }
+    } catch {
+      alert('שגיאה בקידום שלב')
+    }
+  }
+
   if (state.loading) {
     return (
       <div className={styles.loading}>
@@ -283,6 +306,15 @@ export default function ClientDetailPage() {
           >
             Summit
           </button>
+          {state.currentStage > 0 && state.currentStage < 6 && (
+            <button
+              className={`${styles.actionBtn} ${styles.advanceBtn}`}
+              onClick={handleAdvanceStage}
+              type="button"
+            >
+              {`קדם שלב \u2190`}
+            </button>
+          )}
         </div>
       </div>
 

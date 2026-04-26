@@ -85,6 +85,18 @@
   border-color: var(--brand-gold);
 }
 
+.advanceBtn {
+  background: var(--brand-navy);
+  color: white;
+  border-color: var(--brand-navy);
+  font-weight: var(--font-weight-semibold);
+}
+
+.advanceBtn:hover {
+  background: #0F1D35;
+  border-color: #0F1D35;
+}
+
 /* Stepper section */
 .stepperSection {
   margin-block-end: var(--space-xl);

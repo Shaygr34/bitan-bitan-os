@@ -6,6 +6,7 @@ import styles from './ClientTable.module.css'
 interface Props {
   clients: PipelineClient[]
   onNavigate: (entityId: string) => void
+  onDelete?: (clientId: string) => void
 }
 
 function formatDate(dateStr?: string): string {
@@ -26,7 +27,7 @@ function daysFromStart(dateStr?: string): number {
   return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-export default function ClientTable({ clients, onNavigate }: Props) {
+export default function ClientTable({ clients, onNavigate, onDelete }: Props) {
 
   const handleRowClick = (client: PipelineClient) => {
     if (client.summitEntityId) {
@@ -65,6 +66,13 @@ export default function ClientTable({ clients, onNavigate }: Props) {
     e.stopPropagation()
     if (client.summitEntityId) {
       onNavigate(client.summitEntityId)
+    }
+  }
+
+  const handleDelete = (e: React.MouseEvent, client: PipelineClient) => {
+    e.stopPropagation()
+    if (onDelete) {
+      onDelete(client._id)
     }
   }
 
@@ -134,7 +142,7 @@ export default function ClientTable({ clients, onNavigate }: Props) {
                           <span key={doc} className={styles.missingPill}>{doc}</span>
                         ))
                       ) : (
-                        <span className={styles.allGood}>{'✓ הכל התקבל'}</span>
+                        <span className={styles.allGood}>{'✓ הושלם'}</span>
                       )}
                     </div>
                   </td>
@@ -161,6 +169,13 @@ export default function ClientTable({ clients, onNavigate }: Props) {
                         type="button"
                       >
                         פרטים
+                      </button>
+                      <button
+                        className={`${styles.actionBtn} ${styles.actionDelete}`}
+                        onClick={(e) => handleDelete(e, client)}
+                        type="button"
+                      >
+                        מחק
                       </button>
                     </div>
                   </td>

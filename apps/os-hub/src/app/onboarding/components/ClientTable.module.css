@@ -170,6 +170,20 @@
   background: #0F1D35;
 }
 
+.actionDelete {
+  color: var(--status-error);
+  border-color: transparent;
+  font-size: 10px;
+  padding: 2px 6px;
+  opacity: 0.5;
+}
+
+.actionDelete:hover {
+  opacity: 1;
+  border-color: var(--status-error);
+  background: var(--status-error-bg);
+}
+
 /* Row group: each client is a <tbody> for CSS hover targeting */
 .rowGroup:hover .row {
   background: rgba(197, 165, 114, 0.06);

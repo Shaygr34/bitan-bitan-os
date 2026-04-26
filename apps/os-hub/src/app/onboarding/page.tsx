@@ -7,18 +7,8 @@ import PipelineFunnel from './components/PipelineFunnel'
 import ClientTable from './components/ClientTable'
 import NewClientModal from './components/NewClientModal'
 import CompletionDashboard from './CompletionDashboard'
-import { calculateCompletion } from '@/lib/onboarding/completion'
-import { getDocCategory, REQUIRED_DOCS } from '@/lib/onboarding/types'
 import type { OnboardingRecord, PipelineClient } from '@/lib/onboarding/types'
 import styles from './page.module.css'
-
-// Doc label mapping for missing docs display
-const DOC_LABELS: Record<string, string> = {
-  idCard: 'ת.ז',
-  driverLicense: 'רישיון',
-  bankApproval: 'אישור בנק',
-  teudatHitagdut: 'תעודת התאגדות',
-}
 
 // Legacy intake token shape
 interface IntakeToken {
@@ -33,29 +23,26 @@ interface IntakeToken {
 }
 
 function buildPipelineClient(record: OnboardingRecord): PipelineClient {
-  const category = getDocCategory(record.clientType)
-  const requiredDocs = REQUIRED_DOCS[category] || []
-  const requiredDocsCount = requiredDocs.length
+  // Completion based on checklist only (docs checked on detail page)
+  const checkedCount = (record.checklistItems || []).filter(i => i.completed).length
+  const totalCount = (record.checklistItems || []).length
+  const completionPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0
 
-  // We don't fetch clientDocuments per record on the dashboard.
-  // Show required docs as missing unless we have positive evidence they were uploaded.
-  // Never show "הכל התקבל" by default — that requires verified uploads.
-  const uploadedDocsCount = 0
-  const missingDocs = requiredDocs.map((d) => DOC_LABELS[d] || d)
-
-  const completionPercent = calculateCompletion(
-    record.checklistItems || [],
-    uploadedDocsCount,
-    requiredDocsCount
-  )
+  // Missing column: show checklist-based status (not doc pills)
+  const remaining = totalCount - checkedCount
+  const missingDisplay: string[] = totalCount === 0
+    ? []
+    : remaining === 0
+      ? []
+      : [`${remaining} משימות`]
 
   return {
     ...record,
     currentStage: 1,
     completionPercent,
-    missingDocs: missingDocs.length > 0 ? missingDocs : [],
-    uploadedDocsCount,
-    requiredDocsCount,
+    missingDocs: missingDisplay,
+    uploadedDocsCount: 0,
+    requiredDocsCount: 0,
   }
 }
 
@@ -71,11 +58,7 @@ function tokenToPipelineClient(token: IntakeToken): PipelineClient {
     } catch { /* ignore */ }
   }
 
-  // For completed tokens, we can't verify which docs were actually uploaded
-  // without an onboardingRecord. Show "לא מאומת" (unverified) instead of empty (which implies all good).
   const isCompleted = token.status === 'completed'
-  const category = getDocCategory(clientType)
-  const requiredDocKeys = REQUIRED_DOCS[category] || []
 
   return {
     _id: `token-${token.token}`,
@@ -88,10 +71,10 @@ function tokenToPipelineClient(token: IntakeToken): PipelineClient {
     startDate: token._createdAt,
     checklistItems: [],
     currentStage: isCompleted ? 1 : 0,
-    completionPercent: isCompleted ? 10 : 0,
+    completionPercent: 0,
     missingDocs: isCompleted ? ['לא מאומת'] : [token.status === 'opened' ? 'נפתח' : 'ממתין'],
     uploadedDocsCount: 0,
-    requiredDocsCount: requiredDocKeys.length,
+    requiredDocsCount: 0,
   }
 }
 
@@ -107,18 +90,15 @@ export default function OnboardingPage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [recordsRes, pipelineRes, tokensRes] = await Promise.all([
+      const [recordsRes, tokensRes] = await Promise.all([
         fetch('/api/onboarding/records'),
-        fetch('/api/onboarding/pipeline'),
         fetch('/api/intake/tokens'),
       ])
 
       const recordsData = recordsRes.ok ? await recordsRes.json() : { records: [] }
-      const pipelineData = pipelineRes.ok ? await pipelineRes.json() : { counts: {} }
       const tokensData: IntakeToken[] = tokensRes.ok ? await tokensRes.json() : []
 
       const fetchedRecords: OnboardingRecord[] = recordsData.records || []
-      setPipelineCounts(pipelineData.counts || {})
 
       // Build pipeline clients from onboarding records
       const fromRecords = fetchedRecords.map(buildPipelineClient)
@@ -128,7 +108,18 @@ export default function OnboardingPage() {
       const legacyTokens = tokensData.filter(t => !recordTokens.has(t.token))
       const fromTokens = legacyTokens.map(tokenToPipelineClient)
 
-      setClients([...fromRecords, ...fromTokens])
+      const allClients = [...fromRecords, ...fromTokens]
+      setClients(allClients)
+
+      // Compute funnel counts from the clients array (Issue 2)
+      const computedCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 }
+      for (const c of allClients) {
+        const stage = c.currentStage || 0
+        if (stage >= 1 && stage <= 6) computedCounts[stage]++
+      }
+      // Count stage 0 as stage 1 for display (they're in data collection)
+      computedCounts[1] += allClients.filter(c => c.currentStage === 0).length
+      setPipelineCounts(computedCounts)
     } catch {
       // Silently handle — table will show empty state
     } finally {
@@ -146,6 +137,22 @@ export default function OnboardingPage() {
 
   const handleNavigate = (entityId: string) => {
     router.push(`/onboarding/${entityId}`)
+  }
+
+  const handleDelete = async (clientId: string) => {
+    if (!confirm('למחוק את רשומת הקליטה?')) return
+    try {
+      const res = await fetch('/api/onboarding/records', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recordId: clientId }),
+      })
+      if (res.ok) {
+        loadData()
+      }
+    } catch {
+      // Silently handle
+    }
   }
 
   // Filter clients by stage if filter is active
@@ -222,6 +229,7 @@ export default function OnboardingPage() {
                 <ClientTable
                   clients={filteredClients}
                   onNavigate={handleNavigate}
+                  onDelete={handleDelete}
                 />
               </div>
             </>
