@@ -29,12 +29,14 @@ export async function GET(request: Request) {
 
     const stage = extractStageFromEntity(entity)
     const clientData = extractClientData(entity)
-    const companyNumber = (entity['Customers_CompanyNumber'] as string) || ''
+    const companyNumber = (entity['Customers_CompanyNumber'] as string[])?.[0] || ''
+    const clientName = (entity['Customers_FullName'] as string[])?.[0] || ''
 
     return NextResponse.json({
       stage,
       clientData,
       companyNumber,
+      clientName,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'

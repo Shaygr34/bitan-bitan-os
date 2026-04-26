@@ -138,17 +138,35 @@
 
 .actionBtn {
   background: none;
-  border: none;
+  border: 1px solid var(--border);
   cursor: pointer;
-  font-size: 16px;
-  padding: 4px;
+  font-size: 11px;
+  padding: 4px 10px;
   border-radius: var(--radius-sm);
   transition: background var(--transition-fast);
-  line-height: 1;
+  line-height: 1.4;
+  color: var(--brand-navy);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .actionBtn:hover {
   background: var(--surface-muted);
+}
+
+.actionBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.actionPrimary {
+  background: var(--brand-navy);
+  color: white;
+  border-color: var(--brand-navy);
+}
+
+.actionPrimary:hover {
+  background: #0F1D35;
 }
 
 /* Expandable detail row */

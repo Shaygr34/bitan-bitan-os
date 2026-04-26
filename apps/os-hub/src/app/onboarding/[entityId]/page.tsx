@@ -77,15 +77,29 @@ export default function ClientDetailPage() {
       let currentStage = 0
       let summitData: SummitData = {}
       let companyNumber = ''
+      let summitName = ''
       if (entityRes.ok) {
         const entityData = await entityRes.json() as {
           stage: number
           clientData: SummitData
           companyNumber?: string
+          clientName?: string
         }
         currentStage = entityData.stage || 0
         summitData = entityData.clientData || {}
         companyNumber = entityData.companyNumber || ''
+        summitName = entityData.clientName || ''
+      }
+
+      // If no onboarding record exists, create a minimal one from Summit data
+      if (!record && summitName) {
+        record = {
+          _id: `summit-${entityId}`,
+          _createdAt: new Date().toISOString(),
+          summitEntityId: entityId,
+          clientName: summitName,
+          checklistItems: [],
+        }
       }
 
       // Build document list based on client type
@@ -161,7 +175,7 @@ export default function ClientDetailPage() {
   }
 
   const handleWhatsApp = () => {
-    const phone = state.summitData.phone?.replace(/[-\s]/g, '')
+    const phone = state.summitData.phone?.replace(/[-\s]/g, '').replace(/^0/, '972')
     if (phone) {
       window.open(`https://wa.me/${phone}`, '_blank')
     }

@@ -31,13 +31,32 @@ export default function ClientTable({ clients, onNavigate }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const handleRowClick = (client: PipelineClient) => {
-    setExpandedId(expandedId === client._id ? null : client._id)
+    // Navigate to detail page if has Summit entity, otherwise just expand
+    if (client.summitEntityId) {
+      onNavigate(client.summitEntityId)
+    } else {
+      setExpandedId(expandedId === client._id ? null : client._id)
+    }
   }
 
-  const handleWhatsApp = (e: React.MouseEvent, phone?: string) => {
+  const getPhone = (client: PipelineClient): string => {
+    if (client.summitData?.phone) return client.summitData.phone
+    // Fallback: try to extract from legacy token submittedData
+    try {
+      const sd = (client as unknown as Record<string, unknown>).submittedData // eslint-disable-line
+      if (typeof sd === 'string') {
+        const parsed = JSON.parse(sd)
+        if (parsed.phone) return parsed.phone
+      }
+    } catch { /* ignore */ }
+    return ''
+  }
+
+  const handleWhatsApp = (e: React.MouseEvent, client: PipelineClient) => {
     e.stopPropagation()
+    const phone = getPhone(client)
     if (!phone) return
-    const clean = phone.replace(/[-\s]/g, '')
+    const clean = phone.replace(/[-\s]/g, '').replace(/^0/, '972')
     window.open(`https://wa.me/${clean}`, '_blank')
   }
 
@@ -130,29 +149,25 @@ export default function ClientTable({ clients, onNavigate }: Props) {
                     <div className={styles.actions}>
                       <button
                         className={styles.actionBtn}
-                        title="WhatsApp"
-                        onClick={(e) => handleWhatsApp(e, client.summitData?.phone)}
-                        disabled={!client.summitData?.phone}
+                        onClick={(e) => handleWhatsApp(e, client)}
                         type="button"
                       >
-                        {'💬'}
+                        WhatsApp
                       </button>
                       <button
                         className={styles.actionBtn}
-                        title="Summit"
                         onClick={(e) => handleSummit(e, client.summitEntityId)}
                         disabled={!client.summitEntityId}
                         type="button"
                       >
-                        {'🔗'}
+                        סאמיט
                       </button>
                       <button
-                        className={styles.actionBtn}
-                        title="פרטים"
+                        className={`${styles.actionBtn} ${styles.actionPrimary}`}
                         onClick={(e) => handleDetail(e, client)}
                         type="button"
                       >
-                        {'📋'}
+                        פרטים
                       </button>
                     </div>
                   </td>
