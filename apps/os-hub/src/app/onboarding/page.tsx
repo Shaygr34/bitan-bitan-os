@@ -20,11 +20,22 @@ const DOC_LABELS: Record<string, string> = {
   teudatHitagdut: 'תעודת התאגדות',
 }
 
+// Legacy intake token shape
+interface IntakeToken {
+  token: string
+  status: string
+  clientName?: string
+  _createdAt: string
+  summitEntityId?: string
+  submittedData?: string
+  prefillData?: string
+  summitError?: string
+}
+
 function buildPipelineClient(record: OnboardingRecord): PipelineClient {
   const category = getDocCategory(record.clientType)
   const requiredDocs = REQUIRED_DOCS[category] || []
 
-  // Count uploaded docs by checking checklist items with doc-related keys
   const uploadedDocs = requiredDocs.filter((docKey) =>
     record.checklistItems?.some((item) => item.key === docKey && item.completed)
   )
@@ -43,11 +54,46 @@ function buildPipelineClient(record: OnboardingRecord): PipelineClient {
 
   return {
     ...record,
-    currentStage: 1, // default — enriched from Summit below
+    currentStage: 1,
     completionPercent,
     missingDocs,
     uploadedDocsCount,
     requiredDocsCount,
+  }
+}
+
+/** Convert legacy intake tokens to PipelineClient for display */
+function tokenToPipelineClient(token: IntakeToken): PipelineClient {
+  let clientType = ''
+  let manager = ''
+  if (token.prefillData) {
+    try {
+      const pf = JSON.parse(token.prefillData)
+      clientType = pf.clientType || ''
+      manager = pf.manager || ''
+    } catch { /* ignore */ }
+  }
+
+  const statusLabel = token.status === 'completed' ? 'הושלם'
+    : token.status === 'summit_failed' ? 'נכשל בסאמיט'
+    : token.status === 'opened' ? 'נפתח'
+    : 'ממתין'
+
+  return {
+    _id: `token-${token.token}`,
+    _createdAt: token._createdAt,
+    summitEntityId: token.summitEntityId,
+    clientName: token.clientName || 'ללא שם',
+    clientType,
+    accountManager: manager,
+    intakeToken: token.token,
+    startDate: token._createdAt,
+    checklistItems: [],
+    currentStage: token.status === 'completed' ? 1 : 0,
+    completionPercent: token.status === 'completed' ? 10 : 0,
+    missingDocs: token.status !== 'completed' ? [statusLabel] : [],
+    uploadedDocsCount: 0,
+    requiredDocsCount: 0,
   }
 }
 
@@ -63,20 +109,28 @@ export default function OnboardingPage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [recordsRes, pipelineRes] = await Promise.all([
+      const [recordsRes, pipelineRes, tokensRes] = await Promise.all([
         fetch('/api/onboarding/records'),
         fetch('/api/onboarding/pipeline'),
+        fetch('/api/intake/tokens'),
       ])
 
       const recordsData = recordsRes.ok ? await recordsRes.json() : { records: [] }
       const pipelineData = pipelineRes.ok ? await pipelineRes.json() : { counts: {} }
+      const tokensData: IntakeToken[] = tokensRes.ok ? await tokensRes.json() : []
 
       const fetchedRecords: OnboardingRecord[] = recordsData.records || []
       setPipelineCounts(pipelineData.counts || {})
 
-      // Build pipeline clients from Sanity data
-      const pipelineClients = fetchedRecords.map(buildPipelineClient)
-      setClients(pipelineClients)
+      // Build pipeline clients from onboarding records
+      const fromRecords = fetchedRecords.map(buildPipelineClient)
+
+      // Build pipeline clients from legacy intake tokens (that don't have an onboarding record)
+      const recordTokens = new Set(fetchedRecords.map(r => r.intakeToken).filter(Boolean))
+      const legacyTokens = tokensData.filter(t => !recordTokens.has(t.token))
+      const fromTokens = legacyTokens.map(tokenToPipelineClient)
+
+      setClients([...fromRecords, ...fromTokens])
     } catch {
       // Silently handle — table will show empty state
     } finally {
