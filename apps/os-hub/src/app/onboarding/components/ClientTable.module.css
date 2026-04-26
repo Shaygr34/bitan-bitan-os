@@ -171,17 +171,30 @@
 }
 
 .actionDelete {
-  color: var(--status-error);
+  color: #991B1B;
   border-color: transparent;
   font-size: 10px;
   padding: 2px 6px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.rowGroup:hover .actionDelete {
   opacity: 0.5;
 }
 
 .actionDelete:hover {
-  opacity: 1;
-  border-color: var(--status-error);
-  background: var(--status-error-bg);
+  opacity: 1 !important;
+  border-color: #991B1B;
+  background: #FEF2F2;
+}
+
+/* Delete animation */
+.deleting {
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
 }
 
 /* Row group: each client is a <tbody> for CSS hover targeting */

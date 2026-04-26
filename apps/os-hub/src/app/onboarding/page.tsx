@@ -142,24 +142,47 @@ export default function OnboardingPage() {
     router.push(`/onboarding/${entityId}`)
   }
 
-  const handleDelete = async (clientId: string) => {
-    if (!confirm('למחוק את רשומת הקליטה?')) return
-    try {
-      // For legacy tokens (ID starts with "token-"), delete the intakeToken doc
-      const isLegacyToken = clientId.startsWith('token-')
-      const sanityId = isLegacyToken ? `intakeToken-${clientId.replace('token-', '')}` : clientId
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
 
+  const handleDelete = async (clientId: string) => {
+    // Optimistic: fade out immediately, no browser confirm
+    setDeletingIds(prev => new Set(prev).add(clientId))
+
+    // Determine the Sanity document ID
+    const isLegacy = clientId.startsWith('token-')
+    const sanityId = isLegacy ? `intakeToken-${clientId.replace('token-', '')}` : clientId
+
+    try {
       const res = await fetch('/api/onboarding/records', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recordId: sanityId }),
       })
+
       if (res.ok) {
-        // Remove from local state immediately for snappy UX
-        setClients(prev => prev.filter(c => c._id !== clientId))
+        // Remove from state after brief animation
+        setTimeout(() => {
+          setClients(prev => prev.filter(c => c._id !== clientId))
+          setDeletingIds(prev => {
+            const next = new Set(prev)
+            next.delete(clientId)
+            return next
+          })
+        }, 300)
+      } else {
+        // Revert: show again
+        setDeletingIds(prev => {
+          const next = new Set(prev)
+          next.delete(clientId)
+          return next
+        })
       }
     } catch {
-      // Silently handle
+      setDeletingIds(prev => {
+        const next = new Set(prev)
+        next.delete(clientId)
+        return next
+      })
     }
   }
 
@@ -238,6 +261,7 @@ export default function OnboardingPage() {
                   clients={filteredClients}
                   onNavigate={handleNavigate}
                   onDelete={handleDelete}
+                  deletingIds={deletingIds}
                 />
               </div>
             </>

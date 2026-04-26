@@ -81,7 +81,8 @@ export async function POST(request: Request) {
 }
 
 /**
- * DELETE /api/onboarding/records — delete an onboarding record from Sanity.
+ * DELETE /api/onboarding/records — delete an onboarding record (or legacy token) from Sanity.
+ * Accepts { recordId } — handles both onboardingRecord and intakeToken doc IDs.
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -92,7 +93,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'recordId is required' }, { status: 400 })
     }
 
-    const { projectId, dataset, apiToken } = sanityConfig
+    const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || sanityConfig.projectId
+    const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || sanityConfig.dataset || 'production'
+    const apiToken = process.env.SANITY_API_WRITE_TOKEN || process.env.SANITY_API_TOKEN || sanityConfig.apiToken
 
     if (!projectId || !apiToken) {
       return NextResponse.json({ error: 'Sanity credentials not configured' }, { status: 500 })
@@ -100,6 +103,7 @@ export async function DELETE(request: NextRequest) {
 
     const url = `https://${projectId}.api.sanity.io/v2021-06-07/data/mutate/${dataset}`
 
+    // Delete the document — works for both onboardingRecord and intakeToken
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -113,12 +117,14 @@ export async function DELETE(request: NextRequest) {
 
     if (!res.ok) {
       const text = await res.text().catch(() => '')
-      return NextResponse.json({ error: `Sanity delete failed: ${res.status} ${text}` }, { status: 500 })
+      console.error('Sanity delete failed:', res.status, text)
+      return NextResponse.json({ error: `Delete failed: ${res.status}` }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
+    console.error('Delete error:', message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

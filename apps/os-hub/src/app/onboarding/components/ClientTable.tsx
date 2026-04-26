@@ -7,6 +7,7 @@ interface Props {
   clients: PipelineClient[]
   onNavigate: (entityId: string) => void
   onDelete?: (clientId: string) => void
+  deletingIds?: Set<string>
 }
 
 function formatDate(dateStr?: string): string {
@@ -27,7 +28,7 @@ function daysFromStart(dateStr?: string): number {
   return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-export default function ClientTable({ clients, onNavigate, onDelete }: Props) {
+export default function ClientTable({ clients, onNavigate, onDelete, deletingIds }: Props) {
 
   const handleRowClick = (client: PipelineClient) => {
     if (client.summitEntityId) {
@@ -100,8 +101,10 @@ export default function ClientTable({ clients, onNavigate, onDelete }: Props) {
             : 'ממתין'
           const days = daysFromStart(client.startDate)
 
+          const isDeleting = deletingIds?.has(client._id)
+
           return (
-            <tbody key={client._id} className={styles.rowGroup}>
+            <tbody key={client._id} className={`${styles.rowGroup}${isDeleting ? ` ${styles.deleting}` : ''}`}>
               <tr
                 className={styles.row}
                 style={{ '--row-stage-color': stageColor } as React.CSSProperties}
