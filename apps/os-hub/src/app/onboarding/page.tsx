@@ -35,16 +35,13 @@ interface IntakeToken {
 function buildPipelineClient(record: OnboardingRecord): PipelineClient {
   const category = getDocCategory(record.clientType)
   const requiredDocs = REQUIRED_DOCS[category] || []
-
-  const uploadedDocs = requiredDocs.filter((docKey) =>
-    record.checklistItems?.some((item) => item.key === docKey && item.completed)
-  )
-
-  const uploadedDocsCount = uploadedDocs.length
   const requiredDocsCount = requiredDocs.length
-  const missingDocs = requiredDocs
-    .filter((d) => !uploadedDocs.includes(d))
-    .map((d) => DOC_LABELS[d] || d)
+
+  // We don't fetch clientDocuments per record on the dashboard.
+  // Show required docs as missing unless we have positive evidence they were uploaded.
+  // Never show "הכל התקבל" by default — that requires verified uploads.
+  const uploadedDocsCount = 0
+  const missingDocs = requiredDocs.map((d) => DOC_LABELS[d] || d)
 
   const completionPercent = calculateCompletion(
     record.checklistItems || [],
@@ -56,7 +53,7 @@ function buildPipelineClient(record: OnboardingRecord): PipelineClient {
     ...record,
     currentStage: 1,
     completionPercent,
-    missingDocs,
+    missingDocs: missingDocs.length > 0 ? missingDocs : [],
     uploadedDocsCount,
     requiredDocsCount,
   }
@@ -74,10 +71,11 @@ function tokenToPipelineClient(token: IntakeToken): PipelineClient {
     } catch { /* ignore */ }
   }
 
-  const statusLabel = token.status === 'completed' ? 'הושלם'
-    : token.status === 'summit_failed' ? 'נכשל בסאמיט'
-    : token.status === 'opened' ? 'נפתח'
-    : 'ממתין'
+  // For completed tokens, we can't verify which docs were actually uploaded
+  // without an onboardingRecord. Show "לא מאומת" (unverified) instead of empty (which implies all good).
+  const isCompleted = token.status === 'completed'
+  const category = getDocCategory(clientType)
+  const requiredDocKeys = REQUIRED_DOCS[category] || []
 
   return {
     _id: `token-${token.token}`,
@@ -89,11 +87,11 @@ function tokenToPipelineClient(token: IntakeToken): PipelineClient {
     intakeToken: token.token,
     startDate: token._createdAt,
     checklistItems: [],
-    currentStage: token.status === 'completed' ? 1 : 0,
-    completionPercent: token.status === 'completed' ? 10 : 0,
-    missingDocs: token.status !== 'completed' ? [statusLabel] : [],
+    currentStage: isCompleted ? 1 : 0,
+    completionPercent: isCompleted ? 10 : 0,
+    missingDocs: isCompleted ? ['לא מאומת'] : [token.status === 'opened' ? 'נפתח' : 'ממתין'],
     uploadedDocsCount: 0,
-    requiredDocsCount: 0,
+    requiredDocsCount: requiredDocKeys.length,
   }
 }
 

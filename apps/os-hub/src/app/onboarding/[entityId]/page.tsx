@@ -91,14 +91,31 @@ export default function ClientDetailPage() {
         summitName = entityData.clientName || ''
       }
 
-      // If no onboarding record exists, create a minimal one from Summit data
+      // If no onboarding record exists, auto-create one in Sanity with checklist template
       if (!record && summitName) {
-        record = {
-          _id: `summit-${entityId}`,
-          _createdAt: new Date().toISOString(),
-          summitEntityId: entityId,
-          clientName: summitName,
-          checklistItems: [],
+        try {
+          const createRes = await fetch('/api/onboarding/records', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clientName: summitName,
+              clientType: '',
+              summitEntityId: entityId,
+            }),
+          })
+          if (createRes.ok) {
+            const createData = await createRes.json() as { record: OnboardingRecord }
+            record = createData.record
+          }
+        } catch {
+          // Fallback to minimal record if creation fails
+          record = {
+            _id: `summit-${entityId}`,
+            _createdAt: new Date().toISOString(),
+            summitEntityId: entityId,
+            clientName: summitName,
+            checklistItems: [],
+          }
         }
       }
 
