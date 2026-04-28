@@ -262,7 +262,7 @@ export default function RunDetailPage() {
   return (
     <div>
       <PageHeader
-        title={`הרצה — ${TYPE_LABELS[run.report_type] ?? run.report_type} ${run.year}`}
+        title={`סנכרון IDOM — שנת מס ${run.year}`}
       />
 
       {/* Insights banner */}

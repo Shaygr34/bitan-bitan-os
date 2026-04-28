@@ -137,7 +137,7 @@ export default function SumitSyncPage() {
                 onClick={() => router.push(`/sumit-sync/runs/${run.id}`)}
               >
                 <td className={styles.numericCell}>{run.year}</td>
-                <td>{TYPE_LABELS[run.report_type] ?? run.report_type}</td>
+                <td>סנכרון IDOM</td>
                 <td>
                   <StatusBadge status={run.status} />
                 </td>
@@ -177,7 +177,7 @@ export default function SumitSyncPage() {
         title="מחיקת הרצה"
         body={
           deleteTarget
-            ? `למחוק את ההרצה ${TYPE_LABELS[deleteTarget.report_type] ?? deleteTarget.report_type} ${deleteTarget.year}? כל הקבצים והנתונים של הרצה זו יימחקו לצמיתות.`
+            ? `למחוק את הסנכרון לשנת מס ${deleteTarget.year}? כל הקבצים והנתונים של הרצה זו יימחקו לצמיתות.`
             : ""
         }
         cancelLabel="ביטול"
