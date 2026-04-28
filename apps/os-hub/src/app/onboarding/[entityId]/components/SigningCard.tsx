@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { SigningTask } from '@/lib/onboarding/types'
 import styles from './SigningCard.module.css'
 
@@ -29,53 +29,47 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const STATUS_ICONS: Record<string, string> = {
-  'not-started': '\u25CB',   // empty circle
-  pending: '\u23F3',          // hourglass
-  sent: '\u2709',             // envelope
-  'awaiting-counter': '\u270D', // writing hand
-  signed: '\u2714',           // checkmark
-  declined: '\u2718',         // x
-  expired: '\u26A0',          // warning
-  'external-sent': '\u2197',  // arrow
-  'external-done': '\u2714',  // checkmark
+  'not-started': '\u25CB',
+  pending: '\u23F3',
+  sent: '\u2709',
+  'awaiting-counter': '\u270D',
+  signed: '\u2714',
+  declined: '\u2718',
+  expired: '\u26A0',
+  'external-sent': '\u2197',
+  'external-done': '\u2714',
 }
 
-/**
- * ייפוי כוח document types for onboarding stage 2.
- *
- * 3 types based on Ron's specification:
- * 1. רשות המיסים — PDF from שע"מ, 2Sign with async counter-signature (client → Avi/Ron)
- * 2. ב"ל ניכויים — PDF from ביטוח לאומי, 2Sign client-only (employers only)
- * 3. ב"ל מיוצגים — external BTL link + אסמכתא, NO 2Sign
- */
 interface SigningDocType {
   documentType: string
   label: string
   description: string
-  /** 'twosign' = uploaded PDF via 2Sign, 'external' = link sent to client */
   method: 'twosign' | 'external'
-  /** For twosign: does Avi/Ron need to counter-sign after client? */
   requiresCounterSign: boolean
-  /** Only show for certain client types? null = always */
   clientTypeFilter: string[] | null
+  formType: string
+  officeSignerEmail?: string
 }
 
 const ALL_SIGNING_DOCS: SigningDocType[] = [
   {
     documentType: 'poa-tax-authority',
     label: 'ייפוי כוח רשות המיסים',
-    description: 'מ"ה / מע"מ / ניכויים — הופק בשע"מ, חתימת לקוח + מנהל תיק',
+    description: 'מ"ה / מע"מ / ניכויים — חתימת לקוח + מנהל תיק',
     method: 'twosign',
     requiresCounterSign: true,
-    clientTypeFilter: null, // All clients
+    clientTypeFilter: null,
+    formType: 'poa-tax-authority',
+    officeSignerEmail: 'avi@bitancpa.com',
   },
   {
     documentType: 'poa-nii-withholdings',
     label: 'ייפוי כוח ב"ל ניכויים',
-    description: 'למעסיקים — הופק בביטוח לאומי, חתימת מעסיק בלבד',
+    description: 'למעסיקים — חתימת מעסיק בלבד',
     method: 'twosign',
     requiresCounterSign: false,
-    clientTypeFilter: ['חברה', 'חברה בע"מ', 'שותפות', 'עמותה'], // Employers only
+    clientTypeFilter: ['חברה', 'חברה בע"מ', 'שותפות', 'עמותה'],
+    formType: 'poa-nii-withholdings',
   },
   {
     documentType: 'poa-nii-representatives',
@@ -83,7 +77,8 @@ const ALL_SIGNING_DOCS: SigningDocType[] = [
     description: 'קישור מביטוח לאומי — הלקוח ממלא ומאשר באתר ב"ל',
     method: 'external',
     requiresCounterSign: false,
-    clientTypeFilter: null, // All clients
+    clientTypeFilter: null,
+    formType: '',
   },
 ]
 
@@ -102,18 +97,27 @@ export default function SigningCard({
   const [resending, setResending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [externalRef, setExternalRef] = useState<Record<string, string>>({})
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  // Filter documents relevant to this client type
   const relevantDocs = ALL_SIGNING_DOCS.filter(doc => {
     if (!doc.clientTypeFilter) return true
     return doc.clientTypeFilter.includes(clientType || '')
   })
 
-  const handleSendForSigning = useCallback(async (documentType: string) => {
+  /** Upload PDF and send for signing via 2Sign */
+  const handleFileSelected = useCallback(async (documentType: string, file: File) => {
     setSending(documentType)
     setError(null)
 
     try {
+      // Read file as base64
+      const arrayBuffer = await file.arrayBuffer()
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      )
+
+      const doc = ALL_SIGNING_DOCS.find(d => d.documentType === documentType)
+
       const res = await fetch('/api/onboarding/signing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,6 +128,10 @@ export default function SigningCard({
           clientPhone,
           clientIdNumber,
           documentType,
+          pdfBase64: base64,
+          formType: doc?.formType,
+          officeSignerEmail: doc?.officeSignerEmail,
+          officeSignerName: 'ביטן את ביטן — רואי חשבון',
         }),
       })
 
@@ -141,6 +149,9 @@ export default function SigningCard({
       setError(err instanceof Error ? err.message : 'שגיאה בשליחה')
     } finally {
       setSending(null)
+      // Reset file input
+      const input = fileInputRefs.current[documentType]
+      if (input) input.value = ''
     }
   }, [summitEntityId, clientName, clientEmail, clientPhone, clientIdNumber, onTasksChanged])
 
@@ -169,7 +180,6 @@ export default function SigningCard({
     }
   }, [clientPhone])
 
-  /** Mark an external (non-2Sign) document as complete */
   const handleMarkExternalDone = useCallback(async (documentType: string) => {
     setSending(documentType)
     setError(null)
@@ -192,7 +202,7 @@ export default function SigningCard({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) // eslint-disable-line
-        throw new Error(data.error || `שגיאה: ${res.status}`)
+        throw new Error(data.error || 'שגיאה')
       }
 
       onTasksChanged()
@@ -203,7 +213,6 @@ export default function SigningCard({
     }
   }, [summitEntityId, clientName, clientEmail, externalRef, onTasksChanged])
 
-  // Only show if there's something relevant
   if (currentStage < 1 && tasks.length === 0) return null
 
   const completedCount = relevantDocs.filter(doc => {
@@ -215,7 +224,7 @@ export default function SigningCard({
   return (
     <div className={styles.card}>
       <div className={styles.header}>
-        <h3 className={styles.title}>ייפוי כוח — חתימות</h3>
+        <h3 className={styles.title}>{'ייפוי כוח — חתימות'}</h3>
         <span className={styles.count}>
           {completedCount}/{totalRequired}
         </span>
@@ -246,28 +255,34 @@ export default function SigningCard({
                   <span className={styles.taskLabel}>{doc.label}</span>
                   <span className={styles.taskDescription}>{doc.description}</span>
                   <span className={styles.taskStatus}>{statusLabel}</span>
-                  {doc.requiresCounterSign && status === 'awaiting-counter' && (
-                    <span className={styles.counterSignNote}>
-                      נדרשת חתימת מנהל תיק ב-2Sign
-                    </span>
-                  )}
                 </div>
               </div>
 
               <div className={styles.taskActions}>
-                {/* 2Sign documents */}
                 {doc.method === 'twosign' && (
                   <>
                     {!task && (
-                      <button
-                        className={styles.sendBtn}
-                        onClick={() => handleSendForSigning(doc.documentType)}
-                        disabled={sending === doc.documentType || !clientEmail}
-                        title={!clientEmail ? 'חסר אימייל לקוח' : 'העלה PDF ושלח לחתימה'}
-                        type="button"
-                      >
-                        {sending === doc.documentType ? 'שולח...' : 'שלח לחתימה'}
-                      </button>
+                      <>
+                        <input
+                          ref={el => { fileInputRefs.current[doc.documentType] = el }}
+                          type="file"
+                          accept=".pdf"
+                          className={styles.fileInput}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleFileSelected(doc.documentType, file)
+                          }}
+                        />
+                        <button
+                          className={styles.sendBtn}
+                          onClick={() => fileInputRefs.current[doc.documentType]?.click()}
+                          disabled={sending === doc.documentType || !clientEmail}
+                          title={!clientEmail ? 'חסר אימייל לקוח' : 'העלה PDF ושלח לחתימה'}
+                          type="button"
+                        >
+                          {sending === doc.documentType ? 'שולח...' : 'העלה PDF ושלח'}
+                        </button>
+                      </>
                     )}
 
                     {task && (status === 'sent' || status === 'pending') && (
@@ -282,30 +297,36 @@ export default function SigningCard({
                     )}
 
                     {task?.signedDocUrl && (
-                      <a
-                        href={task.signedDocUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.viewBtn}
-                      >
-                        צפה
+                      <a href={task.signedDocUrl} target="_blank" rel="noopener noreferrer" className={styles.viewBtn}>
+                        {'צפה'}
                       </a>
                     )}
 
                     {(status === 'declined' || status === 'expired') && (
-                      <button
-                        className={styles.sendBtn}
-                        onClick={() => handleSendForSigning(doc.documentType)}
-                        disabled={sending === doc.documentType}
-                        type="button"
-                      >
-                        שלח מחדש
-                      </button>
+                      <>
+                        <input
+                          ref={el => { fileInputRefs.current[doc.documentType] = el }}
+                          type="file"
+                          accept=".pdf"
+                          className={styles.fileInput}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleFileSelected(doc.documentType, file)
+                          }}
+                        />
+                        <button
+                          className={styles.sendBtn}
+                          onClick={() => fileInputRefs.current[doc.documentType]?.click()}
+                          disabled={sending === doc.documentType}
+                          type="button"
+                        >
+                          {'שלח מחדש'}
+                        </button>
+                      </>
                     )}
                   </>
                 )}
 
-                {/* External documents (ב"ל מיוצגים) */}
                 {doc.method === 'external' && (
                   <>
                     {!task && (
@@ -329,7 +350,7 @@ export default function SigningCard({
                     )}
 
                     {isComplete && (
-                      <span className={styles.externalDone}>הושלם</span>
+                      <span className={styles.externalDone}>{'הושלם'}</span>
                     )}
                   </>
                 )}
