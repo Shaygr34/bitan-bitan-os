@@ -18,6 +18,10 @@ export interface OnboardingRecord {
   startDate?: string
   checklistItems: ChecklistItem[]
   notes?: string
+  cachedStage?: number
+  cachedUploadedDocs?: number
+  cachedRequiredDocs?: number
+  lastSyncedAt?: string
 }
 
 export interface PipelineClient extends OnboardingRecord {
