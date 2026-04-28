@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import type { OnboardingRecord, ChecklistItem } from '@/lib/onboarding/types'
+import type { OnboardingRecord, ChecklistItem, SigningTask } from '@/lib/onboarding/types'
 import { STAGE_LABELS, REQUIRED_DOCS, getDocCategory } from '@/lib/onboarding/types'
 import { calculateCompletion } from '@/lib/onboarding/completion'
 import StageStepper from './components/StageStepper'
 import ClientInfoCard from './components/ClientInfoCard'
 import DocumentsCard from './components/DocumentsCard'
 import ChecklistCard from './components/ChecklistCard'
+import SigningCard from './components/SigningCard'
 import styles from './detail.module.css'
 
 interface SummitData {
@@ -36,6 +37,7 @@ interface PageState {
   summitData: SummitData
   companyNumber: string
   documents: DocItem[]
+  signingTasks: SigningTask[]
 }
 
 function formatDate(dateStr?: string): string {
@@ -58,6 +60,7 @@ export default function ClientDetailPage() {
     summitData: {},
     companyNumber: '',
     documents: [],
+    signingTasks: [],
   })
 
   const loadData = useCallback(async () => {
@@ -138,6 +141,16 @@ export default function ClientDetailPage() {
         url: docUrls[key] || undefined,
       }))
 
+      // Fetch signing tasks (fire-and-forget refresh from 2Sign)
+      let signingTasks: SigningTask[] = []
+      try {
+        const signingRes = await fetch('/api/onboarding/signing?' + new URLSearchParams({ summitEntityId: entityId }))
+        if (signingRes.ok) {
+          const signingData = await signingRes.json()
+          signingTasks = signingData.tasks || []
+        }
+      } catch { /* non-fatal */ }
+
       setState({
         loading: false,
         error: null,
@@ -146,6 +159,7 @@ export default function ClientDetailPage() {
         summitData,
         companyNumber,
         documents,
+        signingTasks,
       })
 
       // Fire-and-forget: sync cached values to Sanity for dashboard use
@@ -355,6 +369,16 @@ export default function ClientDetailPage() {
             documents={state.documents}
             uploadedCount={uploadedCount}
             requiredCount={requiredCount}
+          />
+          <SigningCard
+            summitEntityId={entityId}
+            clientName={record?.clientName || ''}
+            clientEmail={state.summitData.email || ''}
+            clientPhone={state.summitData.phone || ''}
+            clientIdNumber={state.companyNumber}
+            currentStage={state.currentStage}
+            tasks={state.signingTasks}
+            onTasksChanged={loadData}
           />
         </div>
 

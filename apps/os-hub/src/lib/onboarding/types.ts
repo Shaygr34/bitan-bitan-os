@@ -22,6 +22,7 @@ export interface OnboardingRecord {
   cachedUploadedDocs?: number
   cachedRequiredDocs?: number
   lastSyncedAt?: string
+  signingTasks?: SigningTask[]
 }
 
 export interface PipelineClient extends OnboardingRecord {
