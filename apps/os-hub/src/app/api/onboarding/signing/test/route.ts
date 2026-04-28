@@ -8,9 +8,12 @@ const BASE_URL = 'https://app.2sign.co.il/api'
 /**
  * GET /api/onboarding/signing/test — test 2Sign API connection.
  * Uses direct fetch to avoid client abstraction issues during debugging.
- * Remove this endpoint after confirming connection works.
+ * Disabled in production unless ENABLE_DEBUG=1.
  */
 export async function GET() {
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEBUG !== '1') {
+    return NextResponse.json({ error: 'debug disabled' }, { status: 404 })
+  }
   const results: Record<string, unknown> = { ok: false }
 
   const email = (process.env.TWOSIGN_EMAIL || '').trim()

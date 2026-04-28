@@ -95,24 +95,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, taskGuid: externalTask.taskGuid }, { status: 201 })
     }
 
-    // 2Sign flow — need email
+    // 2Sign flow — need email + PDF buffer
     if (!clientEmail) {
       return NextResponse.json({ error: 'clientEmail is required for 2Sign tasks' }, { status: 400 })
     }
 
-    // Initiate signing via 2Sign
+    // Get PDF buffer from request body (base64 encoded) or from a URL
+    const { pdfBase64, pdfUrl, formType: docFormType, officeSignerName, officeSignerEmail } = body as {
+      pdfBase64?: string
+      pdfUrl?: string
+      formType?: string
+      officeSignerName?: string
+      officeSignerEmail?: string
+    }
+
+    let pdfBuffer: Buffer | undefined
+    if (pdfBase64) {
+      pdfBuffer = Buffer.from(pdfBase64, 'base64')
+    } else if (pdfUrl) {
+      const pdfRes = await fetch(pdfUrl)
+      if (pdfRes.ok) {
+        pdfBuffer = Buffer.from(await pdfRes.arrayBuffer())
+      }
+    }
+
+    if (!pdfBuffer) {
+      return NextResponse.json({ error: 'pdfBase64 or pdfUrl is required for 2Sign tasks' }, { status: 400 })
+    }
+
+    // Map document type to form type for marker positions
+    const formType = docFormType || (documentType === 'poa-tax-authority' ? 'poa-tax-authority' : 'poa-nii-withholdings')
+
+    // Determine if office counter-signature is needed
+    const officeSigner = (formType === 'poa-tax-authority' && officeSignerEmail)
+      ? { name: officeSignerName || 'ביטן את ביטן', email: officeSignerEmail }
+      : undefined
+
+    // Initiate signing via 2Sign with PDF marker approach
     const result = await initiateSigning({
       clientName,
       clientEmail,
       clientPhone: clientPhone || '',
-      clientIdNumber,
-      templateId,
+      pdfBuffer,
+      pdfFilename: `${documentType}-${clientName}.pdf`,
+      formType,
       title: title || `ייפוי כוח — ${clientName}`,
-      sendVia: { email: true, whatsapp: !!clientPhone },
+      officeSigner,
     })
 
     const signingTask: SigningTask = {
-      taskGuid: result.taskGuid,
+      taskGuid: result.clientTaskGuid,
       twoSignClientId: result.clientId,
       documentType,
       status: 'sent',
@@ -125,7 +157,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      taskGuid: result.taskGuid,
+      taskGuid: result.clientTaskGuid,
+      officeTaskGuid: result.officeTaskGuid,
       clientId: result.clientId,
     }, { status: 201 })
   } catch (err) {

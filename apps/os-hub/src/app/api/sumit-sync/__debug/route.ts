@@ -5,8 +5,12 @@ import { SUMIT_SYNC_API_URL, BASE_URL } from "../proxy";
  * GET /api/sumit-sync/__debug
  * Diagnostic endpoint — shows proxy config and live-checks the Python service.
  * Server-side only (no secrets leak to browser, just connectivity info).
+ * Disabled in production unless ENABLE_DEBUG=1.
  */
 export async function GET() {
+  if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEBUG !== "1") {
+    return NextResponse.json({ error: "debug disabled" }, { status: 404 });
+  }
   const info: Record<string, unknown> = {
     sumit_sync_api_url_set: !!SUMIT_SYNC_API_URL,
     resolved_base_url: BASE_URL,
