@@ -47,10 +47,12 @@ export async function POST(request: NextRequest) {
       headers: { 'Content-Type': 'application/json', 'Content-Language': 'he' },
       body: JSON.stringify({
         Credentials: creds,
-        EntityID: parseInt(entityId, 10),
-        Folder: '557688522',
-        Fields: {
-          Customers_Status: statusId,
+        Entity: {
+          ID: parseInt(entityId, 10),
+          Folder: '557688522',
+          Properties: {
+            Customers_Status: statusId,
+          },
         },
       }),
       cache: 'no-store',
