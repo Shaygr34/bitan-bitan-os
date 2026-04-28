@@ -172,43 +172,56 @@ export interface TwoSignClient {
 
 /** Create a client (signer) in 2Sign. */
 export async function createClient(client: {
-  firstName: string
-  lastName: string
+  name: string
   email?: string
   phone?: string
   idNumber?: string
 }): Promise<TwoSignClient> {
   const res = await authFetch('/Clients/Create', {
-    method: 'POST',
     body: JSON.stringify({
-      FirstName: client.firstName,
-      LastName: client.lastName,
-      Email: client.email || '',
-      Phone: client.phone || '',
-      IdNumber: client.idNumber || '',
+      Name: client.name,
+      Emails: client.email || '',
+      Phones: client.phone || '',
     }),
   })
   if (!res.ok) throw new Error(`2Sign createClient failed: ${res.status}`)
-  return res.json()
+  const data = await res.json()
+  if (data.Status === 'failed') {
+    throw new Error(`2Sign createClient failed: ${data.MessageDescription || data.Message || 'Unknown'}`)
+  }
+  const ro = data.ResponseObject || data
+  return {
+    ClientId: ro.Id || ro.ClientId || 0,
+    FirstName: client.name.split(/\s+/)[0] || client.name,
+    LastName: client.name.split(/\s+/).slice(1).join(' ') || '.',
+    Email: client.email,
+    Phone: client.phone,
+  }
 }
 
 /** Search for a client by params. */
 export async function findClient(params: {
   email?: string
   phone?: string
-  idNumber?: string
 }): Promise<TwoSignClient | null> {
   const res = await authFetch('/Clients/Information', {
-    method: 'POST',
     body: JSON.stringify({
-      Email: params.email || '',
-      Phone: params.phone || '',
-      IdNumber: params.idNumber || '',
+      Emails: params.email || '',
+      Phones: params.phone || '',
     }),
   })
   if (!res.ok) return null
   const data = await res.json()
-  return data || null
+  if (data.Status === 'failed') return null
+  const ro = data.ResponseObject || data
+  if (!ro || !ro.Id) return null
+  return {
+    ClientId: ro.Id,
+    FirstName: ro.Name?.split(/\s+/)[0] || '',
+    LastName: ro.Name?.split(/\s+/).slice(1).join(' ') || '',
+    Email: params.email,
+    Phone: params.phone,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +255,8 @@ export async function uploadFile(
   }
 
   const data = await res.json()
-  const guid = data.Guid || data.guid || data.GUID
+  const ro = data.ResponseObject || data
+  const guid = ro.PdfGuid || ro.TaskGuid || ro.Guid || data.Guid
   if (!guid) throw new Error('2Sign uploadFile response missing GUID')
   return guid
 }
@@ -293,32 +307,42 @@ export interface TwoSignTask {
   CreatedDate?: string
 }
 
-/** Create a signing task with an uploaded file. */
-export async function createTaskWithFile(options: CreateTaskOptions): Promise<TwoSignTask> {
+/**
+ * Create a signing task with an uploaded file.
+ * Endpoint: POST /api/Tasks/CreateTaskWithFileOption
+ * Requires PdfGuid from prior uploadFile() call.
+ */
+export async function createTaskWithFile(options: CreateTaskOptions & {
+  clientEmail?: string
+  clientPhone?: string
+}): Promise<TwoSignTask> {
   if (!options.fileGuid) throw new Error('fileGuid is required for createTaskWithFile')
 
   const body: Record<string, unknown> = {
     ClientId: options.clientId,
-    PdfFileGuid: options.fileGuid,
-    TaskTitle: options.title || '',
-    SendSms: options.sendSms ?? false,
-    SendEmail: options.sendEmail ?? true,
-    SendWhatsApp: options.sendWhatsApp ?? false,
+    PdfGuid: options.fileGuid,
+    TaskSubject: options.title || '',
+    ClientEmails: options.clientEmail || '',
+    ClientPhones: options.clientPhone || '',
+    Language: 1,
+    LanguageMarked: 'he',
+    IsSendOnCreation: true,
+    IsSendSmsOnCreation: options.sendSms ?? false,
+    IsSendEmailOnCreation: options.sendEmail ?? true,
+    SignaturesConstValues: options.signaturePositions || '',
+    SignaturePositionsStr: '',
+    SignaturePositionsSlimModel: [],
   }
 
-  if (options.signaturePositions) {
-    body.SignaturesConstValues = options.signaturePositions
-  }
   if (options.searchWordForSignature) {
     body.SearchWordForMarkingSignature = options.searchWordForSignature
   }
   if (options.isSignatureRoutine) {
-    body.IsSignatureRoutine = true
+    body.SignatureRoutine = true
     body.SignatureRoutineSignerNumber = options.signatureRoutineSignerNumber ?? 1
   }
 
-  const res = await authFetch('/Tasks/WithFile', {
-    method: 'POST',
+  const res = await authFetch('/Tasks/CreateTaskWithFileOption', {
     body: JSON.stringify(body),
   })
 
@@ -327,7 +351,17 @@ export async function createTaskWithFile(options: CreateTaskOptions): Promise<Tw
     throw new Error(`2Sign createTaskWithFile failed: ${res.status} ${text}`)
   }
 
-  return res.json()
+  const data = await res.json()
+  if (data.Status === 'failed') {
+    throw new Error(`2Sign task creation failed: ${data.Message || data.MessageDescription || 'Unknown'}`)
+  }
+  const ro = data.ResponseObject || data
+  return {
+    Guid: ro.TaskGuid || ro.Guid || '',
+    TaskId: ro.TaskId || 0,
+    Status: data.Status,
+    ClientId: ro.ClientId,
+  }
 }
 
 /** Create a signing task from a template (no file upload needed). */
@@ -385,11 +419,26 @@ export interface TwoSignTaskDetail {
   }>
 }
 
-/** Get task details by GUID. */
+/** Get task details by GUID via search. */
 export async function getTask(guid: string): Promise<TwoSignTaskDetail> {
-  const res = await authFetch(`/Task/ByGUID/${guid}`)
+  const res = await authFetch('/Tasks/GetTasksBySearchParams', {
+    body: JSON.stringify({ TaskGuid: guid }),
+  })
   if (!res.ok) throw new Error(`2Sign getTask failed: ${res.status}`)
-  return res.json()
+  const data = await res.json()
+  const tasks = data.ResponseObject || []
+  const task = Array.isArray(tasks) ? tasks.find((t: Record<string, unknown>) => t.TaskGuid === guid) : null
+  if (!task) throw new Error(`2Sign task ${guid} not found`)
+  return {
+    Guid: task.TaskGuid,
+    TaskId: task.TaskId || 0,
+    Status: task.IsSigned ? 'signed' : 'pending',
+    StatusId: task.TaskStatusNumeric || 0,
+    ClientId: task.ClientId || 0,
+    CreatedDate: task.CreatedOn || '',
+    CompletedDate: task.SignedOn,
+    TaskTitle: task.TaskSubject,
+  }
 }
 
 /** Search tasks by parameters. */
@@ -522,52 +571,37 @@ export async function initiateSigning(params: {
   const firstName = nameParts[0] || params.clientName
   const lastName = nameParts.slice(1).join(' ') || '.'
 
-  // 2. Find or create client
+  // 2. Find or create client in 2Sign
   let client = await findClient({
     email: params.clientEmail,
     phone: params.clientPhone,
-    idNumber: params.clientIdNumber,
   })
 
   if (!client) {
     client = await createClient({
-      firstName,
-      lastName,
+      name: params.clientName,
       email: params.clientEmail,
       phone: params.clientPhone,
-      idNumber: params.clientIdNumber,
     })
   }
 
-  // 3. Create task
-  let task: TwoSignTask
-
-  if (params.pdfBuffer && params.pdfFilename) {
-    // Upload file and create task
-    const fileGuid = await uploadFile(params.pdfBuffer, params.pdfFilename)
-    task = await createTaskWithFile({
-      clientId: client.ClientId,
-      fileGuid,
-      title: params.title,
-      signaturePositions: params.signaturePositions,
-      searchWordForSignature: params.searchWordForSignature,
-      sendSms: params.sendVia?.sms,
-      sendEmail: params.sendVia?.email ?? true,
-      sendWhatsApp: params.sendVia?.whatsapp,
-    })
-  } else if (params.templateId) {
-    // Create from template
-    task = await createTaskFromTemplate({
-      clientId: client.ClientId,
-      templateId: params.templateId,
-      title: params.title,
-      sendSms: params.sendVia?.sms,
-      sendEmail: params.sendVia?.email ?? true,
-      sendWhatsApp: params.sendVia?.whatsapp,
-    })
-  } else {
-    throw new Error('Either pdfBuffer+pdfFilename or templateId is required')
+  // 3. Upload PDF and create task via CreateTaskWithFileOption
+  if (!params.pdfBuffer || !params.pdfFilename) {
+    throw new Error('pdfBuffer + pdfFilename are required')
   }
+
+  const fileGuid = await uploadFile(params.pdfBuffer, params.pdfFilename)
+  const task = await createTaskWithFile({
+    clientId: client.ClientId,
+    fileGuid,
+    clientEmail: params.clientEmail,
+    clientPhone: params.clientPhone,
+    title: params.title,
+    signaturePositions: params.signaturePositions,
+    searchWordForSignature: params.searchWordForSignature,
+    sendSms: params.sendVia?.sms,
+    sendEmail: params.sendVia?.email ?? true,
+  })
 
   return {
     taskGuid: task.Guid,
