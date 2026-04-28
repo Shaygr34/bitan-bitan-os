@@ -472,13 +472,14 @@ export async function resendTask(
   taskGuid: string,
   options: { phone?: boolean; email?: boolean; whatsapp?: boolean } = {},
 ): Promise<void> {
-  const params = new URLSearchParams({
-    taskGuid,
-    resendPhone: String(options.phone ?? false),
-    resendEmail: String(options.email ?? true),
-    resendWhatsapp: String(options.whatsapp ?? false),
+  const res = await authFetch('/Tasks/ResendTask', {
+    body: JSON.stringify({
+      TaskGuid: taskGuid,
+      IsSendSmsOnCreation: options.phone ?? false,
+      IsSendEmailOnCreation: options.email ?? true,
+      IsSendWhatsAppOnCreation: options.whatsapp ?? false,
+    }),
   })
-  const res = await authFetch(`/Task/ResendTask?${params}`)
   if (!res.ok) throw new Error(`2Sign resendTask failed: ${res.status}`)
 }
 
