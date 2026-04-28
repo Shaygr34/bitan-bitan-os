@@ -24,11 +24,11 @@ TIMEOUT_SECONDS = 15
 
 # Rate limiting defaults
 # Summit returns 403 after ~100-150 rapid calls. Being conservative.
-CALLS_PER_BATCH = 50           # Pause well before the ~100-150 threshold
-DELAY_BETWEEN_CALLS = 0.6     # 600ms between individual calls
-BATCH_COOLDOWN = 65            # 65s pause every CALLS_PER_BATCH calls
-MAX_RETRIES = 4
-INITIAL_BACKOFF = 70           # First retry backoff (seconds)
+CALLS_PER_BATCH = 90           # Summit threshold is ~100-150, pause at 90
+DELAY_BETWEEN_CALLS = 0.35    # 350ms between calls (was 600ms)
+BATCH_COOLDOWN = 20            # 20s pause every batch (was 65s)
+MAX_RETRIES = 3
+INITIAL_BACKOFF = 30           # First retry backoff in seconds (was 70s)
 
 
 class SummitAPIError(Exception):
