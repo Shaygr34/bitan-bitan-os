@@ -109,6 +109,26 @@ export default function OnboardingPage() {
 
       const fetchedRecords: OnboardingRecord[] = recordsData.records || []
 
+      // Link records to Summit: if a record has intakeToken but no summitEntityId,
+      // check if the matching token has summitEntityId and inherit it
+      for (const record of fetchedRecords) {
+        if (!record.summitEntityId && record.intakeToken) {
+          const matchingToken = tokensData.find(t => t.token === record.intakeToken)
+          if (matchingToken?.summitEntityId) {
+            record.summitEntityId = matchingToken.summitEntityId
+            // Fire-and-forget: patch the record in Sanity so this link persists
+            fetch('/api/onboarding/records', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                recordId: record._id,
+                summitEntityId: matchingToken.summitEntityId,
+              }),
+            }).catch(() => {})
+          }
+        }
+      }
+
       // Build pipeline clients from onboarding records
       const fromRecords = fetchedRecords.map(buildPipelineClient)
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query, createOrReplace } from '@/lib/sanity/client'
+import { query, createOrReplace, patch } from '@/lib/sanity/client'
 import { sanityConfig } from '@/config/integrations'
 import { buildChecklist } from '@/lib/onboarding/checklist-templates'
 import type { OnboardingRecord } from '@/lib/onboarding/types'
@@ -126,6 +126,27 @@ export async function DELETE(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     console.error('Delete error:', message)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+/**
+ * PATCH /api/onboarding/records — link a record to its Summit entity.
+ * Body: { recordId, summitEntityId }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { recordId, summitEntityId } = body as { recordId?: string; summitEntityId?: string }
+
+    if (!recordId || !summitEntityId) {
+      return NextResponse.json({ error: 'recordId and summitEntityId are required' }, { status: 400 })
+    }
+
+    await patch(recordId, { set: { summitEntityId } })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
