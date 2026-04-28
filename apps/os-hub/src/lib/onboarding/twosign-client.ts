@@ -2,22 +2,33 @@
  * 2Sign (Green Signature) API client.
  *
  * Base URL: https://app.2sign.co.il/api/
- * Auth: email/password login → bearer token (cached with TTL).
  * Docs: https://2signsdk.docs.apiary.io/
  *
- * Account: digital@bitan-finance.co.il (50 test tasks)
+ * Auth strategy (tries in order):
+ * 1. API Key auth (TWOSIGN_CLIENT_ID + TWOSIGN_API_KEY) — no token management needed
+ * 2. Email/password login (TWOSIGN_EMAIL + TWOSIGN_PASSWORD) → bearer token (cached 55min)
+ *
+ * Account: ron@bitancpa.co.il — Pro 100 plan
+ * ClientId: dc096a0d-1c24-4991-a05a-53560aa37c06
  */
 
 const BASE_URL = 'https://app.2sign.co.il/api'
 
 // ---------------------------------------------------------------------------
-// Auth — cached token
+// Auth — dual strategy: API Key (preferred) or email/password login
 // ---------------------------------------------------------------------------
 
 let cachedToken: string | null = null
 let tokenExpiresAt = 0
 
-function getCredentials() {
+function getApiKeyCredentials() {
+  return {
+    clientId: (process.env.TWOSIGN_CLIENT_ID || '').trim(),
+    apiKey: (process.env.TWOSIGN_API_KEY || '').trim(),
+  }
+}
+
+function getLoginCredentials() {
   return {
     email: (process.env.TWOSIGN_EMAIL || '').trim(),
     password: (process.env.TWOSIGN_PASSWORD || '').trim(),
@@ -25,25 +36,38 @@ function getCredentials() {
 }
 
 /**
- * Login and cache the access token.
- * Token is reused until TTL expires (default 55 min, 2Sign tokens last ~1h).
+ * Get auth headers. Tries API Key first, falls back to email/password login.
  */
-export async function getAccessToken(): Promise<string> {
-  if (cachedToken && Date.now() < tokenExpiresAt) {
-    return cachedToken
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const apiCreds = getApiKeyCredentials()
+
+  // Strategy 1: API Key auth — send ClientId + API Key as headers
+  if (apiCreds.clientId && apiCreds.apiKey) {
+    // Try multiple common API key header patterns
+    // The 2Sign dashboard shows ClientId + API Key — try as bearer first
+    return {
+      ClientId: apiCreds.clientId,
+      ApiKey: apiCreds.apiKey,
+      Authorization: `Bearer ${apiCreds.apiKey}`,
+    }
   }
 
-  const creds = getCredentials()
-  if (!creds.email || !creds.password) {
-    throw new Error('2Sign credentials not configured (TWOSIGN_EMAIL, TWOSIGN_PASSWORD)')
+  // Strategy 2: Email/password login → bearer token
+  const loginCreds = getLoginCredentials()
+  if (!loginCreds.email || !loginCreds.password) {
+    throw new Error('2Sign credentials not configured. Set TWOSIGN_CLIENT_ID + TWOSIGN_API_KEY, or TWOSIGN_EMAIL + TWOSIGN_PASSWORD')
+  }
+
+  if (cachedToken && Date.now() < tokenExpiresAt) {
+    return { Authorization: `Bearer ${cachedToken}` }
   }
 
   const res = await fetch(`${BASE_URL}/Account/Login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      Email: creds.email,
-      Password: creds.password,
+      Email: loginCreds.email,
+      Password: loginCreds.password,
     }),
   })
 
@@ -60,24 +84,45 @@ export async function getAccessToken(): Promise<string> {
 
   cachedToken = token
   tokenExpiresAt = Date.now() + 55 * 60 * 1000 // 55 min TTL
-  return token
+  return { Authorization: `Bearer ${token}` }
 }
 
 /**
- * Authenticated fetch wrapper.
+ * Authenticated fetch wrapper. Handles auth retry on 401.
  */
 async function authFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  const token = await getAccessToken()
+  const authHeaders = await getAuthHeaders()
   const headers = {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
+    ...authHeaders,
     ...((options.headers as Record<string, string>) || {}),
   }
 
-  return fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers,
   })
+
+  // If API Key auth returns 401, try clearing cache and re-auth with login
+  if (res.status === 401 && getApiKeyCredentials().clientId) {
+    const loginCreds = getLoginCredentials()
+    if (loginCreds.email && loginCreds.password) {
+      // Clear API key attempt, force login
+      cachedToken = null
+      tokenExpiresAt = 0
+      const fallbackHeaders = await getAuthHeaders()
+      return fetch(`${BASE_URL}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...fallbackHeaders,
+          ...((options.headers as Record<string, string>) || {}),
+        },
+      })
+    }
+  }
+
+  return res
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +231,7 @@ export async function uploadFile(
   fileBuffer: Buffer,
   filename: string,
 ): Promise<string> {
-  const token = await getAccessToken()
+  const authHeaders = await getAuthHeaders()
 
   // 2Sign file upload uses multipart form data
   const formData = new FormData()
@@ -196,7 +241,8 @@ export async function uploadFile(
   const res = await fetch(`${BASE_URL}/Task/FileUpload`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      ...authHeaders,
+      // Don't set Content-Type — FormData sets it with boundary
     },
     body: formData,
   })
