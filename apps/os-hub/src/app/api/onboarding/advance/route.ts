@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SUMMIT_STATUS_IDS } from '@/lib/onboarding/types'
+import { query, patch } from '@/lib/sanity/client'
+import type { OnboardingRecord } from '@/lib/onboarding/types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -62,6 +64,24 @@ export async function POST(request: NextRequest) {
     const json = await res.json()
     if (json.Status !== 0) {
       return NextResponse.json({ error: `Summit error: ${json.UserErrorMessage || json.TechnicalErrorDetails || 'Unknown'}` }, { status: 500 })
+    }
+
+    // Sync stage cache to Sanity
+    try {
+      const records = await query<OnboardingRecord[]>(
+        `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id }`,
+        { eid: entityId }
+      )
+      if (records?.[0]) {
+        await patch(records[0]._id, {
+          set: {
+            cachedStage: targetStage,
+            lastSyncedAt: new Date().toISOString(),
+          },
+        })
+      }
+    } catch {
+      // Non-fatal: cache sync failure doesn't block advance
     }
 
     return NextResponse.json({ ok: true, targetStage })

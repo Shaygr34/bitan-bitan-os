@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { PipelineClient, STAGE_LABELS, STAGE_COLORS } from '@/lib/onboarding/types'
 import styles from './ClientTable.module.css'
 
@@ -29,6 +30,7 @@ function daysFromStart(dateStr?: string): number {
 }
 
 export default function ClientTable({ clients, onNavigate, onDelete, deletingIds }: Props) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   const handleRowClick = (client: PipelineClient) => {
     if (client.summitEntityId) {
@@ -104,7 +106,12 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
           const isDeleting = deletingIds?.has(client._id)
 
           return (
-            <tbody key={client._id} className={`${styles.rowGroup}${isDeleting ? ` ${styles.deleting}` : ''}`}>
+            <tbody
+              key={client._id}
+              className={`${styles.rowGroup}${isDeleting ? ` ${styles.deleting}` : ''}${hoveredId === client._id ? ` ${styles.rowGroupHovered}` : ''}`}
+              onMouseEnter={() => setHoveredId(client._id)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
               <tr
                 className={styles.row}
                 style={{ '--row-stage-color': stageColor } as React.CSSProperties}
@@ -154,6 +161,7 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
                       <button
                         className={styles.actionBtn}
                         onClick={(e) => handleWhatsApp(e, client)}
+                        disabled={!getPhone(client)}
                         type="button"
                       >
                         WhatsApp
@@ -169,6 +177,8 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
                       <button
                         className={`${styles.actionBtn} ${styles.actionPrimary}`}
                         onClick={(e) => handleDetail(e, client)}
+                        disabled={!client.summitEntityId}
+                        title={!client.summitEntityId ? 'לקוח ללא כרטיס סאמיט' : ''}
                         type="button"
                       >
                         פרטים
@@ -217,6 +227,14 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
                           <span className={styles.detailLabel}>ימים בתהליך:</span>
                           <span className={styles.detailValue}>{days}</span>
                         </div>
+                        {!client.lastSyncedAt && client.summitEntityId && (
+                          <div className={styles.detailItem}>
+                            <span className={styles.detailLabel}>סנכרון:</span>
+                            <span className={`${styles.detailValue} ${styles.notSynced}`}>
+                              לא סונכרן — לחץ ״פרטים״ לעדכון
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>

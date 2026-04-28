@@ -8,6 +8,7 @@ import ClientTable from './components/ClientTable'
 import NewClientModal from './components/NewClientModal'
 import CompletionDashboard from './CompletionDashboard'
 import type { OnboardingRecord, PipelineClient } from '@/lib/onboarding/types'
+import { calculateCompletion } from '@/lib/onboarding/completion'
 import styles from './page.module.css'
 
 // Legacy intake token shape
@@ -23,26 +24,29 @@ interface IntakeToken {
 }
 
 function buildPipelineClient(record: OnboardingRecord): PipelineClient {
-  // Completion based on checklist only (docs checked on detail page)
-  const checkedCount = (record.checklistItems || []).filter(i => i.completed).length
-  const totalCount = (record.checklistItems || []).length
-  const completionPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0
+  // Use the SAME completion formula as the detail page
+  const checklistItems = record.checklistItems || []
+  const uploadedDocs = record.cachedUploadedDocs ?? 0
+  const requiredDocs = record.cachedRequiredDocs ?? 0
+  const completionPercent = calculateCompletion(checklistItems, uploadedDocs, requiredDocs)
 
-  // Missing column: show checklist-based status (not doc pills)
-  const remaining = totalCount - checkedCount
-  const missingDisplay: string[] = totalCount === 0
-    ? []
-    : remaining === 0
-      ? []
-      : [`${remaining} משימות`]
+  // Use cached stage from Sanity (synced by detail page visits)
+  const currentStage = record.cachedStage ?? 0
+
+  // Build missing display: show incomplete checklist + missing docs
+  const unchecked = checklistItems.filter(i => !i.completed).length
+  const missingDocCount = requiredDocs - uploadedDocs
+  const missingDisplay: string[] = []
+  if (unchecked > 0) missingDisplay.push(`${unchecked} משימות`)
+  if (missingDocCount > 0) missingDisplay.push(`${missingDocCount} מסמכים`)
 
   return {
     ...record,
-    currentStage: 1,
+    currentStage,
     completionPercent,
     missingDocs: missingDisplay,
-    uploadedDocsCount: 0,
-    requiredDocsCount: 0,
+    uploadedDocsCount: uploadedDocs,
+    requiredDocsCount: requiredDocs,
   }
 }
 
@@ -59,6 +63,11 @@ function tokenToPipelineClient(token: IntakeToken): PipelineClient {
   }
 
   const isCompleted = token.status === 'completed'
+  const statusLabel = token.status === 'opened'
+    ? 'נפתח — ממתין למילוי'
+    : token.status === 'completed'
+      ? 'מולא — ממתין לאימות'
+      : 'נשלח — ממתין לפתיחה'
 
   return {
     _id: `token-${token.token}`,
@@ -72,7 +81,7 @@ function tokenToPipelineClient(token: IntakeToken): PipelineClient {
     checklistItems: [],
     currentStage: isCompleted ? 1 : 0,
     completionPercent: 0,
-    missingDocs: isCompleted ? ['לא מאומת'] : [token.status === 'opened' ? 'נפתח' : 'ממתין'],
+    missingDocs: [statusLabel],
     uploadedDocsCount: 0,
     requiredDocsCount: 0,
   }
@@ -114,14 +123,16 @@ export default function OnboardingPage() {
       const allClients = [...fromRecords, ...fromTokens]
       setClients(allClients)
 
-      // Compute funnel counts from the clients array (Issue 2)
+      // Compute funnel counts from cached stages
       const computedCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 }
       for (const c of allClients) {
-        const stage = c.currentStage || 0
-        if (stage >= 1 && stage <= 6) computedCounts[stage]++
+        const stage = c.currentStage
+        if (stage >= 1 && stage <= 6) {
+          computedCounts[stage]++
+        }
+        // Stage 0 = not yet synced — show in stage 1 (data collection)
+        if (stage === 0) computedCounts[1]++
       }
-      // Count stage 0 as stage 1 for display (they're in data collection)
-      computedCounts[1] += allClients.filter(c => c.currentStage === 0).length
       setPipelineCounts(computedCounts)
     } catch {
       // Silently handle — table will show empty state
@@ -145,7 +156,10 @@ export default function OnboardingPage() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
 
   const handleDelete = async (clientId: string) => {
-    // Optimistic: fade out immediately, no browser confirm
+    const client = clients.find(c => c._id === clientId)
+    const name = client?.clientName || 'לקוח'
+    if (!confirm(`למחוק את ${name}? פעולה זו אינה ניתנת לביטול.`)) return
+
     setDeletingIds(prev => new Set(prev).add(clientId))
 
     // Determine the Sanity document ID

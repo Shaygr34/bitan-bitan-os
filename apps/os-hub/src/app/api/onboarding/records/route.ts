@@ -15,7 +15,8 @@ export async function GET() {
     const records = await query<OnboardingRecord[]>(
       `*[_type == "onboardingRecord"] | order(_createdAt desc) {
         _id, _createdAt, summitEntityId, clientName, clientType,
-        accountManager, intakeToken, startDate, checklistItems, notes
+        accountManager, intakeToken, startDate, checklistItems, notes,
+        cachedStage, cachedUploadedDocs, cachedRequiredDocs, lastSyncedAt
       }`
     )
     return NextResponse.json({ records })
