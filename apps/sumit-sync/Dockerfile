@@ -4,6 +4,8 @@
 
 FROM python:3.12-slim AS base
 
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 # System deps for psycopg2-binary (Postgres)

@@ -741,7 +741,9 @@ def execute_run_api(run_id: str, db: Session = Depends(get_db)):
     run.started_at = datetime.now(timezone.utc)
     db.commit()
 
-    # Capture values for background thread (detach from request-scoped DB session)
+    # Resolve imports and capture values BEFORE spawning thread
+    from ..db.connection import SessionLocal as _SessionLocal
+
     bg_run_id = str(run.id)
     bg_idom_path = files_by_role["idom_upload"].stored_path
     bg_report_type = run.report_type
@@ -749,15 +751,14 @@ def execute_run_api(run_id: str, db: Session = Depends(get_db)):
 
     def _background_sync():
         """Runs in a separate thread with its own DB session."""
-        logger.info("Background thread starting for run %s", bg_run_id)
         bg_db = None
         try:
-            from ..db.connection import SessionLocal
-            bg_db = SessionLocal()
+            bg_db = _SessionLocal()
         except Exception as init_err:
-            logger.exception("Background thread DB init failed: %s", init_err)
+            logger.error("BG thread DB init failed for %s: %s", bg_run_id, init_err)
             return
         t0 = time.monotonic()
+        logger.info("BG sync started for run %s", bg_run_id)
 
         try:
             bg_run = bg_db.query(models.Run).filter(models.Run.id == _to_uuid(bg_run_id)).first()
@@ -865,7 +866,10 @@ def execute_run_api(run_id: str, db: Session = Depends(get_db)):
     # Launch background thread and return immediately
     thread = threading.Thread(target=_background_sync, daemon=True, name=f"sync-{bg_run_id[:8]}")
     thread.start()
-    logger.info("Background sync thread started for run %s", bg_run_id)
+    logger.info("BG sync thread launched for run %s", bg_run_id)
+    import sys as _sys
+    _sys.stdout.flush()
+    _sys.stderr.flush()
 
     return {"run_id": bg_run_id, "status": "processing", "message": "הסנכרון הופעל ברקע"}
 
