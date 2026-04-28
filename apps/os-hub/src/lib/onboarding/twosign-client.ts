@@ -227,7 +227,7 @@ export async function uploadFile(
   const blob = new Blob([new Uint8Array(fileBuffer)], { type: 'application/pdf' })
   formData.append('file', blob, filename)
 
-  const res = await fetch(`${BASE_URL}/Task/FileUpload`, {
+  const res = await fetch(`${BASE_URL}/Tasks/UploadFileForTask`, {
     method: 'POST',
     headers: {
       ...authHeaders,

@@ -1,40 +1,84 @@
 import { NextResponse } from 'next/server'
-import { getUserProfile, listTemplates, getMonthlyTaskCount } from '@/lib/onboarding/twosign-client'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+const BASE_URL = 'https://app.2sign.co.il/api'
+
 /**
  * GET /api/onboarding/signing/test — test 2Sign API connection.
- * Returns profile, templates, and monthly task count.
+ * Uses direct fetch to avoid client abstraction issues during debugging.
  * Remove this endpoint after confirming connection works.
  */
 export async function GET() {
   const results: Record<string, unknown> = { ok: false }
 
-  try {
-    const profile = await getUserProfile()
-    results.profile = profile
-    results.authMethod = 'success'
-  } catch (err) {
-    results.profileError = err instanceof Error ? err.message : 'Unknown error'
+  const email = (process.env.TWOSIGN_EMAIL || '').trim()
+  const password = (process.env.TWOSIGN_PASSWORD || '').trim()
+
+  if (!email || !password) {
+    return NextResponse.json({ error: 'TWOSIGN_EMAIL or TWOSIGN_PASSWORD not set', ok: false })
   }
 
+  // Step 1: Login
   try {
-    const templates = await listTemplates()
-    results.templates = templates
-    results.templateCount = Array.isArray(templates) ? templates.length : 0
+    const loginRes = await fetch(`${BASE_URL}/Account/Login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'password',
+        username: email,
+        password: password,
+      }).toString(),
+    })
+
+    if (!loginRes.ok) {
+      const text = await loginRes.text().catch(() => '')
+      return NextResponse.json({ error: `Login failed: ${loginRes.status}`, detail: text, ok: false })
+    }
+
+    const loginData = await loginRes.json()
+    const token = loginData.access_token
+    if (!token) {
+      return NextResponse.json({ error: 'No access_token in login response', loginData, ok: false })
+    }
+
+    results.login = 'success'
+    results.email = loginData.userName
+    results.tokenExpires = loginData['.expires']
   } catch (err) {
-    results.templatesError = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ error: `Login error: ${err}`, ok: false })
   }
 
+  // Step 2: Task count (confirms API access works)
   try {
-    const count = await getMonthlyTaskCount()
-    results.monthlyTaskCount = count
+    const token = (results as Record<string, string>).token
+    const loginRes = await fetch(`${BASE_URL}/Account/Login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'password', username: email, password }).toString(),
+    })
+    const { access_token } = await loginRes.json()
+
+    const countRes = await fetch(`${BASE_URL}/Tasks/GetTasksCountForMonth`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+    const countData = await countRes.json()
+    results.tasksApi = {
+      status: countData.Status,
+      tasksCount: countData.ResponseObject?.TasksCount,
+      quotaLeft: countData.ResponseObject?.TasksQuotaLeft,
+    }
   } catch (err) {
-    results.taskCountError = err instanceof Error ? err.message : 'Unknown error'
+    results.tasksApiError = String(err)
   }
 
-  results.ok = !results.profileError
+  results.ok = results.login === 'success' && (results.tasksApi as Record<string, unknown>)?.status === 'success'
+  results.summary = results.ok
+    ? '2Sign API connection verified — login + task API working'
+    : '2Sign connection partial — check details'
+
   return NextResponse.json(results)
 }
