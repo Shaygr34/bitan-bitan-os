@@ -179,7 +179,7 @@
   transition: opacity 0.2s;
 }
 
-.rowGroup:hover .actionDelete {
+.rowGroupHovered .actionDelete {
   opacity: 0.5;
 }
 
@@ -197,8 +197,8 @@
   pointer-events: none;
 }
 
-/* Row group: each client is a <tbody> for CSS hover targeting */
-.rowGroup:hover .row {
+/* Row group: each client is a <tbody> for JS hover targeting */
+.rowGroupHovered .row {
   background: rgba(197, 165, 114, 0.06);
 }
 
@@ -217,7 +217,7 @@
   border-top: 1px dashed transparent;
 }
 
-.rowGroup:hover .detailContent {
+.rowGroupHovered .detailContent {
   max-height: 200px;
   opacity: 1;
   padding: var(--space-md) var(--space-lg);

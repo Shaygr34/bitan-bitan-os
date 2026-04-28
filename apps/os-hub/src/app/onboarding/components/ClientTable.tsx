@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { PipelineClient, STAGE_LABELS, STAGE_COLORS } from '@/lib/onboarding/types'
 import styles from './ClientTable.module.css'
 
@@ -29,6 +30,7 @@ function daysFromStart(dateStr?: string): number {
 }
 
 export default function ClientTable({ clients, onNavigate, onDelete, deletingIds }: Props) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   const handleRowClick = (client: PipelineClient) => {
     if (client.summitEntityId) {
@@ -104,7 +106,12 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
           const isDeleting = deletingIds?.has(client._id)
 
           return (
-            <tbody key={client._id} className={`${styles.rowGroup}${isDeleting ? ` ${styles.deleting}` : ''}`}>
+            <tbody
+              key={client._id}
+              className={`${styles.rowGroup}${isDeleting ? ` ${styles.deleting}` : ''}${hoveredId === client._id ? ` ${styles.rowGroupHovered}` : ''}`}
+              onMouseEnter={() => setHoveredId(client._id)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
               <tr
                 className={styles.row}
                 style={{ '--row-stage-color': stageColor } as React.CSSProperties}
