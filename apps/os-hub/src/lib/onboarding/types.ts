@@ -76,6 +76,17 @@ export const REQUIRED_DOCS: Record<string, string[]> = {
   exempt: ['idCard', 'driverLicense'],
 }
 
+// 2Sign signing task status — stored on onboardingRecord
+export interface SigningTask {
+  taskGuid: string
+  twoSignClientId: number
+  documentType: string // e.g., 'power-of-attorney-mh', 'power-of-attorney-maam'
+  status: 'pending' | 'sent' | 'signed' | 'declined' | 'expired'
+  createdAt: string
+  completedAt?: string
+  signedDocUrl?: string
+}
+
 export function getDocCategory(clientType?: string): 'individual' | 'company' | 'exempt' {
   if (['חברה', 'חברה בע"מ', 'חברה שנתי', 'שותפות', 'עמותה'].includes(clientType || '')) return 'company'
   if (clientType === 'פטור' || clientType === 'עוסק פטור') return 'exempt'
