@@ -154,6 +154,7 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
                       <button
                         className={styles.actionBtn}
                         onClick={(e) => handleWhatsApp(e, client)}
+                        disabled={!getPhone(client)}
                         type="button"
                       >
                         WhatsApp
@@ -169,6 +170,8 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
                       <button
                         className={`${styles.actionBtn} ${styles.actionPrimary}`}
                         onClick={(e) => handleDetail(e, client)}
+                        disabled={!client.summitEntityId}
+                        title={!client.summitEntityId ? 'לקוח ללא כרטיס סאמיט' : ''}
                         type="button"
                       >
                         פרטים
