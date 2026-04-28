@@ -150,7 +150,7 @@ export default function NewRunPage() {
       } catch (fetchErr) {
         if (pollRef.current) {
           // HTTP timed out but backend is still working — keep polling
-          setProgress("הסנכרון פועל ברקע — ניתן לסגור ולחזור מאוחר יותר");
+          setProgress("background");
           setProgressStage(3);
         } else {
           throw fetchErr;
@@ -295,7 +295,26 @@ export default function NewRunPage() {
             <div className={styles.spinnerRing}>
               <div className={styles.spinnerInner} />
             </div>
-            <p className={styles.progressText}>{progress}</p>
+            {progress === "background" ? (
+              <>
+                <p className={styles.progressText}>הסנכרון פועל ברקע</p>
+                <p className={styles.backgroundHint}>
+                  שליפת הנתונים מ-Summit לוקחת 3-15 דקות.
+                  <br />
+                  אפשר לסגור את הדף — התוצאות יחכו לך.
+                </p>
+                {runId && (
+                  <a
+                    href={`/sumit-sync/runs/${runId}`}
+                    className={styles.viewRunLink}
+                  >
+                    עבור לדף ההרצה →
+                  </a>
+                )}
+              </>
+            ) : (
+              <p className={styles.progressText}>{progress}</p>
+            )}
             <div className={styles.progressStages}>
               {stages.map((label, i) => {
                 const isDone = i < progressStage;

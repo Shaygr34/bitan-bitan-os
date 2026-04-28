@@ -318,6 +318,34 @@
   font-weight: var(--font-weight-medium);
 }
 
+.backgroundHint {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  text-align: center;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.viewRunLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--brand-navy);
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  margin-top: var(--space-sm);
+}
+
+.viewRunLink:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
 .progressStages {
   display: flex;
   flex-direction: column;
