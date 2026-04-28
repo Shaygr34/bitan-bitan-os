@@ -227,6 +227,14 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
                           <span className={styles.detailLabel}>ימים בתהליך:</span>
                           <span className={styles.detailValue}>{days}</span>
                         </div>
+                        {!client.lastSyncedAt && client.summitEntityId && (
+                          <div className={styles.detailItem}>
+                            <span className={styles.detailLabel}>סנכרון:</span>
+                            <span className={`${styles.detailValue} ${styles.notSynced}`}>
+                              לא סונכרן — לחץ ״פרטים״ לעדכון
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>

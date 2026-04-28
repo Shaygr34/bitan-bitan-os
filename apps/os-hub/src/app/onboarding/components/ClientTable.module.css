@@ -246,6 +246,11 @@
   color: var(--text-heading);
 }
 
+.notSynced {
+  color: var(--gold, #C5A572);
+  font-size: 0.8125rem;
+}
+
 .empty {
   text-align: center;
   padding: var(--space-2xl);
