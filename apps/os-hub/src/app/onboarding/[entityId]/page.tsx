@@ -376,6 +376,7 @@ export default function ClientDetailPage() {
             clientEmail={state.summitData.email || ''}
             clientPhone={state.summitData.phone || ''}
             clientIdNumber={state.companyNumber}
+            clientType={state.summitData.clientType || record?.clientType}
             currentStage={state.currentStage}
             tasks={state.signingTasks}
             onTasksChanged={loadData}

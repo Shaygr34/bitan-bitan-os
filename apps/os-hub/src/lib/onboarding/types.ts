@@ -77,15 +77,17 @@ export const REQUIRED_DOCS: Record<string, string[]> = {
   exempt: ['idCard', 'driverLicense'],
 }
 
-// 2Sign signing task status — stored on onboardingRecord
+// Signing task status — stored on onboardingRecord.signingTasks[]
+// Supports both 2Sign tasks and external (ב"ל מיוצגים) tracking
 export interface SigningTask {
-  taskGuid: string
-  twoSignClientId: number
-  documentType: string // e.g., 'power-of-attorney-mh', 'power-of-attorney-maam'
-  status: 'pending' | 'sent' | 'signed' | 'declined' | 'expired'
+  taskGuid: string           // 2Sign GUID, or 'external-{documentType}' for non-2Sign
+  twoSignClientId: number    // 0 for external tasks
+  documentType: string       // 'poa-tax-authority' | 'poa-nii-withholdings' | 'poa-nii-representatives'
+  status: 'not-started' | 'pending' | 'sent' | 'awaiting-counter' | 'signed' | 'declined' | 'expired' | 'external-sent' | 'external-done'
   createdAt: string
   completedAt?: string
   signedDocUrl?: string
+  externalRef?: string       // מספר אסמכתא for external tasks
 }
 
 export function getDocCategory(clientType?: string): 'individual' | 'company' | 'exempt' {
