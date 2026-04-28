@@ -12,10 +12,10 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 /**
- * POST /api/onboarding/signing — initiate a signing task for a client.
- * Body: { summitEntityId, clientName, clientEmail, clientPhone, documentType, templateId? }
+ * POST /api/onboarding/signing — initiate a signing task or mark external complete.
  *
- * Creates a 2Sign task and stores the GUID in the onboardingRecord.
+ * For 2Sign tasks: { summitEntityId, clientName, clientEmail, clientPhone, documentType, templateId? }
+ * For external tasks: { summitEntityId, clientName, documentType, isExternal: true, externalRef? }
  */
 export async function POST(request: Request) {
   try {
@@ -29,20 +29,24 @@ export async function POST(request: Request) {
       documentType,
       templateId,
       title,
+      isExternal,
+      externalRef,
     } = body as {
       summitEntityId: string
       clientName: string
-      clientEmail: string
-      clientPhone: string
+      clientEmail?: string
+      clientPhone?: string
       clientIdNumber?: string
       documentType: string
       templateId?: number
       title?: string
+      isExternal?: boolean
+      externalRef?: string
     }
 
-    if (!summitEntityId || !clientName || !clientEmail || !documentType) {
+    if (!summitEntityId || !clientName || !documentType) {
       return NextResponse.json(
-        { error: 'summitEntityId, clientName, clientEmail, and documentType are required' },
+        { error: 'summitEntityId, clientName, and documentType are required' },
         { status: 400 }
       )
     }
@@ -57,10 +61,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Onboarding record not found' }, { status: 404 })
     }
 
+    const currentTasks: SigningTask[] = record.signingTasks || []
+
     // Check if a task for this document type already exists and is active
-    const existingTasks = record.signingTasks
-    const existing = existingTasks?.find(
-      t => t.documentType === documentType && (t.status === 'pending' || t.status === 'sent')
+    const existing = currentTasks.find(
+      t => t.documentType === documentType &&
+        !['signed', 'declined', 'expired', 'external-done'].includes(t.status)
     )
     if (existing) {
       return NextResponse.json({
@@ -70,18 +76,41 @@ export async function POST(request: Request) {
       }, { status: 409 })
     }
 
+    // Handle external tasks (ב"ל מיוצגים — no 2Sign)
+    if (isExternal) {
+      const externalTask: SigningTask = {
+        taskGuid: `external-${documentType}-${Date.now()}`,
+        twoSignClientId: 0,
+        documentType,
+        status: 'external-done',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        externalRef: externalRef || '',
+      }
+
+      await patch(record._id, {
+        set: { signingTasks: [...currentTasks, externalTask] },
+      })
+
+      return NextResponse.json({ ok: true, taskGuid: externalTask.taskGuid }, { status: 201 })
+    }
+
+    // 2Sign flow — need email
+    if (!clientEmail) {
+      return NextResponse.json({ error: 'clientEmail is required for 2Sign tasks' }, { status: 400 })
+    }
+
     // Initiate signing via 2Sign
     const result = await initiateSigning({
       clientName,
       clientEmail,
-      clientPhone,
+      clientPhone: clientPhone || '',
       clientIdNumber,
       templateId,
       title: title || `ייפוי כוח — ${clientName}`,
       sendVia: { email: true, whatsapp: !!clientPhone },
     })
 
-    // Store the signing task in the onboarding record
     const signingTask: SigningTask = {
       taskGuid: result.taskGuid,
       twoSignClientId: result.clientId,
@@ -90,11 +119,8 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
     }
 
-    const currentTasks: SigningTask[] = existingTasks || []
     await patch(record._id, {
-      set: {
-        signingTasks: [...currentTasks, signingTask],
-      },
+      set: { signingTasks: [...currentTasks, signingTask] },
     })
 
     return NextResponse.json({
