@@ -39,23 +39,11 @@ function getLoginCredentials() {
  * Get auth headers. Tries API Key first, falls back to email/password login.
  */
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  const apiCreds = getApiKeyCredentials()
-
-  // Strategy 1: API Key auth — send ClientId + API Key as headers
-  if (apiCreds.clientId && apiCreds.apiKey) {
-    // Try multiple common API key header patterns
-    // The 2Sign dashboard shows ClientId + API Key — try as bearer first
-    return {
-      ClientId: apiCreds.clientId,
-      ApiKey: apiCreds.apiKey,
-      Authorization: `Bearer ${apiCreds.apiKey}`,
-    }
-  }
-
-  // Strategy 2: Email/password login → bearer token
+  // OAuth2 password grant — form-urlencoded (confirmed working)
+  // Email: ron@bitancpa.com, token valid 24h
   const loginCreds = getLoginCredentials()
   if (!loginCreds.email || !loginCreds.password) {
-    throw new Error('2Sign credentials not configured. Set TWOSIGN_CLIENT_ID + TWOSIGN_API_KEY, or TWOSIGN_EMAIL + TWOSIGN_PASSWORD')
+    throw new Error('2Sign credentials not configured. Set TWOSIGN_EMAIL + TWOSIGN_PASSWORD')
   }
 
   if (cachedToken && Date.now() < tokenExpiresAt) {
@@ -64,11 +52,12 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 
   const res = await fetch(`${BASE_URL}/Account/Login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      Email: loginCreds.email,
-      Password: loginCreds.password,
-    }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'password',
+      username: loginCreds.email,
+      password: loginCreds.password,
+    }).toString(),
   })
 
   if (!res.ok) {
@@ -77,13 +66,14 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   }
 
   const data = await res.json()
-  const token = data.access_token || data.AccessToken || data.token
+  const token = data.access_token
   if (!token) {
-    throw new Error('2Sign login response missing access token')
+    throw new Error('2Sign login response missing access_token')
   }
 
   cachedToken = token
-  tokenExpiresAt = Date.now() + 55 * 60 * 1000 // 55 min TTL
+  // Token expires_in is 86399 seconds (~24h), cache for 23h to be safe
+  tokenExpiresAt = Date.now() + 23 * 60 * 60 * 1000
   return { Authorization: `Bearer ${token}` }
 }
 
