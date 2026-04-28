@@ -748,11 +748,13 @@ def execute_run_api(run_id: str, db: Session = Depends(get_db)):
             run_id=str(run.id),
         )
     except Exception as exc:
+        error_msg = str(exc)
         run.status = "failed"
+        run.operator_notes = f"שגיאה: {error_msg}"
         run.completed_at = datetime.now(timezone.utc)
         db.commit()
         logger.exception("API reconciliation failed for run %s", run_id)
-        raise HTTPException(500, f"הסנכרון נכשל: {exc}")
+        raise HTTPException(500, f"הסנכרון נכשל: {error_msg}")
 
     elapsed = time.monotonic() - t0
 
@@ -920,17 +922,46 @@ def _run_reconciliation_api(
     """
     Orchestrates reconciliation using Summit API as data source.
     Only requires IDOM file — SUMIT data comes from API.
+    Supports both multi-sheet workbooks and single-sheet files.
     """
     from ..core.config import get_config
     from ..core.idom_parser import parse_idom_file
+    from ..core.idom_workbook import parse_idom_workbook
     from ..core.sumit_api_source import fetch_sumit_data
     from ..core.sync_engine import run_sync
     from ..core.output_writer import write_outputs
 
     config = get_config(report_type)
 
-    # Parse IDOM input
-    idom_df, idom_conflicts, idom_warnings = parse_idom_file(idom_path)
+    # Try multi-sheet workbook first, fall back to single-sheet parser
+    try:
+        wb_result = parse_idom_workbook(idom_path)
+        # Find the sheet matching the requested report type
+        matching = [s for s in wb_result.sheets if s.report_type == report_type and s.error is None and len(s.records) > 0]
+        if matching:
+            sheet = matching[0]
+            idom_df = sheet.records
+            idom_conflicts = sheet.conflicts
+            idom_warnings = sheet.warnings
+            logger.info("Workbook: using sheet '%s' (%d records) for %s", sheet.sheet_name, len(idom_df), report_type)
+        elif wb_result.total_records > 0:
+            # Workbook has data but not for this report type — use first non-empty sheet
+            first_good = next((s for s in wb_result.sheets if s.error is None and len(s.records) > 0), None)
+            if first_good:
+                idom_df = first_good.records
+                idom_conflicts = first_good.conflicts
+                idom_warnings = first_good.warnings + [
+                    "Sheet '{}' used (no exact match for report type '{}')".format(first_good.sheet_name, report_type)
+                ]
+                logger.info("Workbook: no '%s' sheet, using '%s' (%d records)", report_type, first_good.sheet_name, len(idom_df))
+            else:
+                raise ValueError("Workbook parsed but all sheets empty or errored")
+        else:
+            raise ValueError("Workbook parsed but no records found")
+    except Exception as wb_err:
+        # Fall back to original single-sheet parser
+        logger.info("Workbook parse failed (%s), falling back to single-sheet parser", wb_err)
+        idom_df, idom_conflicts, idom_warnings = parse_idom_file(idom_path)
 
     # Fetch SUMIT data from API (replaces parse_sumit_file)
     sumit_df, sumit_lookup, sumit_warnings = fetch_sumit_data(config, tax_year)

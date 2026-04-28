@@ -63,7 +63,7 @@ export default function NewRunPage() {
             router.push(`/sumit-sync/runs/${id}`);
           } else if (data.status === "failed") {
             if (pollRef.current) clearInterval(pollRef.current);
-            setError(data.error || "הסנכרון נכשל — ייתכן שהקובץ לא תואם את המבנה הנדרש");
+            setError(data.operator_notes || data.error || "הסנכרון נכשל — ייתכן שהקובץ לא תואם את המבנה הנדרש");
             setStep("error");
           }
         } catch {
