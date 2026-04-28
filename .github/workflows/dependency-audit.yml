@@ -1,0 +1,55 @@
+name: Dependency Audit
+
+on:
+  schedule:
+    # Every Monday at 06:30 UTC (09:30 Israel time)
+    - cron: '30 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/os-hub
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        id: audit
+        continue-on-error: true
+        run: |
+          npm audit --production 2>&1 | tee audit-output.txt
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Check for vulnerabilities
+        if: steps.audit.outcome == 'failure'
+        run: |
+          echo "## 🔒 Dependency Audit Report (os-hub)" > audit-report.md
+          echo "" >> audit-report.md
+          echo "Found vulnerabilities in production dependencies:" >> audit-report.md
+          echo '```' >> audit-report.md
+          cat audit-output.txt >> audit-report.md
+          echo '```' >> audit-report.md
+
+      - name: Create issue on failure
+        if: steps.audit.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING=$(gh issue list --label "dependency-audit" --state open --json number -q '.[0].number')
+          if [ -z "$EXISTING" ]; then
+            gh issue create \
+              --title "🔒 OS-Hub dependency vulnerabilities found ($(date +%Y-%m-%d))" \
+              --body-file audit-report.md \
+              --label "dependency-audit"
+          else
+            echo "Issue #${EXISTING} already open — skipping duplicate"
+          fi
