@@ -296,6 +296,8 @@ export interface CreateTaskOptions {
   isSignatureRoutine?: boolean
   /** Signer number in routine (1-based) */
   signatureRoutineSignerNumber?: number
+  /** Primary task GUID for linking signer 2+ in a routine */
+  routinePrimaryTaskGuid?: string
 }
 
 export interface TwoSignTask {
@@ -339,7 +341,11 @@ export async function createTaskWithFile(options: CreateTaskOptions & {
   }
   if (options.isSignatureRoutine) {
     body.SignatureRoutine = true
+    body.SignatureRoutineAsync = false // Sequential: signer 1 first, then signer 2
     body.SignatureRoutineSignerNumber = options.signatureRoutineSignerNumber ?? 1
+  }
+  if (options.routinePrimaryTaskGuid) {
+    body.RoutinePrimaryTaskGuid = options.routinePrimaryTaskGuid
   }
 
   const res = await authFetch('/Tasks/CreateTaskWithFileOption', {
@@ -540,43 +546,37 @@ export async function getMonthlyTaskCount(): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
-// Convenience: End-to-End Signing Flow
+// End-to-End Signing Flow (with PDF marker approach)
 // ---------------------------------------------------------------------------
 
+import { addSignatureMarkers } from './pdf-marker'
+
 /**
- * High-level helper: create a signing task for a client.
+ * Initiate a signing task with correct signature placement.
  *
- * 1. Find or create the client in 2Sign
- * 2. Upload the PDF (or use template)
- * 3. Create the signing task
- * 4. Return the task GUID for status polling
- *
- * This is the primary integration point for onboarding stage 2.
+ * Flow:
+ * 1. Pre-process PDF: add invisible markers at signature positions (pdf-lib)
+ * 2. Upload marked PDF to 2Sign
+ * 3. Create task with SearchWordForMarkingSignature → places signature at marker
+ * 4. For forms requiring counter-sign: create Signature Routine (client → office)
  */
 export async function initiateSigning(params: {
   clientName: string
   clientEmail: string
   clientPhone: string
-  clientIdNumber?: string
-  pdfBuffer?: Buffer
-  pdfFilename?: string
-  templateId?: number
+  pdfBuffer: Buffer
+  pdfFilename: string
+  formType: string  // 'poa-tax-authority' | 'poa-nii-withholdings'
   title: string
-  signaturePositions?: SignaturePosition
-  searchWordForSignature?: string
-  sendVia?: { sms?: boolean; email?: boolean; whatsapp?: boolean }
-}): Promise<{ taskGuid: string; clientId: number }> {
-  // 1. Parse name
-  const nameParts = params.clientName.trim().split(/\s+/)
-  const firstName = nameParts[0] || params.clientName
-  const lastName = nameParts.slice(1).join(' ') || '.'
+  /** Office signer for counter-signature (רשות המיסים only) */
+  officeSigner?: { name: string; email: string; clientId?: number }
+}): Promise<{ clientTaskGuid: string; officeTaskGuid?: string; clientId: number }> {
+
+  // 1. Add invisible markers to PDF
+  const marked = await addSignatureMarkers(params.pdfBuffer, params.formType)
 
   // 2. Find or create client in 2Sign
-  let client = await findClient({
-    email: params.clientEmail,
-    phone: params.clientPhone,
-  })
-
+  let client = await findClient({ email: params.clientEmail, phone: params.clientPhone })
   if (!client) {
     client = await createClient({
       name: params.clientName,
@@ -585,26 +585,52 @@ export async function initiateSigning(params: {
     })
   }
 
-  // 3. Upload PDF and create task via CreateTaskWithFileOption
-  if (!params.pdfBuffer || !params.pdfFilename) {
-    throw new Error('pdfBuffer + pdfFilename are required')
-  }
+  // 3. Upload marked PDF
+  const fileGuid = await uploadFile(marked.pdfBuffer, params.pdfFilename)
 
-  const fileGuid = await uploadFile(params.pdfBuffer, params.pdfFilename)
-  const task = await createTaskWithFile({
+  // 4. Create client signing task
+  const isRoutine = marked.requiresCounterSign && !!params.officeSigner
+  const clientTask = await createTaskWithFile({
     clientId: client.ClientId,
     fileGuid,
     clientEmail: params.clientEmail,
     clientPhone: params.clientPhone,
     title: params.title,
-    signaturePositions: params.signaturePositions,
-    searchWordForSignature: params.searchWordForSignature,
-    sendSms: params.sendVia?.sms,
-    sendEmail: params.sendVia?.email ?? true,
+    searchWordForSignature: marked.clientMarker,
+    sendEmail: true,
+    isSignatureRoutine: isRoutine,
+    signatureRoutineSignerNumber: isRoutine ? 1 : undefined,
   })
 
+  // 5. If counter-signature needed, create office signer task in routine
+  let officeTaskGuid: string | undefined
+  if (isRoutine && params.officeSigner) {
+    // Find or create office signer
+    let officeTwoSignClient = await findClient({ email: params.officeSigner.email })
+    if (!officeTwoSignClient) {
+      officeTwoSignClient = await createClient({
+        name: params.officeSigner.name,
+        email: params.officeSigner.email,
+      })
+    }
+
+    const officeTask = await createTaskWithFile({
+      clientId: officeTwoSignClient.ClientId,
+      fileGuid,
+      clientEmail: params.officeSigner.email,
+      title: params.title,
+      searchWordForSignature: marked.officeMarker,
+      sendEmail: true,
+      isSignatureRoutine: true,
+      signatureRoutineSignerNumber: 2,
+      routinePrimaryTaskGuid: clientTask.Guid,
+    })
+    officeTaskGuid = officeTask.Guid
+  }
+
   return {
-    taskGuid: task.Guid,
+    clientTaskGuid: clientTask.Guid,
+    officeTaskGuid,
     clientId: client.ClientId,
   }
 }
