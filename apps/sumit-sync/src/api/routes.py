@@ -749,8 +749,14 @@ def execute_run_api(run_id: str, db: Session = Depends(get_db)):
 
     def _background_sync():
         """Runs in a separate thread with its own DB session."""
-        from ..db.connection import SessionLocal
-        bg_db = SessionLocal()
+        logger.info("Background thread starting for run %s", bg_run_id)
+        bg_db = None
+        try:
+            from ..db.connection import SessionLocal
+            bg_db = SessionLocal()
+        except Exception as init_err:
+            logger.exception("Background thread DB init failed: %s", init_err)
+            return
         t0 = time.monotonic()
 
         try:
