@@ -167,6 +167,10 @@
   background: rgba(34, 197, 94, 0.08);
 }
 
+.fileInput {
+  display: none;
+}
+
 .taskDescription {
   font-size: 0.6875rem;
   color: var(--text-caption);
