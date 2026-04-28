@@ -751,14 +751,19 @@ def execute_run_api(run_id: str, db: Session = Depends(get_db)):
 
     def _background_sync():
         """Runs in a separate thread with its own DB session."""
+        import sys as _sys
+        import traceback as _tb
+        print(f"[BG-SYNC] Thread alive for run {bg_run_id}", file=_sys.stderr, flush=True)
+
         bg_db = None
         try:
             bg_db = _SessionLocal()
-        except Exception as init_err:
-            logger.error("BG thread DB init failed for %s: %s", bg_run_id, init_err)
+            print(f"[BG-SYNC] DB session created for {bg_run_id}", file=_sys.stderr, flush=True)
+        except BaseException as init_err:
+            print(f"[BG-SYNC] DB init FAILED: {init_err}", file=_sys.stderr, flush=True)
+            _tb.print_exc(file=_sys.stderr)
             return
         t0 = time.monotonic()
-        logger.info("BG sync started for run %s", bg_run_id)
 
         try:
             bg_run = bg_db.query(models.Run).filter(models.Run.id == _to_uuid(bg_run_id)).first()
@@ -849,8 +854,9 @@ def execute_run_api(run_id: str, db: Session = Depends(get_db)):
                 result.unmatched_count + result.status_regression_flags,
             )
 
-        except Exception as exc:
-            logger.exception("Background sync %s failed: %s", bg_run_id, exc)
+        except BaseException as exc:
+            print(f"[BG-SYNC] FAILED for {bg_run_id}: {exc}", file=_sys.stderr, flush=True)
+            _tb.print_exc(file=_sys.stderr)
             try:
                 bg_run = bg_db.query(models.Run).filter(models.Run.id == _to_uuid(bg_run_id)).first()
                 if bg_run:
@@ -858,10 +864,12 @@ def execute_run_api(run_id: str, db: Session = Depends(get_db)):
                     bg_run.operator_notes = "שגיאה: {}".format(str(exc)[:500])
                     bg_run.completed_at = datetime.now(timezone.utc)
                     bg_db.commit()
-            except Exception:
-                logger.exception("Failed to update run status after error")
+                    print(f"[BG-SYNC] Run {bg_run_id} marked as failed in DB", file=_sys.stderr, flush=True)
+            except BaseException as db_err:
+                print(f"[BG-SYNC] COULD NOT update DB: {db_err}", file=_sys.stderr, flush=True)
         finally:
-            bg_db.close()
+            if bg_db:
+                bg_db.close()
 
     # Launch background thread and return immediately
     thread = threading.Thread(target=_background_sync, daemon=True, name=f"sync-{bg_run_id[:8]}")
