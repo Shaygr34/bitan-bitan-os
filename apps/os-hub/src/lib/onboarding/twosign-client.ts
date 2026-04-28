@@ -88,28 +88,27 @@ async function authFetch(path: string, options: RequestInit = {}): Promise<Respo
     ...((options.headers as Record<string, string>) || {}),
   }
 
+  // 2Sign requires POST for all endpoints (GET returns 405)
   const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
     ...options,
     headers,
   })
 
-  // If API Key auth returns 401, try clearing cache and re-auth with login
-  if (res.status === 401 && getApiKeyCredentials().clientId) {
-    const loginCreds = getLoginCredentials()
-    if (loginCreds.email && loginCreds.password) {
-      // Clear API key attempt, force login
-      cachedToken = null
-      tokenExpiresAt = 0
-      const fallbackHeaders = await getAuthHeaders()
-      return fetch(`${BASE_URL}${path}`, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...fallbackHeaders,
-          ...((options.headers as Record<string, string>) || {}),
-        },
-      })
-    }
+  // On 401, clear cached token and retry once
+  if (res.status === 401 && cachedToken) {
+    cachedToken = null
+    tokenExpiresAt = 0
+    const freshHeaders = await getAuthHeaders()
+    return fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...freshHeaders,
+        ...((options.headers as Record<string, string>) || {}),
+      },
+    })
   }
 
   return res
@@ -146,14 +145,14 @@ export interface TwoSignTemplate {
 
 /** List all templates for the logged-in user. */
 export async function listTemplates(): Promise<TwoSignTemplate[]> {
-  const res = await authFetch('/Template/ByToken')
+  const res = await authFetch('/Templates/ByToken')
   if (!res.ok) throw new Error(`2Sign listTemplates failed: ${res.status}`)
   return res.json()
 }
 
 /** Get template by ID. */
 export async function getTemplate(userId: number, templateId: number): Promise<TwoSignTemplate> {
-  const res = await authFetch(`/Template/ById/${userId}/${templateId}`)
+  const res = await authFetch(`/Templates/ById/${userId}/${templateId}`)
   if (!res.ok) throw new Error(`2Sign getTemplate failed: ${res.status}`)
   return res.json()
 }
@@ -179,7 +178,7 @@ export async function createClient(client: {
   phone?: string
   idNumber?: string
 }): Promise<TwoSignClient> {
-  const res = await authFetch('/Client/Create', {
+  const res = await authFetch('/Clients/Create', {
     method: 'POST',
     body: JSON.stringify({
       FirstName: client.firstName,
@@ -199,7 +198,7 @@ export async function findClient(params: {
   phone?: string
   idNumber?: string
 }): Promise<TwoSignClient | null> {
-  const res = await authFetch('/Client/Information', {
+  const res = await authFetch('/Clients/Information', {
     method: 'POST',
     body: JSON.stringify({
       Email: params.email || '',
@@ -318,7 +317,7 @@ export async function createTaskWithFile(options: CreateTaskOptions): Promise<Tw
     body.SignatureRoutineSignerNumber = options.signatureRoutineSignerNumber ?? 1
   }
 
-  const res = await authFetch('/Task/WithFile', {
+  const res = await authFetch('/Tasks/WithFile', {
     method: 'POST',
     body: JSON.stringify(body),
   })
@@ -349,7 +348,7 @@ export async function createTaskFromTemplate(options: CreateTaskOptions): Promis
     body.SignatureRoutineSignerNumber = options.signatureRoutineSignerNumber ?? 1
   }
 
-  const res = await authFetch('/Task/WithoutFile', {
+  const res = await authFetch('/Tasks/WithoutFile', {
     method: 'POST',
     body: JSON.stringify(body),
   })
@@ -400,7 +399,7 @@ export async function searchTasks(params: {
   fromDate?: string
   toDate?: string
 }): Promise<TwoSignTaskDetail[]> {
-  const res = await authFetch('/Task/SearchByParams', {
+  const res = await authFetch('/Tasks/SearchByParams', {
     method: 'POST',
     body: JSON.stringify({
       ClientId: params.clientId ?? 0,
@@ -448,7 +447,7 @@ export async function getSignedDocument(
   guid: string,
   format: 0 | 1 | 2 = 2,
 ): Promise<TwoSignAttachment> {
-  const res = await authFetch(`/TaskAttachment/GetSignedTaskDocument/${guid}?fileDownloadType=${format}`)
+  const res = await authFetch(`/TaskAttachments/GetSignedTaskDocument/${guid}?fileDownloadType=${format}`)
   if (!res.ok) throw new Error(`2Sign getSignedDocument failed: ${res.status}`)
   return res.json()
 }
@@ -458,7 +457,7 @@ export async function getOriginalDocument(
   guid: string,
   format: 0 | 1 | 2 = 0,
 ): Promise<TwoSignAttachment> {
-  const res = await authFetch(`/TaskAttachment/GetOriginalTaskDocument/${guid}?fileDownloadType=${format}`)
+  const res = await authFetch(`/TaskAttachments/GetOriginalTaskDocument/${guid}?fileDownloadType=${format}`)
   if (!res.ok) throw new Error(`2Sign getOriginalDocument failed: ${res.status}`)
   return res.json()
 }
@@ -468,7 +467,7 @@ export async function getAllAttachments(
   guid: string,
   format: 0 | 1 | 2 = 0,
 ): Promise<TwoSignAttachment[]> {
-  const res = await authFetch(`/TaskAttachment/GetAllAttachments/${guid}?fileDownloadType=${format}`)
+  const res = await authFetch(`/TaskAttachments/GetAllAttachments/${guid}?fileDownloadType=${format}`)
   if (!res.ok) throw new Error(`2Sign getAllAttachments failed: ${res.status}`)
   return res.json()
 }
@@ -485,7 +484,7 @@ export async function deleteTask(guid: string): Promise<void> {
 
 /** Get task count for the current month. */
 export async function getMonthlyTaskCount(): Promise<number> {
-  const res = await authFetch('/Task/GetTaskCountForMonth')
+  const res = await authFetch('/Tasks/GetTasksCountForMonth')
   if (!res.ok) throw new Error(`2Sign getMonthlyTaskCount failed: ${res.status}`)
   const data = await res.json()
   return data.Count ?? data.count ?? 0
