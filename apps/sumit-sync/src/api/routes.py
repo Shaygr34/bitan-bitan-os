@@ -717,12 +717,15 @@ def _run_reconciliation(
 #  POST /runs/{id}/execute-api  — run reconciliation with Summit API
 # ------------------------------------------------------------------ #
 
-@router.post("/{run_id}/execute-api", response_model=ExecuteResultOut)
+@router.post("/{run_id}/execute-api")
 def execute_run_api(run_id: str, db: Session = Depends(get_db)):
     """
     Run reconciliation using Summit API as SUMIT data source.
-    Only requires IDOM upload — SUMIT data is fetched directly from the API.
+    Returns immediately — sync runs in background thread.
+    Frontend polls GET /runs/{id} for status updates.
     """
+    import threading
+
     run = _run_or_404(run_id, db)
 
     if run.status not in ("uploading", "review"):
@@ -738,126 +741,127 @@ def execute_run_api(run_id: str, db: Session = Depends(get_db)):
     run.started_at = datetime.now(timezone.utc)
     db.commit()
 
-    t0 = time.monotonic()
+    # Capture values for background thread (detach from request-scoped DB session)
+    bg_run_id = str(run.id)
+    bg_idom_path = files_by_role["idom_upload"].stored_path
+    bg_report_type = run.report_type
+    bg_tax_year = run.year
 
-    try:
-        result, output_paths, warnings = _run_reconciliation_api(
-            idom_path=files_by_role["idom_upload"].stored_path,
-            report_type=run.report_type,
-            tax_year=run.year,
-            run_id=str(run.id),
-        )
-    except Exception as exc:
-        error_msg = str(exc)
-        run.status = "failed"
-        run.operator_notes = f"שגיאה: {error_msg}"
-        run.completed_at = datetime.now(timezone.utc)
-        db.commit()
-        logger.exception("API reconciliation failed for run %s", run_id)
-        raise HTTPException(500, f"הסנכרון נכשל: {error_msg}")
+    def _background_sync():
+        """Runs in a separate thread with its own DB session."""
+        from ..db.connection import SessionLocal
+        bg_db = SessionLocal()
+        t0 = time.monotonic()
 
-    elapsed = time.monotonic() - t0
+        try:
+            bg_run = bg_db.query(models.Run).filter(models.Run.id == _to_uuid(bg_run_id)).first()
+            if not bg_run:
+                logger.error("Background sync: run %s not found", bg_run_id)
+                return
 
-    # Persist metrics
-    metrics = models.RunMetrics(
-        run_id=run.id,
-        total_idom_records=result.total_idom_records,
-        total_sumit_records=result.total_sumit_records,
-        matched_count=result.matched_count,
-        unmatched_count=result.unmatched_count,
-        changed_count=result.changed_count,
-        unchanged_count=result.unchanged_count,
-        status_completed_count=result.status_completed_count,
-        status_preserved_count=result.status_preserved_count,
-        status_regression_flags=result.status_regression_flags,
-        processing_seconds=round(elapsed, 3),
-    )
-    db.add(metrics)
-
-    # Persist exceptions
-    if not result.exceptions_df.empty:
-        for _, exc_row in result.exceptions_df.iterrows():
-            exc_record = models.Exception(
-                run_id=run.id,
-                exception_type=exc_row.get("exception_type", "no_sumit_match"),
-                idom_ref=str(exc_row.get("מספר_תיק", "")),
-                client_name=str(exc_row.get("שם", "")),
-                description=str(exc_row.get("notes", "רשומת IDOM ללא התאמה בייצוא SUMIT. ייתכן לקוח חדש או סינון ייצוא.")),
+            result, output_paths, warnings = _run_reconciliation_api(
+                idom_path=bg_idom_path,
+                report_type=bg_report_type,
+                tax_year=bg_tax_year,
+                run_id=bg_run_id,
             )
-            db.add(exc_record)
 
-    for rec in result.regression_records:
-        exc_record = models.Exception(
-            run_id=run.id,
-            exception_type="status_regression",
-            idom_ref=rec.get("idom_ref", ""),
-            sumit_ref=rec.get("sumit_ref", ""),
-            client_name=rec.get("client_name", ""),
-            description="סטטוס 'הושלם' ב-SUMIT אך ללא תאריך הגשה ב-IDOM. הסטטוס נשמר — נדרשת בדיקה.",
-        )
-        db.add(exc_record)
+            elapsed = time.monotonic() - t0
 
-    for w in warnings:
-        if "duplicate" in w.lower() or "conflict" in w.lower():
-            exc_record = models.Exception(
-                run_id=run.id,
-                exception_type="idom_duplicate",
-                description=w,
+            # Persist metrics
+            metrics = models.RunMetrics(
+                run_id=bg_run.id,
+                total_idom_records=result.total_idom_records,
+                total_sumit_records=result.total_sumit_records,
+                matched_count=result.matched_count,
+                unmatched_count=result.unmatched_count,
+                changed_count=result.changed_count,
+                unchanged_count=result.unchanged_count,
+                status_completed_count=result.status_completed_count,
+                status_preserved_count=result.status_preserved_count,
+                status_regression_flags=result.status_regression_flags,
+                processing_seconds=round(elapsed, 3),
             )
-            db.add(exc_record)
+            bg_db.add(metrics)
 
-    # Persist output files
-    output_file_names = []
-    role_map = {
-        "import": "import_output",
-        "diff": "diff_report",
-        "exceptions": "exceptions_report",
-    }
-    for key, path_str in output_paths.items():
-        role = role_map.get(key, key)
-        p = Path(path_str)
-        run_file = models.RunFile(
-            run_id=run.id,
-            file_role=role,
-            original_name=p.name,
-            stored_path=path_str,
-            size_bytes=p.stat().st_size if p.exists() else 0,
-            mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-        db.add(run_file)
-        output_file_names.append(p.name)
+            # Persist exceptions
+            if not result.exceptions_df.empty:
+                for _, exc_row in result.exceptions_df.iterrows():
+                    exc_record = models.Exception(
+                        run_id=bg_run.id,
+                        exception_type=exc_row.get("exception_type", "no_sumit_match"),
+                        idom_ref=str(exc_row.get("מספר_תיק", "")),
+                        client_name=str(exc_row.get("שם", "")),
+                        description=str(exc_row.get("notes", "רשומת IDOM ללא התאמה בייצוא SUMIT.")),
+                    )
+                    bg_db.add(exc_record)
 
-    has_exceptions = result.unmatched_count > 0 or result.status_regression_flags > 0
-    run.status = "review" if has_exceptions else "completed"
-    run.completed_at = datetime.now(timezone.utc)
-    db.commit()
+            for rec in result.regression_records:
+                exc_record = models.Exception(
+                    run_id=bg_run.id,
+                    exception_type="status_regression",
+                    idom_ref=rec.get("idom_ref", ""),
+                    sumit_ref=rec.get("sumit_ref", ""),
+                    client_name=rec.get("client_name", ""),
+                    description="סטטוס 'הושלם' ב-SUMIT אך ללא תאריך הגשה ב-IDOM.",
+                )
+                bg_db.add(exc_record)
 
-    logger.info(
-        "API run %s completed in %.2fs: %d matched, %d exceptions, %d API calls",
-        run_id, elapsed, result.matched_count,
-        result.unmatched_count + result.status_regression_flags,
-        0,  # TODO: pass through call count
-    )
+            for w in warnings:
+                if "duplicate" in w.lower() or "conflict" in w.lower():
+                    exc_record = models.Exception(
+                        run_id=bg_run.id,
+                        exception_type="idom_duplicate",
+                        description=w,
+                    )
+                    bg_db.add(exc_record)
 
-    return ExecuteResultOut(
-        run_id=str(run.id),
-        status=run.status,
-        metrics=RunMetricsOut(
-            total_idom_records=result.total_idom_records,
-            total_sumit_records=result.total_sumit_records,
-            matched_count=result.matched_count,
-            unmatched_count=result.unmatched_count,
-            changed_count=result.changed_count,
-            unchanged_count=result.unchanged_count,
-            status_completed_count=result.status_completed_count,
-            status_preserved_count=result.status_preserved_count,
-            status_regression_flags=result.status_regression_flags,
-            processing_seconds=round(elapsed, 3),
-        ),
-        exception_count=result.unmatched_count + result.status_regression_flags,
-        output_files=output_file_names,
-        warnings=result.warnings,
-    )
+            # Persist output files
+            role_map = {"import": "import_output", "diff": "diff_report", "exceptions": "exceptions_report"}
+            for key, path_str in output_paths.items():
+                role = role_map.get(key, key)
+                p = Path(path_str)
+                run_file = models.RunFile(
+                    run_id=bg_run.id,
+                    file_role=role,
+                    original_name=p.name,
+                    stored_path=path_str,
+                    size_bytes=p.stat().st_size if p.exists() else 0,
+                    mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+                bg_db.add(run_file)
+
+            has_exceptions = result.unmatched_count > 0 or result.status_regression_flags > 0
+            bg_run.status = "review" if has_exceptions else "completed"
+            bg_run.completed_at = datetime.now(timezone.utc)
+            bg_db.commit()
+
+            logger.info(
+                "Background sync %s completed in %.1fs: %d matched, %d exceptions",
+                bg_run_id, elapsed, result.matched_count,
+                result.unmatched_count + result.status_regression_flags,
+            )
+
+        except Exception as exc:
+            logger.exception("Background sync %s failed: %s", bg_run_id, exc)
+            try:
+                bg_run = bg_db.query(models.Run).filter(models.Run.id == _to_uuid(bg_run_id)).first()
+                if bg_run:
+                    bg_run.status = "failed"
+                    bg_run.operator_notes = "שגיאה: {}".format(str(exc)[:500])
+                    bg_run.completed_at = datetime.now(timezone.utc)
+                    bg_db.commit()
+            except Exception:
+                logger.exception("Failed to update run status after error")
+        finally:
+            bg_db.close()
+
+    # Launch background thread and return immediately
+    thread = threading.Thread(target=_background_sync, daemon=True, name=f"sync-{bg_run_id[:8]}")
+    thread.start()
+    logger.info("Background sync thread started for run %s", bg_run_id)
+
+    return {"run_id": bg_run_id, "status": "processing", "message": "הסנכרון הופעל ברקע"}
 
 
 # ------------------------------------------------------------------ #

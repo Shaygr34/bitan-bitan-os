@@ -134,28 +134,19 @@ export default function NewRunPage() {
       setProgress("שולף נתונים מ-Summit ומבצע סנכרון...");
       setProgressStage(2); // Only mark upload as done, not the sync stages
 
-      startPolling(id);
-
-      try {
-        const execRes = await fetch(`/api/sumit-sync/runs/${id}/execute-api`, {
-          method: "POST",
-        });
-        if (pollRef.current) clearInterval(pollRef.current);
-
-        if (!execRes.ok) {
-          const data = await execRes.json().catch(() => ({}));
-          throw new Error(data.detail || data.error || "הסנכרון נכשל");
-        }
-        router.push(`/sumit-sync/runs/${id}`);
-      } catch (fetchErr) {
-        if (pollRef.current) {
-          // HTTP timed out but backend is still working — keep polling
-          setProgress("background");
-          setProgressStage(3);
-        } else {
-          throw fetchErr;
-        }
+      // Fire execute-api — returns immediately, sync runs in background
+      const execRes = await fetch(`/api/sumit-sync/runs/${id}/execute-api`, {
+        method: "POST",
+      });
+      if (!execRes.ok) {
+        const data = await execRes.json().catch(() => ({}));
+        throw new Error(data.detail || data.error || "הסנכרון נכשל");
       }
+
+      // Backend accepted — switch to background polling mode
+      setProgress("background");
+      setProgressStage(3);
+      startPolling(id);
     } catch (err: unknown) {
       if (pollRef.current) clearInterval(pollRef.current);
       setError(err instanceof Error ? err.message : "התהליך נכשל");
