@@ -404,6 +404,58 @@ python -m pytest tests/ -v  # 52 tests (29 original + 14 taxonomy + 9 write plan
 
 ---
 
+## Session: April 23-28, 2026 — Onboarding Workflow Elevation
+
+### What Was Built (21 commits)
+Complete dashboard-first workflow management system for client onboarding.
+
+**Architecture:**
+- Dashboard page rewritten: PipelineFunnel (6 stages) + ClientTable (hover expansion) + NewClientModal
+- Client detail view: StageStepper + ClientInfoCard + DocumentsCard + ChecklistCard
+- API layer: `/api/onboarding/records` (CRUD), `/api/onboarding/checklist` (PATCH), `/api/onboarding/entity` (Summit proxy), `/api/onboarding/advance` (Summit status update)
+- Foundation: `lib/onboarding/` — types, checklist-templates, completion calculator, summit-client
+
+**Key Components:**
+```
+src/app/onboarding/page.tsx                      — Dashboard (rewritten)
+src/app/onboarding/components/PipelineFunnel.tsx  — 6-stage funnel strip
+src/app/onboarding/components/ClientTable.tsx     — Table with hover expand + delete
+src/app/onboarding/components/NewClientModal.tsx  — Link creation modal
+src/app/onboarding/[entityId]/page.tsx            — Client detail view
+src/app/onboarding/[entityId]/components/         — StageStepper, ClientInfoCard, DocumentsCard, ChecklistCard
+src/lib/onboarding/types.ts                       — STAGE_LABELS, STAGE_COLORS, SUMMIT_STATUS_IDS
+src/lib/onboarding/checklist-templates.ts         — Template-A per client type
+src/lib/onboarding/summit-client.ts               — getSummitEntity, extractDocUrls
+src/app/api/onboarding/advance/route.ts           — Advance Summit status
+```
+
+**New Sanity schema (bitan-website repo):** `onboardingRecord` — checklist state per client. Cross-repo deploy dependency.
+
+### Known Issues (as of April 28, 2026)
+These are real problems that need fixing in the NEXT session:
+
+1. **% mismatch**: Dashboard shows checklist-only %, detail page shows checklist+docs %. Different formulas = different numbers for same client. Needs single source of truth.
+2. **Hover expansion unreliable**: CSS `tbody:hover` works inconsistently. May need JS-based hover instead.
+3. **Delete mechanism brittle**: Optimistic delete implemented but Sanity credentials may fail on Railway (env var fallback chain). Test after deploy.
+4. **Duplicate records**: Auto-create on detail page visit can create duplicates if the dedup-by-summitEntityId check races. Dedup guard added to POST endpoint but untested under load.
+5. **Legacy tokens at 0%**: Old intake tokens without onboardingRecords show 0% and "לא מאומת". Auto-create on detail page visit creates the record, but dashboard still shows the legacy token until page reload.
+6. **Pipeline funnel counts**: Computed from client array (not Summit API). Stage 0 counted as stage 1. Works but doesn't reflect real Summit status for legacy tokens.
+7. **Doc URLs from Summit הערות**: Parsed via regex from notes text. Fragile — depends on specific label format in Hebrew.
+8. **CompletionDashboard (old tab)**: Still exists but unmaintained. Scan has perf issues (~2940 entities). On hold.
+
+### Key Gotchas Discovered
+- **Sanity credentials on Railway**: `sanityConfig.apiToken` may be empty on Railway. Use env var fallback: `process.env.SANITY_API_WRITE_TOKEN || process.env.SANITY_API_TOKEN || sanityConfig.apiToken`
+- **Summit `Customers_Status: -1`** clears the status field (null/0 silently ignored)
+- **Summit API paths**: `/crm/data/listentities/` NOT `/api/CRM/V1.0/ListEntities`. All lowercase under `/crm/data/`.
+- **Cross-repo schema deploy**: `onboardingRecord` lives in bitan-website schemas. Must push bitan-website FIRST before OS can create these docs.
+- **Multiple `<tbody>` per table**: Valid HTML, used for CSS hover targeting per row group.
+
+### 2Sign API Access (RECEIVED April 26, 2026)
+- 2Sign added 50 extra test tasks to account `digital@bitan-finance.co.il`
+- No extra charge for API usage (uses existing task package)
+- Documentation: Postman collection + SDK at https://app.2sign.co.il/en/Support/ApiTicketSubmit/
+- **Next**: Research API docs, plan signing workflow integration (Phase 5 of onboarding spec)
+
 ## Session: April 14, 2026 — Shaam↔Summit Full Sync System
 
 ### 1. API-Mode Frontend (Phase 1)
