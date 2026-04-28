@@ -147,6 +147,21 @@ export default function ClientDetailPage() {
         companyNumber,
         documents,
       })
+
+      // Fire-and-forget: sync cached values to Sanity for dashboard use
+      if (record?.summitEntityId || entityId) {
+        const syncEntityId = record?.summitEntityId || entityId
+        fetch('/api/onboarding/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            summitEntityId: syncEntityId,
+            stage: currentStage,
+            uploadedDocs: documents.filter(d => !!d.url).length,
+            requiredDocs: documents.length,
+          }),
+        }).catch(() => {}) // Silent — cache sync is best-effort
+      }
     } catch (err) {
       setState((prev) => ({
         ...prev,
