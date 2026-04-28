@@ -1,162 +1,288 @@
-.stepTitle {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-heading);
-  margin-bottom: var(--space-xl);
-  padding-bottom: var(--space-sm);
-  border-bottom: 1px solid var(--separator-gold);
-  display: inline-block;
+/* ─── Page layout ─── */
+.page {
+  max-width: 680px;
+  margin: 0 auto;
 }
 
-.formGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-xl);
-  margin-bottom: var(--space-xl);
-}
-
-.field {
+/* ─── Status bar ─── */
+.statusBar {
   display: flex;
-  flex-direction: column;
   gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
 }
 
-.field input,
-.field select {
-  width: 100%;
-}
-
-.uploadGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-xl);
-  margin-bottom: var(--space-xl);
-}
-
-.uploadSingle {
-  margin-bottom: var(--space-xl);
-}
-
-.uploadBox {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-lg);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-md);
-  transition: border-color var(--transition-fast);
-}
-
-.uploadBox:hover {
-  border-color: var(--brand-gold);
-}
-
-.uploadLabel {
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-  color: var(--text-heading);
-}
-
-.fileInput {
-  font-size: var(--font-size-sm);
-  color: var(--text-body);
-}
-
-.fileName {
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: 9999px;
   font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  background: var(--surface);
   color: var(--text-caption);
-  font-family: var(--font-mono);
+  border: 1px solid var(--border);
 }
 
-/* Mode toggle */
-.modeToggle {
-  display: flex;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-xl);
-}
-
-.modeOption {
-  flex: 1;
-  padding: var(--space-md) var(--space-lg);
-  border: 2px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--background);
-  cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
-  text-align: center;
-}
-
-.modeOption:hover {
-  border-color: var(--brand-gold);
-}
-
-.modeOptionActive {
-  border-color: var(--brand-navy);
-  background: rgba(27, 42, 74, 0.04);
-}
-
-.modeLabel {
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-  color: var(--text-heading);
-  display: block;
-  margin-bottom: var(--space-xs);
-}
-
-.modeDesc {
-  font-size: var(--font-size-xs);
-  color: var(--text-caption);
-}
-
-.modeRecommended {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: var(--font-weight-semibold);
+.chipWarm {
   background: var(--status-success-bg);
   color: var(--status-success);
-  padding: 2px 6px;
-  border-radius: 9999px;
-  margin-left: var(--space-xs);
+  border-color: transparent;
 }
 
-/* Mapping indicator */
-.mappingIndicator {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-xs);
-  color: var(--text-caption);
+.chipCold {
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+  border-color: transparent;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ─── Drop zone ─── */
+.dropZone {
+  position: relative;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3xl) var(--space-xl);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  background: var(--background);
   margin-bottom: var(--space-lg);
 }
 
-.mappingWarm {
-  background: var(--status-success-bg);
-  color: var(--status-success);
+.dropZone:hover {
+  border-color: var(--brand-gold);
+  background: rgba(197, 165, 114, 0.03);
 }
 
-.mappingCold {
-  background: var(--status-warning-bg);
-  color: var(--status-warning);
+.dropZoneActive {
+  border-color: var(--brand-navy);
+  background: rgba(27, 42, 74, 0.04);
+  border-style: solid;
+  transform: scale(1.01);
 }
 
-/* Executing state */
+.dropZoneReady {
+  border-color: var(--brand-navy);
+  border-style: solid;
+  background: rgba(27, 42, 74, 0.02);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+/* Drop prompt (empty state) */
+.dropPrompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.dropIcon {
+  color: var(--brand-gold);
+  opacity: 0.6;
+  margin-bottom: var(--space-sm);
+  transition: opacity var(--transition-fast);
+}
+
+.dropZone:hover .dropIcon {
+  opacity: 1;
+}
+
+.dropTitle {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-heading);
+  margin: 0;
+}
+
+.dropSubtitle {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  margin: 0;
+}
+
+/* File ready state */
+.fileReady {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+}
+
+.fileIcon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.fileDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: right;
+  flex: 1;
+}
+
+.fileName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-heading);
+  font-family: var(--font-mono);
+}
+
+.fileSize {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+}
+
+.fileRemove {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--text-caption);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all var(--transition-fast);
+}
+
+.fileRemove:hover {
+  border-color: var(--status-error);
+  color: var(--status-error);
+  background: var(--status-error-bg);
+}
+
+/* ─── Template bar ─── */
+.templateBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-xl);
+  border: 1px solid var(--border);
+}
+
+.templateLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--brand-navy);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--transition-fast);
+}
+
+.templateLink:hover {
+  color: var(--brand-gold);
+}
+
+.templateIcon {
+  font-size: 14px;
+}
+
+.templateHint {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  flex: 1;
+}
+
+/* ─── Execute button ─── */
+.executeBtn {
+  width: 100%;
+  padding: var(--space-md) var(--space-xl);
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  background: var(--border);
+  color: var(--text-caption);
+}
+
+.executeBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.executeBtnReady {
+  background: var(--brand-navy);
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
+.executeBtnReady:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+.executeBtnReady:active {
+  transform: scale(0.98);
+}
+
+.executeBtnIcon {
+  font-size: 18px;
+}
+
+.timeHint {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  margin-top: var(--space-md);
+  margin-bottom: 0;
+}
+
+/* ─── Executing state ─── */
 .executingState {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-lg);
+  gap: var(--space-xl);
   padding: var(--space-3xl) 0;
 }
 
-.spinner {
-  width: var(--space-2xl);
-  height: var(--space-2xl);
+.spinnerRing {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
   border: 3px solid var(--border);
   border-top-color: var(--brand-navy);
+  animation: spin 1s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinnerInner {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  border: 2px solid transparent;
+  border-top-color: var(--brand-gold);
+  animation: spin 1.5s linear infinite reverse;
 }
 
 @keyframes spin {
@@ -165,16 +291,16 @@
 
 .progressText {
   font-size: var(--font-size-sm);
-  color: var(--text-caption);
+  color: var(--text-heading);
+  font-weight: var(--font-weight-medium);
 }
 
-/* Progress stages */
 .progressStages {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
   width: 100%;
-  max-width: 400px;
+  max-width: 360px;
 }
 
 .progressStage {
@@ -183,6 +309,7 @@
   gap: var(--space-sm);
   font-size: var(--font-size-sm);
   color: var(--text-caption);
+  transition: all var(--transition-fast);
 }
 
 .stageActive {
@@ -200,14 +327,7 @@
   flex-shrink: 0;
 }
 
-.timeEstimate {
-  font-size: var(--font-size-xs);
-  color: var(--text-caption);
-  text-align: center;
-  margin-top: var(--space-md);
-}
-
-/* Error states */
+/* ─── Error states ─── */
 .errorBanner {
   display: flex;
   align-items: center;
@@ -229,14 +349,35 @@
   height: var(--space-xl);
   border-radius: 50%;
   background: var(--status-error);
-  color: var(--background);
+  color: white;
   font-weight: var(--font-weight-bold);
   font-size: var(--font-size-xs);
   flex-shrink: 0;
 }
 
-.errorRetryText {
-  color: var(--text-body);
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-3xl) 0;
+  text-align: center;
+}
+
+.errorEmoji {
+  font-size: 2.5rem;
+}
+
+.errorMessage {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-heading);
+  margin: 0;
+}
+
+.errorDetail {
   font-size: var(--font-size-sm);
-  margin-bottom: var(--space-lg);
+  color: var(--text-caption);
+  margin: 0;
+  max-width: 400px;
 }

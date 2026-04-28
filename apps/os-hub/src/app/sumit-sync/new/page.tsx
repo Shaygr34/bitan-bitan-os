@@ -4,11 +4,10 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/Card";
-import { loadSyncPrefs, saveSyncPrefs } from "@/lib/syncPrefs";
+import { loadSyncPrefs } from "@/lib/syncPrefs";
 import styles from "./page.module.css";
 
-type SyncMode = "api" | "manual";
-type Step = "config" | "upload" | "executing" | "error";
+type Step = "upload" | "executing" | "done" | "error";
 
 interface MappingSummary {
   total_mappings: number;
@@ -18,77 +17,41 @@ interface MappingSummary {
 export default function NewRunPage() {
   const router = useRouter();
 
-  const [step, setStep] = useState<Step>("config");
+  const [step, setStep] = useState<Step>("upload");
   const [year, setYear] = useState(new Date().getFullYear());
-  const [reportType, setReportType] = useState("financial");
-  const [mode, setMode] = useState<SyncMode>("api");
-
   const [runId, setRunId] = useState<string | null>(null);
   const [idomFile, setIdomFile] = useState<File | null>(null);
-  const [sumitFile, setSumitFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState("");
   const [progressStage, setProgressStage] = useState(0);
-
   const [mapping, setMapping] = useState<MappingSummary | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load preferences
   useEffect(() => {
     const prefs = loadSyncPrefs();
     setYear(prefs.defaultYear);
-    setReportType(prefs.defaultReportType);
-    setMode(prefs.defaultMode || "api");
   }, []);
 
-  // Fetch mapping summary for API mode indicator
+  // Fetch mapping summary
   useEffect(() => {
     fetch("/api/sumit-sync/runs/mapping/summary")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data) setMapping(data);
-      })
+      .then((data) => { if (data) setMapping(data); })
       .catch(() => {});
   }, []);
 
-  // Clean up polling on unmount
   useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
-  const handleModeChange = (newMode: SyncMode) => {
-    setMode(newMode);
-    const prefs = loadSyncPrefs();
-    saveSyncPrefs({ ...prefs, defaultMode: newMode });
-  };
-
-  async function handleCreateRun() {
-    setError(null);
-    try {
-      const res = await fetch("/api/sumit-sync/runs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year, report_type: reportType }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || data.error || `${res.status}`);
-      }
-      const run = await res.json();
-      setRunId(run.id);
-      setStep("upload");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "שגיאה ביצירת הרצה");
-    }
-  }
+  const isWarm = mapping != null && mapping.total_mappings > 200;
 
   const startPolling = useCallback(
     (id: string) => {
       if (pollRef.current) clearInterval(pollRef.current);
-
       pollRef.current = setInterval(async () => {
         try {
           const res = await fetch(`/api/sumit-sync/runs/${id}`);
@@ -103,102 +66,92 @@ export default function NewRunPage() {
             setStep("error");
           }
         } catch {
-          // Keep polling — transient network error
+          // Keep polling
         }
       }, 10_000);
     },
     [router]
   );
 
-  async function handleUploadAndExecute() {
-    if (!runId || !idomFile) return;
-    if (mode === "manual" && !sumitFile) return;
+  // Drag & drop handlers
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(true);
+  }
+  function handleDragLeave() {
+    setIsDragging(false);
+  }
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && (file.name.endsWith(".xlsx") || file.name.endsWith(".xls"))) {
+      setIdomFile(file);
+    }
+  }
+
+  async function handleExecute() {
+    if (!idomFile) return;
     setError(null);
     setStep("executing");
     setProgressStage(0);
 
     try {
-      // Upload IDOM
+      // 1. Create run — report_type "annual" is placeholder, workbook handles routing
+      setProgress("יוצר הרצה...");
+      setProgressStage(0);
+      const createRes = await fetch("/api/sumit-sync/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year, report_type: "annual" }),
+      });
+      if (!createRes.ok) {
+        const data = await createRes.json().catch(() => ({}));
+        throw new Error(data.detail || data.error || "שגיאה ביצירת הרצה");
+      }
+      const run = await createRes.json();
+      const id = run.id;
+      setRunId(id);
+
+      // 2. Upload IDOM workbook
       setProgress("מעלה קובץ IDOM...");
       setProgressStage(1);
-      const idomForm = new FormData();
-      idomForm.append("file_role", "idom_upload");
-      idomForm.append("file", idomFile);
-      const idomRes = await fetch(`/api/sumit-sync/runs/${runId}/upload`, {
+      const form = new FormData();
+      form.append("file_role", "idom_upload");
+      form.append("file", idomFile);
+      const uploadRes = await fetch(`/api/sumit-sync/runs/${id}/upload`, {
         method: "POST",
-        body: idomForm,
+        body: form,
       });
-      if (!idomRes.ok) {
-        const data = await idomRes.json().catch(() => ({}));
-        throw new Error(
-          data.detail || data.error || "העלאת קובץ IDOM נכשלה"
-        );
+      if (!uploadRes.ok) {
+        const data = await uploadRes.json().catch(() => ({}));
+        throw new Error(data.detail || data.error || "העלאת קובץ נכשלה");
       }
       setProgressStage(2);
 
-      if (mode === "manual") {
-        // Upload SUMIT file
-        setProgress("מעלה קובץ SUMIT...");
-        const sumitForm = new FormData();
-        sumitForm.append("file_role", "sumit_upload");
-        sumitForm.append("file", sumitFile!); // eslint-disable-line
-        const sumitRes = await fetch(
-          `/api/sumit-sync/runs/${runId}/upload`,
-          { method: "POST", body: sumitForm }
-        );
-        if (!sumitRes.ok) {
-          const data = await sumitRes.json().catch(() => ({}));
-          throw new Error(
-            data.detail || data.error || "העלאת קובץ SUMIT נכשלה"
-          );
-        }
+      // 3. Execute API mode
+      setProgress("שולף נתונים מ-Summit ומבצע סנכרון...");
+      setProgressStage(3);
 
-        // Execute XLSX mode
-        setProgress("מריץ סנכרון...");
-        setProgressStage(3);
-        const execRes = await fetch(
-          `/api/sumit-sync/runs/${runId}/execute`,
-          { method: "POST" }
-        );
+      startPolling(id);
+
+      try {
+        const execRes = await fetch(`/api/sumit-sync/runs/${id}/execute-api`, {
+          method: "POST",
+        });
+        if (pollRef.current) clearInterval(pollRef.current);
+
         if (!execRes.ok) {
           const data = await execRes.json().catch(() => ({}));
-          throw new Error(
-            data.detail || data.error || "הרצת הסנכרון נכשלה"
-          );
+          throw new Error(data.detail || data.error || "הסנכרון נכשל");
         }
-        router.push(`/sumit-sync/runs/${runId}`);
-      } else {
-        // Execute API mode — long-running
-        setProgress("שולף נתונים מ-Summit CRM...");
-        setProgressStage(3);
-
-        // Start polling immediately — the HTTP call may time out
-        startPolling(runId);
-
-        try {
-          const execRes = await fetch(
-            `/api/sumit-sync/runs/${runId}/execute-api`,
-            { method: "POST" }
-          );
-          // If we get a response (didn't timeout), handle it directly
-          if (pollRef.current) clearInterval(pollRef.current);
-
-          if (!execRes.ok) {
-            const data = await execRes.json().catch(() => ({}));
-            throw new Error(
-              data.detail || data.error || "הסנכרון נכשל"
-            );
-          }
-          router.push(`/sumit-sync/runs/${runId}`);
-        } catch (fetchErr) {
-          // If it's a timeout/network error, the poll will catch completion
-          if (pollRef.current) {
-            // Polling is active — let it handle completion
-            setProgress("מחכה לתוצאות... (הסנכרון פועל ברקע)");
-            setProgressStage(4);
-          } else {
-            throw fetchErr;
-          }
+        router.push(`/sumit-sync/runs/${id}`);
+      } catch (fetchErr) {
+        if (pollRef.current) {
+          setProgress("ממתין לתוצאות... (הסנכרון פועל ברקע)");
+          setProgressStage(4);
+        } else {
+          throw fetchErr;
         }
       }
     } catch (err: unknown) {
@@ -208,29 +161,19 @@ export default function NewRunPage() {
     }
   }
 
-  const apiStages = [
+  const stages = [
     "יצירת הרצה",
     "העלאת קובץ IDOM",
-    "שליפת נתונים מ-Summit CRM",
+    "שליפת נתונים מ-Summit",
     "התאמה וסנכרון",
     "ממתין לתוצאות...",
   ];
 
-  const manualStages = [
-    "יצירת הרצה",
-    "העלאת קובץ IDOM",
-    "העלאת קובץ SUMIT",
-    "התאמה וסנכרון",
-  ];
-
-  const stages = mode === "api" ? apiStages : manualStages;
-  const isWarm = mapping != null && mapping.total_mappings > 200;
-
   return (
-    <div>
+    <div className={styles.page}>
       <PageHeader
-        title="הרצה חדשה"
-        description="סנכרון נתוני שע״מ עם Summit CRM"
+        title="סנכרון שע״מ ↔ סאמיט"
+        description="העלאת קובץ אידום — הנתונים מסונכרנים אוטומטית"
       />
 
       {error && (
@@ -240,141 +183,111 @@ export default function NewRunPage() {
         </div>
       )}
 
-      {step === "config" && (
-        <Card>
-          <h2 className={styles.stepTitle}>שלב 1: הגדרות</h2>
-
-          {/* Mode toggle */}
-          <div className={styles.modeToggle}>
-            <button
-              type="button"
-              className={`${styles.modeOption} ${mode === "api" ? styles.modeOptionActive : ""}`}
-              onClick={() => handleModeChange("api")}
-            >
-              <span className={styles.modeLabel}>
-                אוטומטי (API)
-                <span className={styles.modeRecommended}>מומלץ</span>
-              </span>
-              <span className={styles.modeDesc}>
-                העלאת קובץ IDOM בלבד — נתוני Summit נשלפים אוטומטית
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`${styles.modeOption} ${mode === "manual" ? styles.modeOptionActive : ""}`}
-              onClick={() => handleModeChange("manual")}
-            >
-              <span className={styles.modeLabel}>ידני (קבצים)</span>
-              <span className={styles.modeDesc}>
-                העלאת שני קבצים — IDOM + ייצוא SUMIT ידני
-              </span>
-            </button>
-          </div>
-
-          {/* Mapping status for API mode */}
-          {mode === "api" && mapping && (
-            <div
-              className={`${styles.mappingIndicator} ${isWarm ? styles.mappingWarm : styles.mappingCold}`}
-            >
-              {isWarm
-                ? `✓ מטמון לקוחות פעיל (${mapping.total_mappings} לקוחות) — הרצה מהירה (~3-4 דקות)`
-                : `מטמון חלקי (${mapping.total_mappings} לקוחות) — הרצה ראשונה עשויה לקחת ~15 דקות`}
-            </div>
-          )}
-
-          <div className={styles.formGrid}>
-            <div className={styles.field}>
-              <label htmlFor="year">שנת מס</label>
-              <input
-                id="year"
-                type="number"
-                min={2020}
-                max={2100}
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-              />
-            </div>
-            <div className={styles.field}>
-              <label htmlFor="reportType">סוג דוח</label>
-              <select
-                id="reportType"
-                value={reportType}
-                onChange={(e) => setReportType(e.target.value)}
-              >
-                <option value="financial">דוחות כספיים</option>
-                <option value="annual">דוחות שנתיים</option>
-              </select>
-            </div>
-          </div>
-          <button className="btn-primary" onClick={handleCreateRun}>
-            המשך
-          </button>
-        </Card>
-      )}
-
       {step === "upload" && (
-        <Card>
-          <h2 className={styles.stepTitle}>
-            שלב 2: {mode === "api" ? "העלאת קובץ IDOM" : "העלאת קבצים"}
-          </h2>
-          <div
-            className={
-              mode === "manual" ? styles.uploadGrid : styles.uploadSingle
-            }
-          >
-            <div className={styles.uploadBox}>
-              <label className={styles.uploadLabel} htmlFor="idom-file">
-                קובץ IDOM (שע״מ)
-              </label>
+        <>
+          {/* Status bar */}
+          <div className={styles.statusBar}>
+            <div className={`${styles.statusChip} ${isWarm ? styles.chipWarm : styles.chipCold}`}>
+              <span className={styles.statusDot} />
+              {mapping
+                ? isWarm
+                  ? `מטמון פעיל · ${mapping.total_mappings} לקוחות`
+                  : `מטמון חלקי · ${mapping.total_mappings} לקוחות`
+                : "טוען מטמון..."}
+            </div>
+            <div className={styles.statusChip}>
+              שנת מס {year}
+            </div>
+          </div>
+
+          <Card>
+            {/* Drop zone */}
+            <div
+              className={`${styles.dropZone} ${isDragging ? styles.dropZoneActive : ""} ${idomFile ? styles.dropZoneReady : ""}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
               <input
-                id="idom-file"
+                ref={fileInputRef}
                 type="file"
                 accept=".xlsx,.xls"
-                onChange={(e) =>
-                  setIdomFile(e.target.files?.[0] ?? null)
-                }
-                className={styles.fileInput}
+                onChange={(e) => setIdomFile(e.target.files?.[0] ?? null)}
+                className={styles.hiddenInput}
               />
-              {idomFile && (
-                <span className={styles.fileName}>{idomFile.name}</span>
+
+              {idomFile ? (
+                <div className={styles.fileReady}>
+                  <div className={styles.fileIcon}>📊</div>
+                  <div className={styles.fileDetails}>
+                    <span className={styles.fileName}>{idomFile.name}</span>
+                    <span className={styles.fileSize}>
+                      {(idomFile.size / 1024).toFixed(0)} KB
+                    </span>
+                  </div>
+                  <button
+                    className={styles.fileRemove}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIdomFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <div className={styles.dropPrompt}>
+                  <div className={styles.dropIcon}>
+                    <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                      <rect x="8" y="12" width="32" height="28" rx="3" stroke="currentColor" strokeWidth="2" fill="none" />
+                      <path d="M24 8v16M18 18l6-6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <p className={styles.dropTitle}>גרור קובץ IDOM לכאן</p>
+                  <p className={styles.dropSubtitle}>או לחץ לבחירת קובץ · XLSX</p>
+                </div>
               )}
             </div>
-            {mode === "manual" && (
-              <div className={styles.uploadBox}>
-                <label className={styles.uploadLabel} htmlFor="sumit-file">
-                  קובץ SUMIT (ייצוא)
-                </label>
-                <input
-                  id="sumit-file"
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) =>
-                    setSumitFile(e.target.files?.[0] ?? null)
-                  }
-                  className={styles.fileInput}
-                />
-                {sumitFile && (
-                  <span className={styles.fileName}>{sumitFile.name}</span>
-                )}
-              </div>
+
+            {/* Template download */}
+            <div className={styles.templateBar}>
+              <a href="/idom-template.xlsx" download className={styles.templateLink}>
+                <span className={styles.templateIcon}>⬇</span>
+                הורד תבנית IDOM
+              </a>
+              <span className={styles.templateHint}>
+                תבנית מוכנה עם כותרות — להדביק בה נתונים מהשאילתא בשע״מ
+              </span>
+            </div>
+
+            {/* Execute button */}
+            <button
+              className={`${styles.executeBtn} ${idomFile ? styles.executeBtnReady : ""}`}
+              onClick={handleExecute}
+              disabled={!idomFile}
+            >
+              <span className={styles.executeBtnIcon}>⚡</span>
+              {idomFile ? "הרץ סנכרון" : "בחר קובץ להמשך"}
+            </button>
+
+            {isWarm && idomFile && (
+              <p className={styles.timeHint}>זמן משוער: 3-4 דקות</p>
             )}
-          </div>
-          <button
-            className="btn-primary"
-            onClick={handleUploadAndExecute}
-            disabled={!idomFile || (mode === "manual" && !sumitFile)}
-          >
-            {mode === "api"
-              ? "העלה והרץ סנכרון אוטומטי"
-              : "העלה והרץ סנכרון"}
-          </button>
-        </Card>
+            {!isWarm && idomFile && (
+              <p className={styles.timeHint}>הרצה ראשונה עשויה לקחת ~15 דקות</p>
+            )}
+          </Card>
+        </>
       )}
 
       {step === "executing" && (
         <Card>
           <div className={styles.executingState}>
-            <div className={styles.spinner} />
+            <div className={styles.spinnerRing}>
+              <div className={styles.spinnerInner} />
+            </div>
             <p className={styles.progressText}>{progress}</p>
             <div className={styles.progressStages}>
               {stages.map((label, i) => {
@@ -393,31 +306,27 @@ export default function NewRunPage() {
                 );
               })}
             </div>
-            {mode === "api" && (
-              <p className={styles.timeEstimate}>
-                {isWarm
-                  ? "זמן משוער: 3-4 דקות"
-                  : "זמן משוער: 10-15 דקות (הרצה ראשונה)"}
-              </p>
-            )}
           </div>
         </Card>
       )}
 
       {step === "error" && (
         <Card>
-          <p className={styles.errorRetryText}>
-            ההרצה נכשלה. ניתן לנסות שוב.
-          </p>
-          <button
-            className="btn-secondary"
-            onClick={() => {
-              setStep("upload");
-              setError(null);
-            }}
-          >
-            חזור להעלאת קבצים
-          </button>
+          <div className={styles.errorState}>
+            <div className={styles.errorEmoji}>⚠️</div>
+            <p className={styles.errorMessage}>ההרצה נכשלה</p>
+            <p className={styles.errorDetail}>{error}</p>
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setStep("upload");
+                setError(null);
+                setRunId(null);
+              }}
+            >
+              נסה שוב
+            </button>
+          </div>
         </Card>
       )}
     </div>
