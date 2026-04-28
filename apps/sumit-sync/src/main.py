@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from .db.connection import engine
+from .db.models import Base
 from .storage.file_store import volume_writable
 from .api.routes import router as runs_router
 
@@ -25,7 +26,7 @@ app.include_router(runs_router)
 
 @app.on_event("startup")
 def _startup_diagnostics():
-    """Log configuration on boot so Railway logs show what's going on."""
+    """Log configuration on boot and ensure all DB tables exist."""
     logger.info("=== SUMIT-SYNC STARTUP ===")
     logger.info("PORT=%s", os.environ.get("PORT", "(not set, default 8000)"))
     logger.info("DATA_DIR=%s", os.environ.get("DATA_DIR", "/data"))
@@ -33,6 +34,15 @@ def _startup_diagnostics():
     logger.info("SUMMIT_API_KEY set: %s", "YES" if os.environ.get("SUMMIT_API_KEY") else "NO")
     logger.info("SUMMIT_COMPANY_ID: %s", os.environ.get("SUMMIT_COMPANY_ID", "(not set)"))
     logger.info("Engine: %s", "created" if engine is not None else "FAILED")
+
+    # Auto-create missing tables (e.g. write_logs added after initial deploy)
+    if engine is not None:
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("DB tables verified/created")
+        except Exception as exc:
+            logger.error("Failed to create tables: %s", exc)
+
     logger.info("==========================")
 
 
