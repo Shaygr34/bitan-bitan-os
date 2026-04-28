@@ -45,6 +45,29 @@
   flex-shrink: 0;
 }
 
+.yearSelect {
+  padding: var(--space-xs) var(--space-md);
+  border-radius: 9999px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text-caption);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-left: var(--space-lg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 8px center;
+}
+
+.yearSelect:focus {
+  outline: none;
+  border-color: var(--brand-gold);
+}
+
 /* ─── Drop zone ─── */
 .dropZone {
   position: relative;

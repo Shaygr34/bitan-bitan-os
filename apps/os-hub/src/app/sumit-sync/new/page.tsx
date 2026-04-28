@@ -18,7 +18,7 @@ export default function NewRunPage() {
   const router = useRouter();
 
   const [step, setStep] = useState<Step>("upload");
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear] = useState(new Date().getFullYear() - 1); // Default to previous tax year
   const [runId, setRunId] = useState<string | null>(null);
   const [idomFile, setIdomFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +52,7 @@ export default function NewRunPage() {
   const startPolling = useCallback(
     (id: string) => {
       if (pollRef.current) clearInterval(pollRef.current);
+      // Poll every 5s (not 10) for faster failure detection
       pollRef.current = setInterval(async () => {
         try {
           const res = await fetch(`/api/sumit-sync/runs/${id}`);
@@ -62,13 +63,13 @@ export default function NewRunPage() {
             router.push(`/sumit-sync/runs/${id}`);
           } else if (data.status === "failed") {
             if (pollRef.current) clearInterval(pollRef.current);
-            setError("הסנכרון נכשל בשרת");
+            setError(data.error || "הסנכרון נכשל — ייתכן שהקובץ לא תואם את המבנה הנדרש");
             setStep("error");
           }
         } catch {
           // Keep polling
         }
-      }, 10_000);
+      }, 5_000);
     },
     [router]
   );
@@ -129,9 +130,9 @@ export default function NewRunPage() {
       }
       setProgressStage(2);
 
-      // 3. Execute API mode
+      // 3. Execute API mode — long running, start polling immediately
       setProgress("שולף נתונים מ-Summit ומבצע סנכרון...");
-      setProgressStage(3);
+      setProgressStage(2); // Only mark upload as done, not the sync stages
 
       startPolling(id);
 
@@ -148,8 +149,9 @@ export default function NewRunPage() {
         router.push(`/sumit-sync/runs/${id}`);
       } catch (fetchErr) {
         if (pollRef.current) {
-          setProgress("ממתין לתוצאות... (הסנכרון פועל ברקע)");
-          setProgressStage(4);
+          // HTTP timed out but backend is still working — keep polling
+          setProgress("הסנכרון פועל ברקע — ניתן לסגור ולחזור מאוחר יותר");
+          setProgressStage(3);
         } else {
           throw fetchErr;
         }
@@ -165,8 +167,7 @@ export default function NewRunPage() {
     "יצירת הרצה",
     "העלאת קובץ IDOM",
     "שליפת נתונים מ-Summit",
-    "התאמה וסנכרון",
-    "ממתין לתוצאות...",
+    "הסנכרון פועל ברקע...",
   ];
 
   return (
@@ -195,9 +196,15 @@ export default function NewRunPage() {
                   : `מטמון חלקי · ${mapping.total_mappings} לקוחות`
                 : "טוען מטמון..."}
             </div>
-            <div className={styles.statusChip}>
-              שנת מס {year}
-            </div>
+            <select
+              className={styles.yearSelect}
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+            >
+              {[2026, 2025, 2024, 2023, 2022].map((y) => (
+                <option key={y} value={y}>שנת מס {y}</option>
+              ))}
+            </select>
           </div>
 
           <Card>
