@@ -298,6 +298,8 @@ export interface CreateTaskOptions {
   signatureRoutineSignerNumber?: number
   /** Primary task GUID for linking signer 2+ in a routine */
   routinePrimaryTaskGuid?: string
+  /** Date field position for auto-fill (fieldType: 4) */
+  datePosition?: { x: number; y: number; width: number; height: number }
 }
 
 export interface TwoSignTask {
@@ -338,6 +340,21 @@ export async function createTaskWithFile(options: CreateTaskOptions & {
 
   if (options.searchWordForSignature) {
     body.SearchWordForMarkingSignature = options.searchWordForSignature
+  }
+  if (options.datePosition) {
+    body.SignaturePositions = [
+      {
+        typeId: 1,
+        x: options.datePosition.x,
+        y: options.datePosition.y,
+        width: options.datePosition.width,
+        height: options.datePosition.height,
+        page: 1,
+        fieldType: 4, // Date — auto-fills with signing date
+        required: false,
+        stageType: 0,
+      },
+    ]
   }
   if (options.isSignatureRoutine) {
     body.SignatureRoutine = true
@@ -601,6 +618,7 @@ export async function initiateSigning(params: {
     sendEmail: true,
     isSignatureRoutine: isRoutine,
     signatureRoutineSignerNumber: isRoutine ? 1 : undefined,
+    datePosition: marked.clientDatePosition,
   })
 
   // 5. If counter-signature needed, create office signer task in routine
@@ -625,6 +643,7 @@ export async function initiateSigning(params: {
       isSignatureRoutine: true,
       signatureRoutineSignerNumber: 2,
       routinePrimaryTaskGuid: clientTask.Guid,
+      datePosition: marked.officeDatePosition,
     })
     officeTaskGuid = officeTask.Guid
   }

@@ -19,23 +19,39 @@ const MARKER_COLOR = rgb(1, 1, 1) // white = invisible
 const MARKER_OPACITY = 0.01
 
 /**
- * Signature positions per form type.
- * Coordinates are in pdf-lib system (origin = bottom-left).
+ * Signature + date positions per form type.
+ * Coordinates: yFromTop = distance from top of page in PDF points.
  */
-const FORM_POSITIONS: Record<string, {
+interface FormPositions {
   client: { x: number; yFromTop: number }
   office?: { x: number; yFromTop: number }
-}> = {
+  /** Date field next to client signature (auto-fills with signing date) */
+  clientDate?: { x: number; yFromTop: number; width: number; height: number }
+  /** Date field next to office signature */
+  officeDate?: { x: number; yFromTop: number; width: number; height: number }
+}
+
+const FORM_POSITIONS: Record<string, FormPositions> = {
   // רשות המיסים ייפוי כוח (page: 612 x 792)
   'poa-tax-authority': {
-    client: { x: 220, yFromTop: 430 },  // חתימת בן זוג רשום/העוסק
-    office: { x: 100, yFromTop: 618 },  // חתימה וחותמת in section ב (~78% from top)
+    client: { x: 220, yFromTop: 430 },       // חתימת בן זוג רשום/העוסק
+    clientDate: { x: 380, yFromTop: 430, width: 80, height: 20 },  // תאריך next to client sig
+    office: { x: 100, yFromTop: 618 },        // חתימה וחותמת in section ב
+    officeDate: { x: 380, yFromTop: 618, width: 80, height: 20 },  // תאריך next to office sig
   },
   // ביטוח לאומי ניכויים (page: 594.96 x 841.92)
   'poa-nii-withholdings': {
-    client: { x: 150, yFromTop: 539 },  // חתימת המעסיק/ה (~64% from top = height * 0.64)
-    // No office counter-signature needed
+    client: { x: 150, yFromTop: 539 },        // חתימת המעסיק/ה
+    clientDate: { x: 350, yFromTop: 539, width: 80, height: 20 },  // תאריך next to sig
   },
+}
+
+/** Date field position for SignaturePositions array (fieldType: 4 = Date auto-fill) */
+export interface DatePosition {
+  x: number
+  y: number  // 2Sign coords (from top)
+  width: number
+  height: number
 }
 
 export interface MarkedPdfResult {
@@ -47,6 +63,9 @@ export interface MarkedPdfResult {
   officeMarker?: string
   /** Whether this form requires office counter-signature */
   requiresCounterSign: boolean
+  /** Date field positions for auto-fill (passed via SignaturePositions with fieldType: 4) */
+  clientDatePosition?: DatePosition
+  officeDatePosition?: DatePosition
 }
 
 /**
@@ -100,6 +119,12 @@ export async function addSignatureMarkers(
     clientMarker: '§',
     officeMarker: requiresCounterSign ? '†' : undefined,
     requiresCounterSign,
+    clientDatePosition: positions.clientDate
+      ? { x: positions.clientDate.x, y: positions.clientDate.yFromTop, width: positions.clientDate.width, height: positions.clientDate.height }
+      : undefined,
+    officeDatePosition: positions.officeDate
+      ? { x: positions.officeDate.x, y: positions.officeDate.yFromTop, width: positions.officeDate.width, height: positions.officeDate.height }
+      : undefined,
   }
 }
 
