@@ -429,21 +429,22 @@ Fixed the split-brain architecture where dashboard and detail page showed differ
 ### PR #107: 2Sign API Client
 Complete integration client at `src/lib/onboarding/twosign-client.ts`.
 
-**2Sign API (Green Signature):**
-- Base URL: `https://app.2sign.co.il/api/`
-- Auth: email/password → bearer token (cached 55min TTL)
-- Account: `digital@bitan-finance.co.il` (50 test tasks)
-- Env vars: `TWOSIGN_EMAIL`, `TWOSIGN_PASSWORD` (set on Railway)
+**2Sign API (Green Signature) — CONFIRMED WORKING:**
+- **Auth**: OAuth2 form-encoded to `/api/Account/Login` with `grant_type=password&username=digital@bitan-finance.co.il&password=BITAN2021`. Token valid 24h.
+- **Endpoints are PLURAL**: `/api/Tasks/`, `/api/Clients/` (Apiary docs show singular — WRONG).
+- **Task creation**: `POST /api/Tasks/CreateTaskWithFileOption` (not `WithFile`). Accepts `PdfGuid` + `ClientId` + `ClientEmails` + `SearchWordForMarkingSignature`.
+- **File upload**: `POST /api/Tasks/UploadFileForTask` (multipart). Returns `ResponseObject.PdfGuid`.
+- **Client creation**: `POST /api/Clients/Create` with `{Name, Emails, Phones}` (not FirstName/LastName).
+- **All endpoints require POST** (GET returns 405).
+- **Env vars on Railway**: `TWOSIGN_EMAIL=digital@bitan-finance.co.il`, `TWOSIGN_PASSWORD=BITAN2021`, `TWOSIGN_CLIENT_ID`, `TWOSIGN_API_KEY`
 
-**Endpoints covered:**
-- Login, UserProfile
-- Templates: list, getById, search
-- Clients: create, find by email/phone/ID
-- Tasks: createWithFile, createFromTemplate, getByGUID, search, resend, delete
-- Documents: getSignedDocument, getOriginalDocument, getAllAttachments
-- High-level `initiateSigning()` helper
+**Signature placement (BREAKTHROUGH — invisible PDF markers):**
+- `SignaturesConstValues` (3x3 grid) creates drawable signatures but can't hit exact positions.
+- `SignaturePositions` with x/y creates form fields (blue), NOT drawable signatures (red).
+- **SOLUTION**: Pre-process PDF with pdf-lib — add invisible white marker chars ("§" for client, "†" for office) at exact coordinates. Use `SearchWordForMarkingSignature: "§"` to place signature there. Font size 22 with 10x chars = proper field size. See `pdf-marker.ts`.
+- **Confirmed coordinates**: רשות המיסים client sig: x=220, yFromTop=430. ב"ל ניכויים: x=150, yFromTop=539.
 
-**Signature positions:** `SignaturesConstValues` format ("page-position|page-position"), `SearchWordForMarkingSignature` (transparent PDF marker), `SignaturePositionsSlimModel` (detailed per-position model).
+**Signature Routine** (counter-sign): Signer 1 with `SignatureRoutine:true, SignatureRoutineSignerNumber:1`, Signer 2 with `RoutinePrimaryTaskGuid` pointing to signer 1. Sequential: client signs first → office gets notified.
 
 ### PR #108: Stage 2 Signing UI + API Routes
 Wired 2Sign into the onboarding workflow.
@@ -463,7 +464,7 @@ src/app/onboarding/[entityId]/components/SigningCard.module.css
 5. When signed: retrieves signed doc URL, updates status
 6. PATCH `/api/onboarding/signing` resends notification
 
-**Pending:** Template ID configuration (waiting for ייפוי כוח PDF from Avi).
+**Status:** Working end-to-end. SigningCard has PDF upload button → markers → 2Sign → email/SMS to client.
 
 ### Also Fixed: Intake Form File Deletion Bug (bitan-website PR #51)
 Avi reported: "when we enter the link after the client and save, the files get deleted."
@@ -471,18 +472,25 @@ Root cause: re-submission without new files overwrote `submittedData.fileCount` 
 Fix: preserve previous file metadata on re-save when no new files uploaded.
 Files themselves were never deleted (Sanity CDN + Summit הערות intact).
 
-### Known Issues (Updated — as of April 28 evening)
-1. **Doc URLs from Summit הערות**: Parsed via regex. Fragile — depends on label format. Works for now.
+### Additional Fixes (late session)
+- **PR #114**: SigningCard PDF upload — end-to-end from UI (file picker → markers → 2Sign → email+SMS)
+- **PR #115**: Auto-link records to Summit entity from matching intake token
+- **Advance stage fix**: Summit format was `EntityID+Fields` (wrong) → `Entity{ID,Folder,Properties}` (correct)
+- **Resend task fix**: Endpoint path + JSON body format corrected
+- **Docs not storing on Summit** (bitan-website): Added `parseInt(entityId)` + error logging to file-writing block. Previously failed silently.
+
+### Known Issues (Updated — as of April 29)
+1. **Docs on Summit הערות**: May not store if `parseInt` fix doesn't resolve. Needs verification with next test client.
 2. **CompletionDashboard (old tab)**: Unmaintained, scan has perf issues. On hold.
-3. **Duplicate records**: Dedup guard by summitEntityId exists but untested under rapid clicks.
-4. **Delete credentials on Railway**: Fallback chain is correct; verify delete works after deploy.
+3. **Dashboard empty flash**: No retry/error state when API temporarily unavailable during deploy.
+4. **Date auto-fill**: Not yet implemented on signed docs. Can use `fieldType: 4` (Date) in marker approach.
 
 ### Full Onboarding Map — Stage Status
 | Stage | Name | Status | Blocker |
 |-------|------|--------|---------|
 | 1 | איסוף נתונים | **Operational** | None |
-| 2 | ייפוי כוח | **UI + API built** | Needs ייפוי כוח PDF template from Avi |
-| 3 | אישור מנהל | Advance button exists | Need specs: what does "approval" mean? |
+| 2 | ייפוי כוח | **Working E2E** | Office counter-sign position needs Avi verification |
+| 3 | אישור מנהל | Advance button fixed | Need specs from Avi: what does "approval" mean? |
 | 4 | רשויות | Not built | Need specs from Avi: manual or API? |
 | 5 | לקוח חדש | Checklist items exist | Need specs: what triggers completion? |
 | 6 | פעיל | Stage pill exists | Need specs: what marks "active"? |
@@ -534,9 +542,16 @@ src/app/api/onboarding/signing/route.ts           — 2Sign signing task CRUD
 - **Summit `Customers_Status: -1`** clears the status field (null/0 silently ignored)
 - **Summit API paths**: `/crm/data/listentities/` NOT `/api/CRM/V1.0/ListEntities`. All lowercase under `/crm/data/`.
 - **Cross-repo schema deploy**: `onboardingRecord` lives in bitan-website schemas. Must push bitan-website FIRST before OS can create these docs.
-- **2Sign token TTL**: ~1 hour. Client caches for 55min. Re-login automatic.
+- **2Sign token TTL**: ~24 hours (not 1h as initially assumed). Cached for 23h.
 - **2Sign file upload**: Uses multipart FormData, not JSON. Buffer→Uint8Array→Blob conversion needed for TypeScript.
+- **2Sign Apiary docs are UNRELIABLE**: Real endpoint names, field names, auth format differ significantly. Always test via curl first.
+- **2Sign signature placement**: `SignaturesConstValues` = drawable signature (red marker) but 3x3 grid only. `SignaturePositions` with x/y = form field (blue) not signature. Use invisible PDF markers (pdf-lib) + `SearchWordForMarkingSignature` for exact placement with drawable signature.
+- **Summit `updateentity` format**: Must use `Entity: { ID: parseInt(id), Folder, Properties }`. NOT `EntityID + Fields`. Wrong format returns "יש להזין ערך בשדה Entity".
+- **Record-Summit linking gap**: Modal creates onboardingRecord WITHOUT summitEntityId. Intake form writes summitEntityId to token only. Dashboard auto-links on load via PATCH `/api/onboarding/records`.
+- **pdf-lib on Railway**: Must be in `experimental.serverComponentsExternalPackages` in next.config.js.
+- **Hebrew quotes in JSX**: Wrap in `{'text with "quotes"'}` — ESLint `react/no-unescaped-entities` breaks Railway build.
 - **Intake form re-save bug**: Re-submission without new files overwrites `submittedData.fileCount` with 0. Fixed in bitan-website PR #51.
+- **Summit file update**: `entityId` must be `parseInt()`'d — string IDs silently fail the update. Error logging added.
 
 ## Session: April 14, 2026 — Shaam↔Summit Full Sync System
 
