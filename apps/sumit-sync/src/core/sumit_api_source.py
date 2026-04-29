@@ -203,13 +203,17 @@ def fetch_sumit_data(
         progress_callback("fetching_reports", 0, len(entity_ids))
 
     # Step 2: Fetch full entity details
+    import sys as _sys
     entities = []
+    total_entities = len(entity_ids)
     for i, eid in enumerate(entity_ids):
         entity = api.get_entity(eid, folder_id)
         if entity:
             entities.append(entity)
+        if (i + 1) % 50 == 0 or (i + 1) == total_entities:
+            print(f"[SYNC] Fetching reports: {i+1}/{total_entities}", file=_sys.stderr, flush=True)
         if progress_callback and (i + 1) % 25 == 0:
-            progress_callback("fetching_reports", i + 1, len(entity_ids))
+            progress_callback("fetching_reports", i + 1, total_entities)
 
     logger.info("Fetched %d report entities (skipped %d empty/archived)",
                 len(entities), len(entity_ids) - len(entities))
@@ -232,6 +236,7 @@ def fetch_sumit_data(
                 year_filtered.append(entity)
 
     removed = len(entities) - len(year_filtered)
+    print(f"[SYNC] Year filter: {len(year_filtered)}/{len(entities)} match tax year {tax_year} (removed {removed})", file=_sys.stderr, flush=True)
     if removed > 0:
         logger.info("Filtered out %d entities (not tax year %d)", removed, tax_year)
     if not year_filtered:
@@ -254,9 +259,10 @@ def fetch_sumit_data(
                 client_ids_needed.add(client_id)
 
     if client_ids_needed:
-        logger.info("Need to resolve %d new client company numbers", len(client_ids_needed))
+        total_clients = len(client_ids_needed)
+        print(f"[SYNC] Resolving {total_clients} new client company numbers...", file=_sys.stderr, flush=True)
         if progress_callback:
-            progress_callback("resolving_clients", 0, len(client_ids_needed))
+            progress_callback("resolving_clients", 0, total_clients)
 
         for i, cid in enumerate(client_ids_needed):
             cn = api.get_client_company_number(cid)
@@ -266,10 +272,13 @@ def fetch_sumit_data(
             else:
                 warnings.append(f"Client {cid} has no company number")
 
+            if (i + 1) % 50 == 0 or (i + 1) == total_clients:
+                print(f"[SYNC] Resolving clients: {i+1}/{total_clients}", file=_sys.stderr, flush=True)
             if progress_callback and (i + 1) % 25 == 0:
-                progress_callback("resolving_clients", i + 1, len(client_ids_needed))
+                progress_callback("resolving_clients", i + 1, total_clients)
 
         store.save()
+        print(f"[SYNC] Client cache saved: {store.size} mappings", file=_sys.stderr, flush=True)
         if progress_callback:
             progress_callback("resolving_clients", len(client_ids_needed), len(client_ids_needed))
 
