@@ -573,3 +573,63 @@ src/app/api/onboarding/signing/route.ts           — 2Sign signing task CRUD
 - 52 Python tests (23 new)
 - Two-level writes: reports (update+create) + clients (פקיד שומה, סוג תיק)
 - Awaits IDOM file from office PC for first real test
+
+## Session: April 28-29, 2026 — Sumit Sync Multi-Sheet + Background Execution
+
+### 1. Multi-Sheet IDOM Workbook Parser (NEW)
+- `idom_workbook.py` — reads XLSX with multiple sheets (עצמאים, חברות, מנהלים, הצהרות הון)
+- Auto-detects format: structured template (headers in row 3) vs freeform paste (positional mapping)
+- Sheet→report type routing: עצמאים→annual, חברות→financial, מנהלים→unmapped (no Summit folder yet)
+- Tested against Guy's actual IDOM file: 715 records parsed (361+223+131)
+- IDOM template XLSX generated for Guy at `public/idom-template.xlsx` — structured headers, hints, instructions tab
+
+### 2. Background Thread Execution (CRITICAL FIX)
+- `execute-api` endpoint was synchronous — Railway killed it after ~60s HTTP timeout, leaving runs stuck at "processing" forever
+- **Fix**: endpoint now spawns `threading.Thread(daemon=True)` with its own DB session, returns immediately
+- Thread handles all Summit API calls, writes results to DB, sets status to completed/failed
+- Error messages stored in `operator_notes` field for frontend display
+- `PYTHONUNBUFFERED=1` in Dockerfile for Railway log visibility
+- `[BG-SYNC]` stderr logging for thread lifecycle debugging
+
+### 3. Frontend Rewrite — Sync New Run Page
+- Removed manual mode toggle (API-only now)
+- Removed report type selector (workbook handles routing by sheet)
+- Drag-and-drop upload zone with file preview
+- Template download link always visible (`/idom-template.xlsx`)
+- Year dropdown (2022-2026, defaults to previous year)
+- Mapping cache status chips
+- Background mode: "הסנכרון פועל ברקע" + "עבור לדף ההרצה →" link
+- 5s polling (was 10s) for faster failure detection
+- Honest progress stages — no premature checkmarks
+- Run detail title: "סנכרון IDOM — שנת מס {year}" (not report-type specific)
+
+### 4. DB Auto-Migration on Startup
+- `Base.metadata.create_all()` in FastAPI startup event
+- Fixes missing `write_logs` table that crashed cascade deletes
+
+### 5. Summit API Rate Limit Tuning
+- Original: 50 calls/batch, 600ms delay, 65s cooldown → ~50 min cold run
+- Attempted: 90/350ms/20s → 403 after 6 min (too aggressive)
+- **Current**: 60 calls/batch, 500ms delay, 35s cooldown, 45s backoff → ~25 min estimated
+- First successful cold run completed: IDOM parsed 361 records, Summit year filter issue caused 0 matches (see below)
+
+### 6. Year Mismatch Discovery
+- IDOM file titled "2025" (שנת שומה) but Summit reports tagged שנת מס "2024"
+- First successful run: 361 IDOM ✓, 0 Summit (year 2025 filter found nothing)
+- **Fix**: run with year 2024 to match Summit's data. Year dropdown must reflect שנת מס, not שנת שומה.
+- Run with year 2024 + tuned rate limits in progress — pending first real match results
+
+### Key Gotchas (New)
+- **Summit rate limit**: Real threshold ~80-100 rapid calls. 90 calls/batch hits 403. 60 is safe.
+- **Exponential backoff**: 45s → 90s → 180s → 360s. One backoff cycle adds ~11 min to a run.
+- **Railway log buffer**: Limited — old logs rotate out. `[BG-SYNC]` stderr messages may disappear from `railway logs` after ~30 min.
+- **Daemon threads on Railway**: Work fine. Thread survives HTTP response. Persists until Railway restarts the container.
+- **Year semantics**: IDOM uses שנת שומה (2025 = reports FOR 2024). Summit uses שנת מס (2024). Off by one.
+- **Guy's IDOM file**: No headers, no תאריך הגשה, no שנת שומה. Positional parsing works but sync can't determine filing status without הגשה.
+
+### Open / Next
+1. **Awaiting**: year 2024 run with real matches (rate limits just tuned, re-running)
+2. **Guy needs**: proper IDOM export using template — with תאריך הגשה column
+3. **מנהלים**: needs Summit folder ID + config to sync
+4. **Progress logging**: add per-stage print inside `fetch_sumit_data` so we're not blind during long runs
+5. **Cache warm-up**: consider separate `/mapping/refresh` call before sync to decouple the cold start
