@@ -243,7 +243,42 @@ export async function GET(request: Request) {
     }
 
     // Check if all signing tasks are complete
-    const allSigned = updatedTasks.length > 0 && updatedTasks.every(t => t.status === 'signed')
+    const allSigned = updatedTasks.length > 0 && updatedTasks.every(
+      t => t.status === 'signed' || t.status === 'external-done'
+    )
+
+    // Auto-advance stage when signing milestones are reached
+    if (anyUpdated && summitEntityId) {
+      const clientTasks = updatedTasks.filter(t => !t.taskGuid.startsWith('external-'))
+      const clientSigned = clientTasks.length > 0 && clientTasks.every(t => t.status === 'signed')
+
+      if (clientSigned || allSigned) {
+        // Determine target stage: client signed → stage 3 (אישור מנהל), all signed → stage 4 (רשויות)
+        const targetStage = allSigned ? 4 : 3
+        try {
+          const creds = {
+            CompanyID: parseInt(process.env.SUMMIT_COMPANY_ID || '0', 10),
+            APIKey: (process.env.SUMMIT_API_KEY || '').trim(),
+          }
+          if (creds.APIKey) {
+            const { SUMMIT_STATUS_IDS } = await import('@/lib/onboarding/types')
+            const statusId = SUMMIT_STATUS_IDS[targetStage]
+            if (statusId) {
+              await fetch('https://api.sumit.co.il/crm/data/updateentity/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Content-Language': 'he' },
+                body: JSON.stringify({
+                  Credentials: creds,
+                  Entity: { ID: parseInt(summitEntityId, 10), Folder: '557688522', Properties: { Customers_Status: statusId } },
+                }),
+              })
+              // Sync cache
+              await patch(record._id, { set: { cachedStage: targetStage, lastSyncedAt: new Date().toISOString() } })
+            }
+          }
+        } catch { /* non-fatal — manual advance still available */ }
+      }
+    }
 
     return NextResponse.json({
       tasks: updatedTasks,
