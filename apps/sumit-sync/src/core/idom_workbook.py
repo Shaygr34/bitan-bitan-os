@@ -86,7 +86,7 @@ def _is_template_format(filepath: str, sheet_name: str) -> bool:
 
         # Check if row 2 contains known IDOM header strings
         row2_values = [str(v).strip() for v in df_raw.iloc[2].tolist() if pd.notna(v)]
-        known_headers = {'מספר תיק', 'שם משפחה ופרטי', 'תאריך ארכה', 'שנת שומה', 'פקיד שומה'}
+        known_headers = {'מספר תיק', 'שם משפחה ופרטי', 'תאריך ארכה', 'תאריך הגשה', 'פקיד שומה', 'קוד שידור'}
         matches = sum(1 for v in row2_values if v in known_headers)
 
         if matches >= 3:
