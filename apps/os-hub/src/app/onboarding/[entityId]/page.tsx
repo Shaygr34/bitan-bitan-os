@@ -237,26 +237,26 @@ export default function ClientDetailPage() {
     window.open(`https://app.sumit.co.il/f557688522/c${entityId}/`, '_blank')
   }
 
-  const handleAdvanceStage = async () => {
-    const nextStage = state.currentStage + 1
-    if (nextStage > 6) return
-    const nextLabel = STAGE_LABELS[nextStage] || `שלב ${nextStage}`
-    if (!confirm(`לקדם ל${nextLabel}?`)) return
+  const handleChangeStage = async (targetStage: number) => {
+    if (targetStage < 1 || targetStage > 6) return
+    const targetLabel = STAGE_LABELS[targetStage] || `שלב ${targetStage}`
+    const direction = targetStage > state.currentStage ? 'לקדם' : 'להחזיר'
+    if (!confirm(`${direction} ל${targetLabel}?`)) return
 
     try {
       const res = await fetch('/api/onboarding/advance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entityId, targetStage: nextStage }),
+        body: JSON.stringify({ entityId, targetStage }),
       })
       if (res.ok) {
         loadData()
       } else {
         const data = await res.json().catch(() => ({})) // eslint-disable-line
-        alert(`שגיאה בקידום: ${data.error || 'Unknown error'}`)
+        alert(`שגיאה: ${data.error || 'Unknown error'}`)
       }
     } catch {
-      alert('שגיאה בקידום שלב')
+      alert('שגיאה בעדכון שלב')
     }
   }
 
@@ -312,6 +312,26 @@ export default function ClientDetailPage() {
                 {'התחלה: '}{formatDate(record.startDate)}
               </span>
             )}
+            {record?.intakeToken && (
+              <span className={styles.metaItem}>
+                <a
+                  href={`https://bitancpa.com/intake/${record.intakeToken}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--gold, #C5A572)', textDecoration: 'underline', cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    navigator.clipboard.writeText(`https://bitancpa.com/intake/${record.intakeToken}`)
+                    const el = e.currentTarget
+                    const orig = el.textContent
+                    el.textContent = 'הועתק!'
+                    setTimeout(() => { el.textContent = orig }, 1500)
+                  }}
+                >
+                  {'קישור קליטה'}
+                </a>
+              </span>
+            )}
             {state.currentStage > 0 && (
               <span className={styles.metaItem}>
                 {'שלב: '}{STAGE_LABELS[state.currentStage] || `${state.currentStage}`}
@@ -336,10 +356,19 @@ export default function ClientDetailPage() {
           >
             Summit
           </button>
+          {state.currentStage > 1 && (
+            <button
+              className={styles.actionBtn}
+              onClick={() => handleChangeStage(state.currentStage - 1)}
+              type="button"
+            >
+              {`\u2192 החזר שלב`}
+            </button>
+          )}
           {state.currentStage > 0 && state.currentStage < 6 && (
             <button
               className={`${styles.actionBtn} ${styles.advanceBtn}`}
-              onClick={handleAdvanceStage}
+              onClick={() => handleChangeStage(state.currentStage + 1)}
               type="button"
             >
               {`קדם שלב \u2190`}

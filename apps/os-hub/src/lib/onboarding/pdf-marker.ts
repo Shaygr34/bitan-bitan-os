@@ -35,9 +35,9 @@ const FORM_POSITIONS: Record<string, FormPositions> = {
   // רשות המיסים ייפוי כוח (page: 612 x 792)
   'poa-tax-authority': {
     client: { x: 220, yFromTop: 430 },       // חתימת בן זוג רשום/העוסק
-    clientDate: { x: 380, yFromTop: 430, width: 80, height: 20 },  // תאריך next to client sig
-    office: { x: 100, yFromTop: 618 },        // חתימה וחותמת in section ב
-    officeDate: { x: 380, yFromTop: 618, width: 80, height: 20 },  // תאריך next to office sig
+    clientDate: { x: 420, yFromTop: 432, width: 70, height: 18 },  // תאריך — right of client sig
+    office: { x: 100, yFromTop: 640 },        // חתימה וחותמת in section ב — moved down per Avi feedback
+    officeDate: { x: 420, yFromTop: 642, width: 70, height: 18 },  // תאריך — right of office sig
   },
   // ביטוח לאומי ניכויים (page: 594.96 x 841.92)
   'poa-nii-withholdings': {
