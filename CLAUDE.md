@@ -472,25 +472,33 @@ Root cause: re-submission without new files overwrote `submittedData.fileCount` 
 Fix: preserve previous file metadata on re-save when no new files uploaded.
 Files themselves were never deleted (Sanity CDN + Summit הערות intact).
 
-### Additional Fixes (late session)
+### Additional Fixes (late session, April 28-29)
 - **PR #114**: SigningCard PDF upload — end-to-end from UI (file picker → markers → 2Sign → email+SMS)
 - **PR #115**: Auto-link records to Summit entity from matching intake token
 - **Advance stage fix**: Summit format was `EntityID+Fields` (wrong) → `Entity{ID,Folder,Properties}` (correct)
 - **Resend task fix**: Endpoint path + JSON body format corrected
-- **Docs not storing on Summit** (bitan-website): Added `parseInt(entityId)` + error logging to file-writing block. Previously failed silently.
+- **Summit native file upload** (BREAKTHROUGH): File-type fields accept `"Filename;Base64Value"` format. Previous assumption "can't upload files" was FALSE. Now uploads docs natively to Summit File fields — clickable, downloadable in Summit UI.
+- **סוג לקוח fix**: Added aliases (עוסק מורשה→עצמאי, חברה בע"מ→חברה, עוסק פטור→פטור) + isCompanyType includes חברה בע"מ
+- **Stage revert**: "החזר שלב" button added — can go backwards, not just forward
+- **Intake link always visible**: "קישור קליטה" on detail page header, click to copy
+- **Auto-advance on signing**: client signs → stage 3, Avi counter-signs → stage 4 (automatic)
+- **Date auto-fill**: `fieldType: 4` (Date) in SignaturePositions — auto-fills signing date
+- **Counter-sign position**: adjusted down 22pts per Avi feedback
 
-### Known Issues (Updated — as of April 29)
-1. **Docs on Summit הערות**: May not store if `parseInt` fix doesn't resolve. Needs verification with next test client.
+### Known Issues (Updated — as of May 3)
+1. **Form re-open doesn't show uploaded docs**: Browser security prevents pre-filling file inputs. Need to show "✓ הועלה" badges from Sanity clientDocument records.
 2. **CompletionDashboard (old tab)**: Unmaintained, scan has perf issues. On hold.
 3. **Dashboard empty flash**: No retry/error state when API temporarily unavailable during deploy.
-4. **Date auto-fill**: Not yet implemented on signed docs. Can use `fieldType: 4` (Date) in marker approach.
+4. **Spouse fields**: Avi wants בן/בת זוג info on intake form (not mandatory). Not yet added.
+5. **ב"ל מיוצגים link**: Need to add BTL representative link field to intake/onboarding flow.
+6. **מחזור שנתי משוער**: Field exists on Summit (Int64) but not yet mapped from intake form.
 
 ### Full Onboarding Map — Stage Status
 | Stage | Name | Status | Blocker |
 |-------|------|--------|---------|
-| 1 | איסוף נתונים | **Operational** | None |
-| 2 | ייפוי כוח | **Working E2E** | Office counter-sign position needs Avi verification |
-| 3 | אישור מנהל | Advance button fixed | Need specs from Avi: what does "approval" mean? |
+| 1 | איסוף נתונים | **Operational** | Form re-open doc display |
+| 2 | ייפוי כוח | **Working E2E** | Counter-sign position fine-tuning |
+| 3 | אישור מנהל | **Auto-advances** | = Avi's counter-signature on ייפוי כוח |
 | 4 | רשויות | Not built | Need specs from Avi: manual or API? |
 | 5 | לקוח חדש | Checklist items exist | Need specs: what triggers completion? |
 | 6 | פעיל | Stage pill exists | Need specs: what marks "active"? |
