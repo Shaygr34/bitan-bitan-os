@@ -627,9 +627,28 @@ src/app/api/onboarding/signing/route.ts           — 2Sign signing task CRUD
 - **Year semantics**: IDOM uses שנת שומה (2025 = reports FOR 2024). Summit uses שנת מס (2024). Off by one.
 - **Guy's IDOM file**: No headers, no תאריך הגשה, no שנת שומה. Positional parsing works but sync can't determine filing status without הגשה.
 
+### 7. Template V2 (SHAAM column order)
+- Removed שנת שומה column (set in OS UI, not in file)
+- Column order matches exact SHAAM שאילתא output: קוד שידור → תאריך ארכה → תאריך הגשה → מח → סוג תיק → פקיד שומה → שם → מספר תיק
+- Guy can copy-paste directly from שאילתא output without rearranging
+- Saved to `apps/os-hub/public/idom-template.xlsx` + Google Drive
+
+### 8. Progress Logging in fetch_sumit_data
+- `[SYNC]` stderr logs at every stage: fetching reports (50/572), year filter result, resolving clients (50/400), cache saved
+- Deployed but not yet tested (no completed run since deploy)
+
+### Status: No Successful Year-2024 Run Yet
+- Multiple runs attempted. All either hit Railway timeout (pre-background-thread), Summit 403 (aggressive rate limits), or zombie'd from mid-run deploys.
+- Background thread architecture PROVEN working (thread starts, DB session works, error handling works).
+- Rate limits TUNED to 60 calls/batch, 500ms delay, 35s cooldown — should be safe from 403.
+- Cold cache run estimated at ~25 min. No run has completed the full cycle yet.
+- **Zombie cause**: Railway redeploying (from our code pushes) kills the running container mid-sync. Background thread dies with it. Run stays "processing" forever.
+- **Fix for next session**: stop pushing code during a run. Or: implement run recovery (detect stale "processing" runs on startup and mark as failed).
+
 ### Open / Next
-1. **Awaiting**: year 2024 run with real matches (rate limits just tuned, re-running)
-2. **Guy needs**: proper IDOM export using template — with תאריך הגשה column
+1. **First priority**: Complete a year-2024 sync run WITHOUT deploying during it. Let it cook uninterrupted.
+2. **Guy needs**: proper IDOM export using template V2 — with תאריך הגשה column. Message drafted, template on Google Drive.
 3. **מנהלים**: needs Summit folder ID + config to sync
-4. **Progress logging**: add per-stage print inside `fetch_sumit_data` so we're not blind during long runs
-5. **Cache warm-up**: consider separate `/mapping/refresh` call before sync to decouple the cold start
+4. **Run recovery**: on startup, detect runs stuck at "processing" for >1 hour and mark as failed
+5. **Cache warm-up**: consider pre-warming via `/mapping/refresh` before sync to decouple cold start
+6. **Ops dashboard vision**: once sync works, build the internal dashboard for Avi/Ron (see memory: `bitan-operations-dashboard-vision.md`)
