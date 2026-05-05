@@ -63,7 +63,12 @@ export async function generateArticleImage(
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          responseModalities: ["IMAGE"],
+          // NB2 thinking emits TEXT internally — IMAGE-only modality can hang.
+          responseModalities: ["TEXT", "IMAGE"],
+          imageConfig: {
+            aspectRatio: "16:9",
+            imageSize: "2K",
+          },
         },
       }),
       signal: controller.signal,
