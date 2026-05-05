@@ -6,7 +6,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { sanityConfig } from "@/config/integrations";
 
-const MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+const MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
 
 const CATEGORY_VISUALS: Record<string, string> = {
   "real-estate-tax": "buildings, property outlines, house silhouettes, land plots, keys",
