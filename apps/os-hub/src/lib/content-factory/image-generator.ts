@@ -1,12 +1,17 @@
 /**
  * AI image generation for article hero images.
- * Uses Google Gemini + Sanity CDN upload.
+ * Uses Google Gemini REST API directly (no SDK) so we control the fetch timeout.
+ *
+ * Why no SDK: @google/genai uses Node's native fetch (undici), whose default
+ * `headersTimeout` (~30s on some Node builds) kills NB2 requests before the
+ * model finishes its thinking pass. Direct fetch + AbortController lets us
+ * wait the full 3 minutes the route allows.
  */
 
-import { GoogleGenAI } from "@google/genai";
 import { sanityConfig } from "@/config/integrations";
 
 const MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
+const GEN_TIMEOUT_MS = Number(process.env.GEMINI_IMAGE_TIMEOUT_MS || 170_000);
 
 const CATEGORY_VISUALS: Record<string, string> = {
   "real-estate-tax": "buildings, property outlines, house silhouettes, land plots, keys",
@@ -41,25 +46,57 @@ export async function generateArticleImage(
     throw new Error("GOOGLE_AI_API_KEY not configured");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
   const prompt = buildPrompt(title, category);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
 
-  console.log("[image-gen] Generating image for:", title);
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      responseModalities: ["image"],
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GEN_TIMEOUT_MS);
+  const startedAt = Date.now();
 
-  const parts = response.candidates?.[0]?.content?.parts;
+  console.log("[image-gen] Generating image for:", title, `(model=${MODEL}, timeout=${GEN_TIMEOUT_MS}ms)`);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseModalities: ["IMAGE"],
+        },
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    const elapsed = Date.now() - startedAt;
+    if ((err as { name?: string })?.name === "AbortError") {
+      throw new Error(`Gemini request aborted after ${elapsed}ms (timeout=${GEN_TIMEOUT_MS}ms)`);
+    }
+    throw err;
+  }
+  clearTimeout(timer);
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Gemini ${response.status}: ${text.slice(0, 400)}`);
+  }
+
+  const data = (await response.json()) as {
+    candidates?: Array<{
+      content?: { parts?: Array<{ inlineData?: { data?: string } }> };
+    }>;
+  };
+
+  const parts = data.candidates?.[0]?.content?.parts;
   if (!parts) {
     throw new Error("No parts in Gemini response");
   }
 
   for (const part of parts) {
     if (part.inlineData?.data) {
+      console.log("[image-gen] Got image in", Date.now() - startedAt, "ms");
       return Buffer.from(part.inlineData.data, "base64");
     }
   }
