@@ -55,11 +55,12 @@ src/app/content-factory/new/page.tsx          — Upload & draft generation page
 src/app/api/content-factory/upload-refs/      — POST: file upload with PDF/DOCX text extraction
 src/app/api/content-factory/generate-draft/   — POST: Claude streaming draft from refs (5min max)
 src/app/api/content-factory/articles/[id]/push-to-sanity/ — POST: enhanced Sanity push (all fields)
-src/app/api/content-factory/articles/[id]/generate-image/ — POST: Gemini Imagen 4 → Sanity CDN
+src/app/api/content-factory/articles/[id]/generate-image/ — POST: Gemini NB2 → Sanity CDN, patches mainImage if pushed
+src/app/api/content-factory/articles/[id]/upload-image/   — POST: multipart upload custom hero → Sanity CDN
 src/app/api/content-factory/newsletter/       — POST: branded HTML newsletter from article
 src/lib/content-factory/ref-extractor.ts      — PDF/DOCX text extraction (pdf-parse, mammoth)
 src/lib/content-factory/draft-from-refs.ts    — Orchestrator: refs → Claude → Article
-src/lib/content-factory/image-generator.ts    — Gemini image gen + Sanity upload
+src/lib/content-factory/image-generator.ts    — Gemini image gen (direct REST + AbortController) + Sanity upload
 src/lib/content-factory/newsletter-sender.ts  — Branded HTML email renderer
 src/lib/sanity/mapper.ts                      — V2: authors[], categories[], checklist PT, excerpt
 ```
@@ -258,7 +259,17 @@ src/components/StatusBadge.tsx                 — Status badges (includes summi
 - **Sanity token**: `os-write` (Editor role) on Railway `SANITY_API_WRITE_TOKEN` — the old `website-write` token was Viewer-only
 - **Studio deep link**: `/structure/knowledgeCentre;article;{id}` (not `/structure/article;{id}`)
 - **pdf-parse**: Must use v1.1.1 (v2 has incompatible class-based API)
-- **Known gaps**: tags still empty, image gen needs `GOOGLE_AI_API_KEY` on Railway, newsletter is copy-paste to Summit (no API send yet)
+- **Known gaps**: tags still empty, newsletter is copy-paste to Summit (no API send yet)
+
+### Image Generation (Nano Banana 2) — May 5, 2026
+- **Model**: `gemini-3.1-flash-image-preview` (NB2). Higher quality than NB1, mandatory thinking mode, slower (~40-90s).
+- **Override via env**: `GEMINI_IMAGE_MODEL` and `GEMINI_IMAGE_TIMEOUT_MS` (default 170_000).
+- **CRITICAL — Tier 1 billing required**: NB2 free-tier limit is **0**. Free-tier API keys created BEFORE billing was enabled stay locked to free tier even after billing is added. Solution: create a NEW key in AI Studio after billing is active. Old keys cannot be promoted.
+- **Project**: `bitan-ga4-reader` (same GCP project as GA4/Search Console). Billing on `bitancpa.com` Google account.
+- **Why direct REST instead of `@google/genai` SDK**: Node native fetch (undici) has a 5-min `headersTimeout` that kills NB2 requests before the model finishes its thinking pass. Manifests as `TypeError: fetch failed` / `UND_ERR_HEADERS_TIMEOUT`. Image-generator uses direct fetch + AbortController so we own the timeout window.
+- **Required request shape**: `responseModalities: ["TEXT", "IMAGE"]` (NB2 thinking emits intermediate TEXT — IMAGE-only causes hangs that surface as 5-min undici timeouts). Plus `imageConfig: { aspectRatio: "16:9", imageSize: "2K" }`.
+- **Quota error decoding**: `free_tier_requests, limit: 0` = key not promoted to paid tier. `free_tier_input_token_count, limit: 0` = same root cause, different metric. Both mean: rotate the key.
+- **Image flow UX**: Article editor Step 1 has Generate / Upload-file buttons + animated progress bar (asymptotic, capped at 95% until response). Generated/uploaded asset stashed on `Article.imageAssetId` (Prisma field). Push-to-sanity reads it as `sanityImageRef` and attaches `mainImage` at doc creation. If article already pushed, both endpoints patch `mainImage` directly. Background-resilient via localStorage flag + DB poll: navigating away does NOT cancel gen.
 - **Assets section**: hidden for new articles (only shows for legacy articles with platform assets)
 
 ### Design System (V2 — March 2026)
