@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
-import type { SigningTask } from '@/lib/onboarding/types'
+import { resolveOfficeSigner, type SigningTask } from '@/lib/onboarding/types'
 import styles from './SigningCard.module.css'
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
   clientPhone: string
   clientIdNumber?: string
   clientType?: string
+  accountManager?: string
   currentStage: number
   tasks: SigningTask[]
   onTasksChanged: () => void
@@ -48,7 +49,6 @@ interface SigningDocType {
   requiresCounterSign: boolean
   clientTypeFilter: string[] | null
   formType: string
-  officeSignerEmail?: string
 }
 
 const ALL_SIGNING_DOCS: SigningDocType[] = [
@@ -60,7 +60,6 @@ const ALL_SIGNING_DOCS: SigningDocType[] = [
     requiresCounterSign: true,
     clientTypeFilter: null,
     formType: 'poa-tax-authority',
-    officeSignerEmail: 'avi@bitancpa.com',
   },
   {
     documentType: 'poa-nii-withholdings',
@@ -89,6 +88,7 @@ export default function SigningCard({
   clientPhone,
   clientIdNumber,
   clientType,
+  accountManager,
   currentStage,
   tasks,
   onTasksChanged,
@@ -118,6 +118,9 @@ export default function SigningCard({
 
       const doc = ALL_SIGNING_DOCS.find(d => d.documentType === documentType)
 
+      // Resolve office counter-signer based on client's case manager (מנהל תיק)
+      const officeSigner = doc?.requiresCounterSign ? resolveOfficeSigner(accountManager) : null
+
       const res = await fetch('/api/onboarding/signing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,8 +133,8 @@ export default function SigningCard({
           documentType,
           pdfBase64: base64,
           formType: doc?.formType,
-          officeSignerEmail: doc?.officeSignerEmail,
-          officeSignerName: 'ביטן את ביטן — רואי חשבון',
+          officeSignerEmail: officeSigner?.email,
+          officeSignerName: officeSigner?.name,
         }),
       })
 
@@ -153,7 +156,7 @@ export default function SigningCard({
       const input = fileInputRefs.current[documentType]
       if (input) input.value = ''
     }
-  }, [summitEntityId, clientName, clientEmail, clientPhone, clientIdNumber, onTasksChanged])
+  }, [summitEntityId, clientName, clientEmail, clientPhone, clientIdNumber, accountManager, onTasksChanged])
 
   const handleResend = useCallback(async (taskGuid: string) => {
     setResending(taskGuid)
