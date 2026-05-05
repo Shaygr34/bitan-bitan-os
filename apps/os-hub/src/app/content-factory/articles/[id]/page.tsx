@@ -815,7 +815,11 @@ export default function ArticleDetailPage() {
   const [publishingToSanity, setPublishingToSanity] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [imgProgress, setImgProgress] = useState(0);
+  const [imgStep, setImgStep] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imgProgressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const imgPollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [newsletterHtml, setNewsletterHtml] = useState<string | null>(null);
   const [showNewsletterPreview, setShowNewsletterPreview] = useState(false);
   const [preparingNewsletter, setPreparingNewsletter] = useState(false);
@@ -848,6 +852,42 @@ export default function ArticleDetailPage() {
   useEffect(() => {
     fetchArticle();
   }, [fetchArticle]);
+
+  // Resume image-gen tracking after a navigation-away/back: if a recent gen
+  // flag exists in localStorage and the article's imageAssetId hasn't yet
+  // updated to a value, re-display the progress bar and start polling.
+  // Server-side gen continues regardless of the browser tab.
+  useEffect(() => {
+    if (!article) return;
+    let raw: string | null = null;
+    try { raw = localStorage.getItem(`cf-img-gen:${articleId}`); } catch { raw = null; }
+    if (!raw) return;
+    const startedAt = parseInt(raw, 10);
+    if (!Number.isFinite(startedAt)) {
+      try { localStorage.removeItem(`cf-img-gen:${articleId}`); } catch {}
+      return;
+    }
+    const age = Date.now() - startedAt;
+    if (age > 5 * 60 * 1000) {
+      try { localStorage.removeItem(`cf-img-gen:${articleId}`); } catch {}
+      return;
+    }
+    if (generatingImage || imgProgressTimer.current) return; // already tracking
+    setGeneratingImage(true);
+    startImgProgress(false);
+    startImgPoll(article.imageAssetId ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [article?.id]);
+
+  // Cleanup any timers on unmount (timers themselves are independent of the
+  // server-side request — the gen still completes; flag in localStorage
+  // is what re-anchors progress on next mount).
+  useEffect(() => {
+    return () => {
+      if (imgProgressTimer.current) clearInterval(imgProgressTimer.current);
+      if (imgPollTimer.current) clearInterval(imgPollTimer.current);
+    };
+  }, []);
 
   async function handleArticleTransition(to: string) {
     setTransitioning(true);
@@ -978,8 +1018,86 @@ export default function ArticleDetailPage() {
     }
   }
 
+  // Asymptotic progress over ~30s (image gen typically 15-25s on Gemini 3.1)
+  const IMG_PROGRESS_STEPS = [
+    { at: 0, label: "מכין הנחיה לתמונה..." },
+    { at: 20, label: "ג'מיני יוצר תמונה..." },
+    { at: 55, label: "ממתין לתשובה מהמודל..." },
+    { at: 80, label: "מעלה ל-Sanity..." },
+    { at: 95, label: "כמעט מוכן..." },
+  ];
+  const IMG_GEN_FLAG = `cf-img-gen:${articleId}`;
+  const IMG_GEN_TTL_MS = 5 * 60 * 1000; // 5 min
+
+  function startImgProgress(persist: boolean) {
+    setImgProgress(0);
+    setImgStep(IMG_PROGRESS_STEPS[0].label);
+    if (persist) {
+      try { localStorage.setItem(IMG_GEN_FLAG, String(Date.now())); } catch {}
+    }
+    let elapsed = 0;
+    if (imgProgressTimer.current) clearInterval(imgProgressTimer.current);
+    imgProgressTimer.current = setInterval(() => {
+      elapsed += 1;
+      const pct = Math.min(95, Math.round(100 * (1 - Math.exp(-elapsed / 18))));
+      setImgProgress(pct);
+      const step = [...IMG_PROGRESS_STEPS].reverse().find((s) => pct >= s.at);
+      if (step) setImgStep(step.label);
+    }, 1000);
+  }
+
+  function stopImgProgress(success: boolean) {
+    if (imgProgressTimer.current) {
+      clearInterval(imgProgressTimer.current);
+      imgProgressTimer.current = null;
+    }
+    if (imgPollTimer.current) {
+      clearInterval(imgPollTimer.current);
+      imgPollTimer.current = null;
+    }
+    try { localStorage.removeItem(IMG_GEN_FLAG); } catch {}
+    if (success) {
+      setImgProgress(100);
+      setImgStep("התמונה מוכנה!");
+      // Clear after a beat so the next gen starts fresh
+      setTimeout(() => {
+        setImgProgress(0);
+        setImgStep("");
+        setGeneratingImage(false);
+      }, 1500);
+    } else {
+      setImgProgress(0);
+      setImgStep("");
+      setGeneratingImage(false);
+    }
+  }
+
+  // Poll the article for imageAssetId change; used when resuming after navigation
+  function startImgPoll(initialAssetId: string | null | undefined) {
+    if (imgPollTimer.current) clearInterval(imgPollTimer.current);
+    imgPollTimer.current = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/content-factory/articles/${articleId}`);
+        if (!r.ok) return;
+        const fresh = await r.json();
+        if (fresh.imageAssetId && fresh.imageAssetId !== initialAssetId) {
+          setArticle(fresh);
+          showToast({ type: "success", message: "תמונה נוצרה בהצלחה" });
+          stopImgProgress(true);
+        }
+      } catch {
+        // transient — keep polling
+      }
+    }, 4000);
+  }
+
   async function handleGenerateImage() {
     setGeneratingImage(true);
+    const initialAssetId = article?.imageAssetId ?? null;
+    startImgProgress(true);
+    // Background-resilient: also poll, so if user navigates away & back, the
+    // mount-effect picks up the flag and the gen completes regardless.
+    startImgPoll(initialAssetId);
     try {
       const res = await fetch(`/api/content-factory/articles/${articleId}/generate-image`, {
         method: "POST",
@@ -991,13 +1109,13 @@ export default function ArticleDetailPage() {
       }
       showToast({ type: "success", message: "תמונה נוצרה בהצלחה" });
       await fetchArticle();
+      stopImgProgress(true);
     } catch (err) {
+      stopImgProgress(false);
       showToast({
         type: "error",
         message: `שגיאה ביצירת תמונה: ${(err as Error).message}`,
       });
-    } finally {
-      setGeneratingImage(false);
     }
   }
 
@@ -1271,7 +1389,24 @@ export default function ArticleDetailPage() {
                     : "התמונה תשויך למאמר בעת ההעברה לאתר"
                   : "יצירת תמונה ממותגת באמצעות AI או העלאה ידנית"}
               </p>
-              {article.imageAssetId && (() => {
+              {generatingImage && (
+                <div className={styles.imgProgress}>
+                  <div className={styles.imgProgressHeader}>
+                    <span className={styles.imgProgressStep}>{imgStep}</span>
+                    <span className={styles.imgProgressPct}>{imgProgress}%</span>
+                  </div>
+                  <div className={styles.imgProgressTrack}>
+                    <div
+                      className={styles.imgProgressFill}
+                      style={{ width: `${imgProgress}%` }}
+                    />
+                  </div>
+                  <p className={styles.imgProgressHint}>
+                    התהליך אורך 15-30 שניות. אפשר לעזוב את הדף — היצירה תסתיים ברקע.
+                  </p>
+                </div>
+              )}
+              {article.imageAssetId && !generatingImage && (() => {
                 // Sanity asset _id format: image-{hash}-{w}x{h}-{format}
                 const m = article.imageAssetId.match(/^image-([a-f0-9]+)-(\d+x\d+)-(\w+)$/);
                 if (!m) return null;

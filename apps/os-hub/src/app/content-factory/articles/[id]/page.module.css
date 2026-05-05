@@ -775,3 +775,50 @@
   font-size: var(--font-size-xs);
   flex-shrink: 0;
 }
+
+/* ── Image generation progress ── */
+.imgProgress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.imgProgressHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.imgProgressStep {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-heading);
+}
+
+.imgProgressPct {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--brand-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.imgProgressTrack {
+  height: 6px;
+  background: var(--border-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.imgProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand-navy), var(--brand-gold));
+  border-radius: 3px;
+  transition: width 0.8s ease-out;
+}
+
+.imgProgressHint {
+  font-size: var(--font-size-xs);
+  color: var(--text-caption);
+  margin: 0;
+}
