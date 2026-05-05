@@ -95,3 +95,27 @@ export function getDocCategory(clientType?: string): 'individual' | 'company' | 
   if (clientType === 'פטור' || clientType === 'עוסק פטור') return 'exempt'
   return 'individual'
 }
+
+// Office counter-signers — keyed by מנהל תיק name as it appears in Summit.
+// Used to resolve which partner counter-signs a client's ייפוי כוח.
+export interface OfficeSigner {
+  name: string
+  email: string
+}
+
+export const OFFICE_SIGNERS: Record<string, OfficeSigner> = {
+  'אבי ביטן': { name: 'אבי ביטן — ביטן את ביטן רואי חשבון', email: 'avi@bitancpa.com' },
+  'רון ביטן': { name: 'רון ביטן — ביטן את ביטן רואי חשבון', email: 'ron@bitancpa.com' },
+}
+
+const DEFAULT_OFFICE_SIGNER: OfficeSigner = OFFICE_SIGNERS['אבי ביטן']
+
+/**
+ * Resolve which office partner counter-signs based on the client's case manager.
+ * Falls back to Avi if the case manager is missing or unrecognized.
+ */
+export function resolveOfficeSigner(caseManager?: string | null): OfficeSigner {
+  if (!caseManager) return DEFAULT_OFFICE_SIGNER
+  const normalized = caseManager.trim()
+  return OFFICE_SIGNERS[normalized] || DEFAULT_OFFICE_SIGNER
+}
