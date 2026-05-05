@@ -56,6 +56,7 @@ export async function POST(
         seoDescription: article.seoDescription,
         slug: article.slug,
         aiGenerated: article.aiGenerated,
+        sanityImageRef: article.imageAssetId,
       },
       { authorName: "ביטן את ביטן", asDraft: true },
     );

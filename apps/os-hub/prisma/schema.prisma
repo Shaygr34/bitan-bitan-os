@@ -182,6 +182,7 @@ model Article {
   sanityId       String?
   sanityUrl      String?
   aiGenerated    Boolean   @default(false)
+  imageAssetId   String?
 
   idea       Idea?       @relation(fields: [ideaId], references: [id])
   assets     Asset[]

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
@@ -62,6 +62,7 @@ interface Article {
   sanityId?: string | null;
   sanityUrl?: string | null;
   aiGenerated?: boolean;
+  imageAssetId?: string | null;
   category?: string | null;
   slug?: string | null;
   tags?: string[];
@@ -813,6 +814,8 @@ export default function ArticleDetailPage() {
   const [selectedPlatform, setSelectedPlatform] = useState(PLATFORMS[0]);
   const [publishingToSanity, setPublishingToSanity] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newsletterHtml, setNewsletterHtml] = useState<string | null>(null);
   const [showNewsletterPreview, setShowNewsletterPreview] = useState(false);
   const [preparingNewsletter, setPreparingNewsletter] = useState(false);
@@ -987,6 +990,7 @@ export default function ArticleDetailPage() {
         throw new Error(msg);
       }
       showToast({ type: "success", message: "תמונה נוצרה בהצלחה" });
+      await fetchArticle();
     } catch (err) {
       showToast({
         type: "error",
@@ -994,6 +998,33 @@ export default function ArticleDetailPage() {
       });
     } finally {
       setGeneratingImage(false);
+    }
+  }
+
+  async function handleUploadImage(file: File) {
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/content-factory/articles/${articleId}/upload-image`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const msg = data?.error?.message || (typeof data?.error === "string" ? data.error : `HTTP ${res.status}`);
+        throw new Error(msg);
+      }
+      showToast({ type: "success", message: "תמונה הועלתה בהצלחה" });
+      await fetchArticle();
+    } catch (err) {
+      showToast({
+        type: "error",
+        message: `שגיאה בהעלאת תמונה: ${(err as Error).message}`,
+      });
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
@@ -1233,16 +1264,65 @@ export default function ArticleDetailPage() {
             <div className={styles.publishStepNumber}>1</div>
             <div className={styles.publishStepContent}>
               <div className={styles.publishStepTitle}>תמונה ראשית</div>
-              <p className={styles.publishStepDesc}>יצירת תמונה ממותגת באמצעות AI</p>
-              <button
-                className="btn-secondary"
-                onClick={handleGenerateImage}
-                disabled={generatingImage}
-              >
-                {generatingImage
-                  ? t("contentFactory.articles.generatingImage")
-                  : t("contentFactory.articles.generateImage")}
-              </button>
+              <p className={styles.publishStepDesc}>
+                {article.imageAssetId
+                  ? article.sanityId
+                    ? "התמונה משויכת למאמר ב-Sanity"
+                    : "התמונה תשויך למאמר בעת ההעברה לאתר"
+                  : "יצירת תמונה ממותגת באמצעות AI או העלאה ידנית"}
+              </p>
+              {article.imageAssetId && (() => {
+                // Sanity asset _id format: image-{hash}-{w}x{h}-{format}
+                const m = article.imageAssetId.match(/^image-([a-f0-9]+)-(\d+x\d+)-(\w+)$/);
+                if (!m) return null;
+                const [, hash, dim, fmt] = m;
+                const cdnUrl = `https://cdn.sanity.io/images/${process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "ul4uwnp7"}/production/${hash}-${dim}.${fmt}`;
+                return (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={cdnUrl}
+                    alt="תמונה ראשית"
+                    style={{
+                      width: "100%",
+                      maxHeight: "180px",
+                      objectFit: "cover",
+                      borderRadius: "6px",
+                      marginBottom: "0.75rem",
+                      border: "1px solid #E2E0DB",
+                    }}
+                  />
+                );
+              })()}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUploadImage(file);
+                }}
+              />
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  className="btn-secondary"
+                  onClick={handleGenerateImage}
+                  disabled={generatingImage || uploadingImage}
+                >
+                  {generatingImage
+                    ? t("contentFactory.articles.generatingImage")
+                    : article.imageAssetId
+                      ? "צור מחדש"
+                      : t("contentFactory.articles.generateImage")}
+                </button>
+                <button
+                  className="btn-ghost"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={generatingImage || uploadingImage}
+                >
+                  {uploadingImage ? "מעלה..." : article.imageAssetId ? "החלף עם קובץ" : "העלה קובץ"}
+                </button>
+              </div>
             </div>
           </div>
 

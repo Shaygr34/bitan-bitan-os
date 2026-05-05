@@ -1,22 +1,26 @@
 /**
- * POST /api/content-factory/articles/:id/generate-image
+ * POST /api/content-factory/articles/:id/upload-image
  *
- * Generates a hero image using Gemini, uploads to Sanity CDN.
- * If the article is already pushed to Sanity, patches the mainImage field.
+ * Multipart upload of a custom hero image. Uploads to Sanity asset library,
+ * stashes the asset ref on the Article, and patches mainImage if the article
+ * has already been pushed to Sanity.
  */
 
 import { NextResponse } from "next/server";
 import { prisma, withRetry } from "@/lib/prisma";
 import { isValidUuid, errorJson, isTableOrConnectionError } from "@/lib/content-factory/validate";
-import { generateAndUploadImage } from "@/lib/content-factory/image-generator";
+import { uploadImageToSanity } from "@/lib/content-factory/image-generator";
 import { sanityConfig } from "@/config/integrations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120; // 2 min for image gen
+export const maxDuration = 60;
+
+const ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -34,20 +38,30 @@ export async function POST(
       return errorJson(404, "NOT_FOUND", "Article not found");
     }
 
-    if (!process.env.GOOGLE_AI_API_KEY) {
-      return errorJson(503, "CONFIG_ERROR", "GOOGLE_AI_API_KEY not configured");
+    const formData = await request.formData();
+    const file = formData.get("file");
+
+    if (!(file instanceof File)) {
+      return errorJson(400, "NO_FILE", "Missing 'file' field in multipart upload");
     }
 
-    // Generate + upload to Sanity CDN
-    const slug = article.slug || article.id.slice(0, 8);
-    const { assetId } = await generateAndUploadImage(
-      article.title,
-      slug,
-      article.category,
-    );
+    if (!ALLOWED_TYPES.has(file.type)) {
+      return errorJson(400, "INVALID_TYPE", `Unsupported image type: ${file.type}`);
+    }
 
-    // Stash the asset ref on the Article so the UI can preview it and
-    // push-to-sanity can attach it as mainImage when the doc is created.
+    if (file.size > MAX_BYTES) {
+      return errorJson(400, "TOO_LARGE", `Image exceeds 10MB limit (${file.size} bytes)`);
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const slug = article.slug || article.id.slice(0, 8);
+    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const filename = `cf-upload-${slug}.${ext}`;
+
+    const assetId = await uploadImageToSanity(buffer, filename);
+
     await withRetry(() =>
       prisma.article.update({
         where: { id },
@@ -55,11 +69,9 @@ export async function POST(
       }),
     );
 
-    // If article already pushed to Sanity, patch the mainImage field
     let sanityPatchError: string | undefined;
     if (article.sanityId && sanityConfig.apiToken) {
       try {
-        const sanityDocId = article.sanityId;
         const url = `https://${sanityConfig.projectId}.api.sanity.io/v2024-01-01/data/mutate/${sanityConfig.dataset}`;
         await fetch(url, {
           method: "POST",
@@ -71,7 +83,7 @@ export async function POST(
             mutations: [
               {
                 patch: {
-                  id: sanityDocId,
+                  id: article.sanityId,
                   set: {
                     mainImage: {
                       _type: "image",
@@ -83,9 +95,9 @@ export async function POST(
             ],
           }),
         });
-        console.log("[generate-image] Patched mainImage on Sanity doc:", sanityDocId);
+        console.log("[upload-image] Patched mainImage on Sanity doc:", article.sanityId);
       } catch (patchErr) {
-        console.warn("[generate-image] Failed to patch Sanity mainImage:", patchErr);
+        console.warn("[upload-image] Failed to patch Sanity mainImage:", patchErr);
         sanityPatchError = (patchErr as Error).message;
       }
     }
@@ -93,7 +105,7 @@ export async function POST(
     return NextResponse.json({
       assetId,
       articleId: id,
-      sanityPatched: !sanityPatchError,
+      sanityPatched: article.sanityId ? !sanityPatchError : false,
       sanityPatchError,
     });
   } catch (error) {
@@ -101,8 +113,8 @@ export async function POST(
       return errorJson(503, "DB_UNAVAILABLE", "Database is not available");
     }
 
-    console.error("[generate-image] Error:", error);
-    const message = error instanceof Error ? error.message : "Image generation failed";
+    console.error("[upload-image] Error:", error);
+    const message = error instanceof Error ? error.message : "Image upload failed";
     return errorJson(500, "INTERNAL_ERROR", message);
   }
 }
