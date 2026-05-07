@@ -63,8 +63,49 @@ export default function ClientDetailPage() {
     signingTasks: [],
   })
 
+  const isPending = entityId.startsWith('pending-')
+  const pendingToken = isPending ? entityId.replace('pending-', '') : ''
+
   const loadData = useCallback(async () => {
     try {
+      // Pre-bounce path: client hasn't opened the intake link yet — load token data only.
+      if (isPending) {
+        const tokensRes = await fetch('/api/intake/tokens')
+        const tokens = tokensRes.ok ? await tokensRes.json() : []
+        const matching = Array.isArray(tokens) ? tokens.find((t: { token: string }) => t.token === pendingToken) : null
+        let pendingName = ''
+        let pendingType = ''
+        let pendingManager = ''
+        if (matching?.prefillData) {
+          try {
+            const pf = JSON.parse(matching.prefillData)
+            pendingName = pf.clientName || ''
+            pendingType = pf.clientType || ''
+            pendingManager = pf.manager || ''
+          } catch { /* ignore */ }
+        }
+        setState({
+          loading: false,
+          error: null,
+          record: {
+            _id: `pending-${pendingToken}`,
+            _createdAt: matching?._createdAt || new Date().toISOString(),
+            clientName: pendingName || matching?.clientName || 'לקוח חדש',
+            clientType: pendingType,
+            accountManager: pendingManager,
+            intakeToken: pendingToken,
+            startDate: matching?._createdAt,
+            checklistItems: [],
+          },
+          currentStage: 0,
+          summitData: { clientType: pendingType, accountManager: pendingManager },
+          companyNumber: '',
+          documents: [],
+          signingTasks: [],
+        })
+        return
+      }
+
       // Fetch onboarding records and Summit entity in parallel
       const [recordsRes, entityRes] = await Promise.all([
         fetch('/api/onboarding/records'),
@@ -183,7 +224,7 @@ export default function ClientDetailPage() {
         error: err instanceof Error ? err.message : 'Failed to load data',
       }))
     }
-  }, [entityId])
+  }, [entityId, isPending, pendingToken])
 
   useEffect(() => {
     loadData()

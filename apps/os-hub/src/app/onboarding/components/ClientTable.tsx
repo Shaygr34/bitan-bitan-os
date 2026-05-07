@@ -32,10 +32,16 @@ function daysFromStart(dateStr?: string): number {
 export default function ClientTable({ clients, onNavigate, onDelete, deletingIds }: Props) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
+  const navIdFor = (client: PipelineClient): string | null => {
+    if (client.summitEntityId) return client.summitEntityId
+    if (client.intakeToken) return `pending-${client.intakeToken}`
+    if (client._id && !client._id.startsWith('token-')) return client._id
+    return null
+  }
+
   const handleRowClick = (client: PipelineClient) => {
-    if (client.summitEntityId) {
-      onNavigate(client.summitEntityId)
-    }
+    const id = navIdFor(client)
+    if (id) onNavigate(id)
   }
 
   const getPhone = (client: PipelineClient): string => {
@@ -67,9 +73,8 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
 
   const handleDetail = (e: React.MouseEvent, client: PipelineClient) => {
     e.stopPropagation()
-    if (client.summitEntityId) {
-      onNavigate(client.summitEntityId)
-    }
+    const id = navIdFor(client)
+    if (id) onNavigate(id)
   }
 
   const handleDelete = (e: React.MouseEvent, client: PipelineClient) => {
@@ -177,8 +182,8 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
                       <button
                         className={`${styles.actionBtn} ${styles.actionPrimary}`}
                         onClick={(e) => handleDetail(e, client)}
-                        disabled={!client.summitEntityId}
-                        title={!client.summitEntityId ? 'לקוח ללא כרטיס סאמיט' : ''}
+                        disabled={!navIdFor(client)}
+                        title={!client.summitEntityId ? 'הלקוח עוד לא פתח את הקישור — כניסה לכרטיס מצב המתנה' : ''}
                         type="button"
                       >
                         פרטים
