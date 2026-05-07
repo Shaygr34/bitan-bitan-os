@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { SUMMIT_STATUS_IDS } from '@/lib/onboarding/types'
 import { query, patch } from '@/lib/sanity/client'
 import type { OnboardingRecord } from '@/lib/onboarding/types'
+import { notifyStageAdvanced } from '@/lib/onboarding/email-notifier'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -69,12 +70,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Sync stage cache to Sanity
+    let clientName: string | undefined
     try {
-      const records = await query<OnboardingRecord[]>(
-        `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id }`,
+      const records = await query<Pick<OnboardingRecord, '_id' | 'clientName'>[]>(
+        `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id, clientName }`,
         { eid: entityId }
       )
       if (records?.[0]) {
+        clientName = records[0].clientName
         await patch(records[0]._id, {
           set: {
             cachedStage: targetStage,
@@ -85,6 +88,13 @@ export async function POST(request: NextRequest) {
     } catch {
       // Non-fatal: cache sync failure doesn't block advance
     }
+
+    notifyStageAdvanced({
+      clientName,
+      summitEntityId: entityId,
+      toStage: targetStage,
+      reason: 'עודכן ידנית מה-OS',
+    })
 
     return NextResponse.json({ ok: true, targetStage })
   } catch (err) {

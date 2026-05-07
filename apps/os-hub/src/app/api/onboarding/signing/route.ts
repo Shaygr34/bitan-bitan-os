@@ -10,6 +10,12 @@ import type { OnboardingRecord, SigningTask } from '@/lib/onboarding/types'
 import { applyOfficeStamp, formNeedsAutoStamp } from '@/lib/onboarding/auto-stamp'
 import { resolveStampOwner } from '@/lib/onboarding/manager-stamps'
 import { persistSignedDoc, uploadSignedPdfToSanity, addSignedDocRemarkToSummit, getSignedDocLabel } from '@/lib/onboarding/signed-doc-storage'
+import {
+  notifySigningSent,
+  notifySigningCompleted,
+  notifyExternalDone,
+  notifyStageAdvanced,
+} from '@/lib/onboarding/email-notifier'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -137,6 +143,13 @@ export async function POST(request: Request) {
         set: { signingTasks: [...currentTasks, externalTask] },
       })
 
+      notifyExternalDone({
+        clientName,
+        summitEntityId,
+        documentType,
+        signedDocUrl: externalSignedUrl,
+      })
+
       return NextResponse.json({ ok: true, taskGuid: externalTask.taskGuid, signedDocUrl: externalSignedUrl }, { status: 201 })
     }
 
@@ -165,6 +178,14 @@ export async function POST(request: Request) {
 
       await patch(record._id, {
         set: { signingTasks: [...currentTasks, manualTask] },
+      })
+
+      notifySigningCompleted({
+        clientName,
+        summitEntityId,
+        documentType,
+        signedDocUrl: url,
+        source: 'manual',
       })
 
       return NextResponse.json({ ok: true, taskGuid: manualTask.taskGuid, signedDocUrl: url }, { status: 201 })
@@ -212,6 +233,13 @@ export async function POST(request: Request) {
 
     await patch(record._id, {
       set: { signingTasks: [...currentTasks, signingTask] },
+    })
+
+    notifySigningSent({
+      clientName,
+      summitEntityId,
+      documentType,
+      clientEmail,
     })
 
     return NextResponse.json({
@@ -320,6 +348,15 @@ export async function GET(request: Request) {
                   }
                 }
               } catch { /* non-fatal */ }
+
+              // Single notification per signed transition. Prefer stamped URL when available.
+              notifySigningCompleted({
+                clientName: record.clientName || 'לקוח',
+                summitEntityId,
+                documentType: updated.documentType,
+                signedDocUrl: updated.stampedDocUrl || updated.signedDocUrl,
+                source: updated.stampedDocUrl ? 'auto-stamp' : '2sign',
+              })
             }
             return updated
           }
@@ -367,6 +404,12 @@ export async function GET(request: Request) {
               })
               // Sync cache
               await patch(record._id, { set: { cachedStage: targetStage, lastSyncedAt: new Date().toISOString() } })
+              notifyStageAdvanced({
+                clientName: record.clientName,
+                summitEntityId,
+                toStage: targetStage,
+                reason: allSigned ? 'כל החתימות הושלמו' : 'הלקוח חתם',
+              })
             }
           }
         } catch { /* non-fatal — manual advance still available */ }
@@ -435,6 +478,14 @@ export async function PUT(request: Request) {
     const updated = [...tasks]
     updated[idx] = { ...tasks[idx], signedDocUrl: url, completedAt: tasks[idx].completedAt || new Date().toISOString() }
     await patch(record._id, { set: { signingTasks: updated } })
+
+    notifySigningCompleted({
+      clientName: record.clientName || 'לקוח',
+      summitEntityId,
+      documentType,
+      signedDocUrl: url,
+      source: 'late-upload',
+    })
 
     return NextResponse.json({ ok: true, signedDocUrl: url })
   } catch (err) {
