@@ -1,21 +1,15 @@
 import { NextResponse } from 'next/server'
 import { query, patch } from '@/lib/sanity/client'
-import {
-  initiateSigning,
-  getTask,
-  getSignedDocument,
-  resendTask,
-} from '@/lib/onboarding/twosign-client'
+import { initiateSigning, resendTask } from '@/lib/onboarding/twosign-client'
 import type { OnboardingRecord, SigningTask } from '@/lib/onboarding/types'
-import { applyOfficeStamp, formNeedsAutoStamp } from '@/lib/onboarding/auto-stamp'
-import { resolveStampOwner } from '@/lib/onboarding/manager-stamps'
-import { persistSignedDoc, uploadSignedPdfToSanity, addSignedDocRemarkToSummit, getSignedDocLabel } from '@/lib/onboarding/signed-doc-storage'
+import { formNeedsAutoStamp } from '@/lib/onboarding/auto-stamp'
+import { persistSignedDoc } from '@/lib/onboarding/signed-doc-storage'
 import {
   notifySigningSent,
   notifySigningCompleted,
   notifyExternalDone,
-  notifyStageAdvanced,
 } from '@/lib/onboarding/email-notifier'
+import { pollRecord } from '@/lib/onboarding/signing-poller'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -227,6 +221,7 @@ export async function POST(request: Request) {
       taskGuid: result.clientTaskGuid,
       twoSignClientId: result.clientId,
       documentType,
+      formType,
       status: 'sent',
       createdAt: new Date().toISOString(),
     }
@@ -256,7 +251,11 @@ export async function POST(request: Request) {
 
 /**
  * GET /api/onboarding/signing?summitEntityId=X — get signing status for all tasks.
- * Also refreshes status from 2Sign API and auto-advances stage if all signed.
+ * Triggers a 2Sign refresh + auto-stamp + stage-advance via the shared poller.
+ *
+ * NOTE: this is page-presence-driven — only fires while someone has the detail
+ * page open. The cron at /api/cron/signing-poll uses the same poller to
+ * guarantee transitions land even when nobody's looking.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -268,7 +267,7 @@ export async function GET(request: Request) {
 
   try {
     const records = await query<OnboardingRecord[]>(
-      `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id, signingTasks, accountManager, clientName }`,
+      `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id, signingTasks, accountManager, clientName, summitEntityId }`,
       { eid: summitEntityId }
     )
     const record = records?.[0]
@@ -276,175 +275,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ tasks: [] })
     }
 
-    const tasks: SigningTask[] = record.signingTasks || []
-    if (tasks.length === 0) {
-      return NextResponse.json({ tasks: [] })
-    }
-
-    // Refresh status from 2Sign for non-terminal tasks
-    let anyUpdated = false
-    const updatedTasks = await Promise.all(
-      tasks.map(async (task) => {
-        if (task.status === 'signed' || task.status === 'declined' || task.status === 'expired') {
-          return task // Terminal — skip API call
-        }
-
-        try {
-          const detail = await getTask(task.taskGuid)
-          const statusStr = (detail.Status || '').toLowerCase()
-
-          let newStatus: SigningTask['status'] = task.status
-          if (statusStr.includes('completed') || statusStr.includes('signed')) {
-            newStatus = 'signed'
-          } else if (statusStr.includes('declined') || statusStr.includes('rejected')) {
-            newStatus = 'declined'
-          } else if (statusStr.includes('expired')) {
-            newStatus = 'expired'
-          } else if (statusStr.includes('sent') || statusStr.includes('pending')) {
-            newStatus = 'sent'
-          }
-
-          if (newStatus !== task.status) {
-            anyUpdated = true
-            const updated: SigningTask = { ...task, status: newStatus }
-            if (newStatus === 'signed') {
-              updated.completedAt = detail.CompletedDate || new Date().toISOString()
-              // Try to get signed document URL
-              try {
-                const signedDoc = await getSignedDocument(task.taskGuid, 0)
-                if (signedDoc.FileUrl) {
-                  updated.signedDocUrl = signedDoc.FileUrl
-                  // Pull the signed PDF once for all downstream persistence (auto-stamp + Sanity mirror).
-                  let signedBuf: Buffer | null = null
-                  try {
-                    const pdfRes = await fetch(signedDoc.FileUrl)
-                    if (pdfRes.ok) {
-                      signedBuf = Buffer.from(await pdfRes.arrayBuffer())
-                    }
-                  } catch {
-                    /* non-fatal — see fallbacks below */
-                  }
-
-                  if (signedBuf && formNeedsAutoStamp(updated.documentType)) {
-                    // Auto-stamp pipeline: replaces the office counter-sign 2Sign routine.
-                    // Embed Avi/Ron's autograph + dates, upload stamped version to Sanity + Summit.
-                    try {
-                      const manager = resolveStampOwner(record.accountManager)
-                      const stamped = await applyOfficeStamp(signedBuf, {
-                        formType: updated.documentType,
-                        manager,
-                        alsoFillClientDate: true,
-                      })
-                      const stampedUrl = await uploadSignedPdfToSanity(
-                        stamped,
-                        `${updated.documentType}-${record.clientName || 'client'}-stamped.pdf`,
-                      )
-                      if (stampedUrl) {
-                        updated.stampedDocUrl = stampedUrl
-                        // Replace 2Sign CDN url with our durable Sanity copy.
-                        updated.signedDocUrl = stampedUrl
-                        await addSignedDocRemarkToSummit(
-                          summitEntityId,
-                          getSignedDocLabel(updated.documentType),
-                          stampedUrl,
-                        )
-                      }
-                    } catch (stampErr) {
-                      // Non-fatal — original signed doc remains usable; office can manually counter-sign as fallback
-                      console.error('Auto-stamp failed:', stampErr)
-                    }
-                  } else if (signedBuf) {
-                    // Non-stamp 2Sign form (e.g. ב"ל ניכויים): persist signed PDF to Sanity + Summit הערות
-                    // so the doc lives on our side, not just on 2Sign's CDN / Avi's gmail.
-                    try {
-                      const persistedUrl = await persistSignedDoc({
-                        buffer: signedBuf,
-                        filename: `${updated.documentType}-${record.clientName || 'client'}-signed.pdf`,
-                        documentType: updated.documentType,
-                        summitEntityId,
-                      })
-                      if (persistedUrl) {
-                        updated.signedDocUrl = persistedUrl
-                      }
-                    } catch (persistErr) {
-                      // Non-fatal — 2Sign FileUrl remains as fallback on the task.
-                      console.error('Signed-doc persist failed:', persistErr)
-                    }
-                  }
-                }
-              } catch { /* non-fatal */ }
-
-              // Single notification per signed transition. Prefer stamped URL when available.
-              notifySigningCompleted({
-                clientName: record.clientName || 'לקוח',
-                summitEntityId,
-                documentType: updated.documentType,
-                signedDocUrl: updated.stampedDocUrl || updated.signedDocUrl,
-                source: updated.stampedDocUrl ? 'auto-stamp' : '2sign',
-              })
-            }
-            return updated
-          }
-        } catch {
-          // 2Sign API error — return existing state
-        }
-        return task
-      })
+    const result = await pollRecord(record)
+    const allSigned = result.tasks.length > 0 && result.tasks.every(
+      (t) => t.status === 'signed' || t.status === 'external-done'
     )
 
-    // Persist updated statuses back to Sanity
-    if (anyUpdated) {
-      await patch(record._id, { set: { signingTasks: updatedTasks } })
-    }
-
-    // Check if all signing tasks are complete
-    const allSigned = updatedTasks.length > 0 && updatedTasks.every(
-      t => t.status === 'signed' || t.status === 'external-done'
-    )
-
-    // Auto-advance stage when signing milestones are reached
-    if (anyUpdated && summitEntityId) {
-      const clientTasks = updatedTasks.filter(t => !t.taskGuid.startsWith('external-'))
-      const clientSigned = clientTasks.length > 0 && clientTasks.every(t => t.status === 'signed')
-
-      if (clientSigned || allSigned) {
-        // Determine target stage: client signed → stage 3 (אישור מנהל), all signed → stage 4 (רשויות)
-        const targetStage = allSigned ? 4 : 3
-        try {
-          const creds = {
-            CompanyID: parseInt(process.env.SUMMIT_COMPANY_ID || '0', 10),
-            APIKey: (process.env.SUMMIT_API_KEY || '').trim(),
-          }
-          if (creds.APIKey) {
-            const { SUMMIT_STATUS_IDS } = await import('@/lib/onboarding/types')
-            const statusId = SUMMIT_STATUS_IDS[targetStage]
-            if (statusId) {
-              await fetch('https://api.sumit.co.il/crm/data/updateentity/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Content-Language': 'he' },
-                body: JSON.stringify({
-                  Credentials: creds,
-                  Entity: { ID: parseInt(summitEntityId, 10), Folder: '557688522', Properties: { Customers_Status: statusId } },
-                }),
-              })
-              // Sync cache
-              await patch(record._id, { set: { cachedStage: targetStage, lastSyncedAt: new Date().toISOString() } })
-              notifyStageAdvanced({
-                clientName: record.clientName,
-                summitEntityId,
-                toStage: targetStage,
-                reason: allSigned ? 'כל החתימות הושלמו' : 'הלקוח חתם',
-              })
-            }
-          }
-        } catch { /* non-fatal — manual advance still available */ }
-      }
-    }
-
-    return NextResponse.json({
-      tasks: updatedTasks,
-      allSigned,
-    })
+    return NextResponse.json({ tasks: result.tasks, allSigned })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })

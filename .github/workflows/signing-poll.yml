@@ -1,0 +1,35 @@
+name: Signing Poll
+
+# Drives /api/cron/signing-poll on a schedule so 2Sign signed-status transitions
+# land in Sanity even when no one has the onboarding detail page open.
+# Page-presence-driven polling missed signs that happened after office staff
+# closed the page; this is the always-on backstop.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit signing-poll cron endpoint
+        env:
+          OS_HUB_BASE_URL: ${{ secrets.OS_HUB_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$OS_HUB_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Missing OS_HUB_BASE_URL or CRON_SECRET secret"
+            exit 1
+          fi
+          response=$(curl -sS -w "\n%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$OS_HUB_BASE_URL/api/cron/signing-poll")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$http_code" != "200" ]; then
+            echo "Cron call failed with HTTP $http_code"
+            exit 1
+          fi

@@ -1,6 +1,7 @@
 {
   "name": "bitan-bitan-os",
   "private": true,
+  "packageManager": "pnpm@10.18.1",
   "scripts": {
     "dev:os-hub": "pnpm --filter os-hub dev",
     "build:os-hub": "pnpm --filter os-hub build",
