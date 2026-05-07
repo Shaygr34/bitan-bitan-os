@@ -314,36 +314,61 @@ export async function GET(request: Request) {
                 const signedDoc = await getSignedDocument(task.taskGuid, 0)
                 if (signedDoc.FileUrl) {
                   updated.signedDocUrl = signedDoc.FileUrl
-                  // Auto-stamp pipeline: replaces the office counter-sign 2Sign routine.
-                  // Fetch the signed PDF, embed Avi/Ron's autograph + dates, upload to Sanity.
-                  if (formNeedsAutoStamp(updated.documentType)) {
+                  // Pull the signed PDF once for all downstream persistence (auto-stamp + Sanity mirror).
+                  let signedBuf: Buffer | null = null
+                  try {
+                    const pdfRes = await fetch(signedDoc.FileUrl)
+                    if (pdfRes.ok) {
+                      signedBuf = Buffer.from(await pdfRes.arrayBuffer())
+                    }
+                  } catch {
+                    /* non-fatal — see fallbacks below */
+                  }
+
+                  if (signedBuf && formNeedsAutoStamp(updated.documentType)) {
+                    // Auto-stamp pipeline: replaces the office counter-sign 2Sign routine.
+                    // Embed Avi/Ron's autograph + dates, upload stamped version to Sanity + Summit.
                     try {
-                      const pdfRes = await fetch(signedDoc.FileUrl)
-                      if (pdfRes.ok) {
-                        const signedBuf = Buffer.from(await pdfRes.arrayBuffer())
-                        const manager = resolveStampOwner(record.accountManager)
-                        const stamped = await applyOfficeStamp(signedBuf, {
-                          formType: updated.documentType,
-                          manager,
-                          alsoFillClientDate: true,
-                        })
-                        const stampedUrl = await uploadSignedPdfToSanity(
-                          stamped,
-                          `${updated.documentType}-${record.clientName || 'client'}-stamped.pdf`,
+                      const manager = resolveStampOwner(record.accountManager)
+                      const stamped = await applyOfficeStamp(signedBuf, {
+                        formType: updated.documentType,
+                        manager,
+                        alsoFillClientDate: true,
+                      })
+                      const stampedUrl = await uploadSignedPdfToSanity(
+                        stamped,
+                        `${updated.documentType}-${record.clientName || 'client'}-stamped.pdf`,
+                      )
+                      if (stampedUrl) {
+                        updated.stampedDocUrl = stampedUrl
+                        // Replace 2Sign CDN url with our durable Sanity copy.
+                        updated.signedDocUrl = stampedUrl
+                        await addSignedDocRemarkToSummit(
+                          summitEntityId,
+                          getSignedDocLabel(updated.documentType),
+                          stampedUrl,
                         )
-                        if (stampedUrl) {
-                          updated.stampedDocUrl = stampedUrl
-                          // Mirror to Summit הערות so the doc shows on the client card.
-                          await addSignedDocRemarkToSummit(
-                            summitEntityId,
-                            getSignedDocLabel(updated.documentType),
-                            stampedUrl,
-                          )
-                        }
                       }
                     } catch (stampErr) {
                       // Non-fatal — original signed doc remains usable; office can manually counter-sign as fallback
                       console.error('Auto-stamp failed:', stampErr)
+                    }
+                  } else if (signedBuf) {
+                    // Non-stamp 2Sign form (e.g. ב"ל ניכויים): persist signed PDF to Sanity + Summit הערות
+                    // so the doc lives on our side, not just on 2Sign's CDN / Avi's gmail.
+                    try {
+                      const persistedUrl = await persistSignedDoc({
+                        buffer: signedBuf,
+                        filename: `${updated.documentType}-${record.clientName || 'client'}-signed.pdf`,
+                        documentType: updated.documentType,
+                        summitEntityId,
+                      })
+                      if (persistedUrl) {
+                        updated.signedDocUrl = persistedUrl
+                      }
+                    } catch (persistErr) {
+                      // Non-fatal — 2Sign FileUrl remains as fallback on the task.
+                      console.error('Signed-doc persist failed:', persistErr)
                     }
                   }
                 }
