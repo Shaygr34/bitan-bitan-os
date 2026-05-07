@@ -418,6 +418,8 @@ export default function ClientDetailPage() {
             items={checklistItems}
             currentStage={state.currentStage}
             onToggle={handleChecklistToggle}
+            clientName={record?.clientName || ''}
+            clientPhone={state.summitData.phone || ''}
           />
         </div>
       </div>

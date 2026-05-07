@@ -95,3 +95,42 @@
   text-decoration: line-through;
   color: var(--text-caption);
 }
+
+/* Per-item inline actions (e.g. send-codes: copy + WhatsApp) */
+.itemActions {
+  display: inline-flex;
+  gap: 6px;
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+
+.actionBtn {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  color: var(--text-body);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.actionBtn:hover {
+  background: var(--surface-muted);
+  border-color: var(--brand-gold);
+  color: var(--text-heading);
+}
+
+.actionBtnPrimary {
+  background: var(--brand-gold);
+  border-color: var(--brand-gold);
+  color: #fff;
+}
+
+.actionBtnPrimary:hover {
+  background: var(--brand-gold);
+  filter: brightness(0.95);
+  color: #fff;
+}
