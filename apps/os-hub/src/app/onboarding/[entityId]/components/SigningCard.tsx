@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { resolveOfficeSigner, type SigningTask } from '@/lib/onboarding/types'
+import { getBtlMiyutzagimMessage, buildWhatsAppUrl } from '@/lib/onboarding/letter-templates'
 import styles from './SigningCard.module.css'
 
 interface Props {
@@ -97,6 +98,7 @@ export default function SigningCard({
   const [resending, setResending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [externalRef, setExternalRef] = useState<Record<string, string>>({})
+  const [externalLink, setExternalLink] = useState<Record<string, string>>({})
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const relevantDocs = ALL_SIGNING_DOCS.filter(doc => {
@@ -182,6 +184,14 @@ export default function SigningCard({
       setResending(null)
     }
   }, [clientPhone])
+
+  /** Phase 1: open WhatsApp with drafted BTL מיוצגים message + pasted link. */
+  const handleSendBtlLink = useCallback((documentType: string) => {
+    const link = (externalLink[documentType] || '').trim()
+    if (!link) return
+    const text = getBtlMiyutzagimMessage(clientName, link)
+    window.open(buildWhatsAppUrl(text, clientPhone), '_blank')
+  }, [externalLink, clientName, clientPhone])
 
   const handleMarkExternalDone = useCallback(async (documentType: string) => {
     setSending(documentType)
@@ -332,7 +342,53 @@ export default function SigningCard({
 
                 {doc.method === 'external' && (
                   <>
-                    {!task && (
+                    {!task && doc.documentType === 'poa-nii-representatives' && (
+                      <div className={styles.externalTwoPhase}>
+                        <div className={styles.externalPhase}>
+                          <span className={styles.phaseLabel}>{'1. שלח קישור'}</span>
+                          <div className={styles.externalFlow}>
+                            <input
+                              className={styles.linkInput}
+                              type="url"
+                              placeholder="הדבק קישור ב״ל מיוצגים"
+                              value={externalLink[doc.documentType] || ''}
+                              onChange={(e) => setExternalLink(prev => ({ ...prev, [doc.documentType]: e.target.value }))}
+                            />
+                            <button
+                              className={styles.sendBtn}
+                              onClick={() => handleSendBtlLink(doc.documentType)}
+                              disabled={!(externalLink[doc.documentType] || '').trim() || !clientPhone}
+                              title={!clientPhone ? 'חסר טלפון לקוח' : 'שלח ב-WhatsApp עם הקישור'}
+                              type="button"
+                            >
+                              {'שלח ב-WhatsApp'}
+                            </button>
+                          </div>
+                        </div>
+                        <div className={styles.externalPhase}>
+                          <span className={styles.phaseLabel}>{'2. סמן הושלם כשהלקוח מאשר'}</span>
+                          <div className={styles.externalFlow}>
+                            <input
+                              className={styles.refInput}
+                              type="text"
+                              placeholder="מספר אסמכתא"
+                              value={externalRef[doc.documentType] || ''}
+                              onChange={(e) => setExternalRef(prev => ({ ...prev, [doc.documentType]: e.target.value }))}
+                            />
+                            <button
+                              className={styles.sendBtn}
+                              onClick={() => handleMarkExternalDone(doc.documentType)}
+                              disabled={sending === doc.documentType}
+                              type="button"
+                            >
+                              {sending === doc.documentType ? 'שומר...' : 'סמן הושלם'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!task && doc.documentType !== 'poa-nii-representatives' && (
                       <div className={styles.externalFlow}>
                         <input
                           className={styles.refInput}

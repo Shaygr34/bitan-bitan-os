@@ -39,6 +39,25 @@ export function getKodeiMosadLetter(clientName: string): string {
 }
 
 /**
+ * ייפוי כוח ב"ל מיוצגים — short message that ships the per-client BTL link.
+ * Office staff (Avi/Guy) generate the link in the BTL portal and paste it in
+ * the SigningCard; this builder embeds it in a drafted Hebrew WhatsApp message.
+ */
+export function getBtlMiyutzagimMessage(clientName: string, link: string): string {
+  const name = clientName?.trim() || 'לקוח יקר'
+  return `שלום ${name},
+
+לצורך השלמת תהליך הקליטה — אישור ייצוג שלנו מול ביטוח לאומי:
+${link}
+
+אנא היכנס/י לקישור, אשר/י את ייצוגנו, ושלח/י לנו את מספר האסמכתא שתתקבל.
+
+תודה,
+ביטן את ביטן — רואי חשבון
+03-5174295`
+}
+
+/**
  * Build a wa.me URL with text. If phone is provided, sends to that number;
  * otherwise opens the no-recipient WhatsApp web form (April 9 behavior).
  *
