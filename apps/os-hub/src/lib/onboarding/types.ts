@@ -87,6 +87,8 @@ export interface SigningTask {
   createdAt: string
   completedAt?: string
   signedDocUrl?: string
+  /** Final stamped PDF (signed by client + auto office stamp + dates). Set by GET route after auto-stamp. */
+  stampedDocUrl?: string
   externalRef?: string       // מספר אסמכתא for external tasks
 }
 

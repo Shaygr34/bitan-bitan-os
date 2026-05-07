@@ -7,6 +7,9 @@ import {
   resendTask,
 } from '@/lib/onboarding/twosign-client'
 import type { OnboardingRecord, SigningTask } from '@/lib/onboarding/types'
+import { applyOfficeStamp, formNeedsAutoStamp } from '@/lib/onboarding/auto-stamp'
+import { resolveStampOwner } from '@/lib/onboarding/manager-stamps'
+import { sanityConfig } from '@/config/integrations'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -126,8 +129,11 @@ export async function POST(request: Request) {
     // Map document type to form type for marker positions
     const formType = docFormType || (documentType === 'poa-tax-authority' ? 'poa-tax-authority' : 'poa-nii-withholdings')
 
-    // Determine if office counter-signature is needed
-    const officeSigner = (formType === 'poa-tax-authority' && officeSignerEmail)
+    // Office counter-signature: forms that the backend can auto-stamp no longer
+    // need a 2Sign routine task — we apply the office stamp + date in the GET
+    // poll once the client signs. This collapses a 2-signer routine into a 1-signer
+    // flow (client only) and removes the manual "Avi/Ron log into 2Sign" step.
+    const officeSigner = (!formNeedsAutoStamp(formType) && formType === 'poa-tax-authority' && officeSignerEmail)
       ? { name: officeSignerName || 'ביטן את ביטן', email: officeSignerEmail }
       : undefined
 
@@ -181,7 +187,7 @@ export async function GET(request: Request) {
 
   try {
     const records = await query<OnboardingRecord[]>(
-      `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id, signingTasks }`,
+      `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id, signingTasks, accountManager, clientName }`,
       { eid: summitEntityId }
     )
     const record = records?.[0]
@@ -225,7 +231,30 @@ export async function GET(request: Request) {
               // Try to get signed document URL
               try {
                 const signedDoc = await getSignedDocument(task.taskGuid, 0)
-                if (signedDoc.FileUrl) updated.signedDocUrl = signedDoc.FileUrl
+                if (signedDoc.FileUrl) {
+                  updated.signedDocUrl = signedDoc.FileUrl
+                  // Auto-stamp pipeline: replaces the office counter-sign 2Sign routine.
+                  // Fetch the signed PDF, embed Avi/Ron's autograph + dates, upload to Sanity.
+                  if (formNeedsAutoStamp(updated.documentType)) {
+                    try {
+                      const pdfRes = await fetch(signedDoc.FileUrl)
+                      if (pdfRes.ok) {
+                        const signedBuf = Buffer.from(await pdfRes.arrayBuffer())
+                        const manager = resolveStampOwner(record.accountManager)
+                        const stamped = await applyOfficeStamp(signedBuf, {
+                          formType: updated.documentType,
+                          manager,
+                          alsoFillClientDate: true,
+                        })
+                        const stampedUrl = await uploadStampedPdf(stamped, `${updated.documentType}-${record.clientName || 'client'}-stamped.pdf`)
+                        if (stampedUrl) updated.stampedDocUrl = stampedUrl
+                      }
+                    } catch (stampErr) {
+                      // Non-fatal — original signed doc remains usable; office can manually counter-sign as fallback
+                      console.error('Auto-stamp failed:', stampErr)
+                    }
+                  }
+                }
               } catch { /* non-fatal */ }
             }
             return updated
@@ -288,6 +317,34 @@ export async function GET(request: Request) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   }
+}
+
+/**
+ * Upload a stamped PDF buffer to Sanity assets and return the CDN URL.
+ * Returns null if Sanity creds are missing — caller treats stamping as non-fatal.
+ */
+async function uploadStampedPdf(buffer: Buffer, filename: string): Promise<string | null> {
+  const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || sanityConfig.projectId
+  const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || sanityConfig.dataset || 'production'
+  const apiToken = process.env.SANITY_API_WRITE_TOKEN || process.env.SANITY_API_TOKEN || sanityConfig.apiToken
+  if (!projectId || !apiToken) return null
+
+  const url = `https://${projectId}.api.sanity.io/v2024-01-01/assets/files/${dataset}?filename=${encodeURIComponent(filename)}`
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Content-Type': 'application/pdf',
+    },
+    body: new Uint8Array(buffer),
+  })
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    console.error('Sanity asset upload failed:', resp.status, text.slice(0, 200))
+    return null
+  }
+  const data = await resp.json() as { document?: { url?: string } }
+  return data.document?.url || null
 }
 
 /**

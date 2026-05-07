@@ -309,7 +309,11 @@ export default function SigningCard({
                       </button>
                     )}
 
-                    {task?.signedDocUrl && (
+                    {task?.stampedDocUrl ? (
+                      <a href={task.stampedDocUrl} target="_blank" rel="noopener noreferrer" className={styles.viewBtn}>
+                        {'צפה (חתום)'}
+                      </a>
+                    ) : task?.signedDocUrl && (
                       <a href={task.signedDocUrl} target="_blank" rel="noopener noreferrer" className={styles.viewBtn}>
                         {'צפה'}
                       </a>
