@@ -90,6 +90,12 @@ export interface SigningTask {
   /** Final stamped PDF (signed by client + auto office stamp + dates). Set by GET route after auto-stamp. */
   stampedDocUrl?: string
   externalRef?: string       // מספר אסמכתא for external tasks
+  /** Form template key — used by auto-stamp routing. Persisted at POST time. */
+  formType?: string
+  /** ISO timestamp of last 2Sign status check (server cron or page poll). Audit trail for signing-poller. */
+  lastPolledAt?: string
+  /** ISO timestamp when notifySigningCompleted was fired. Prevents resend if a future poll re-detects 'signed'. */
+  notifiedAt?: string
 }
 
 export function getDocCategory(clientType?: string): 'individual' | 'company' | 'exempt' {
