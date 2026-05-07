@@ -9,7 +9,7 @@ import {
 import type { OnboardingRecord, SigningTask } from '@/lib/onboarding/types'
 import { applyOfficeStamp, formNeedsAutoStamp } from '@/lib/onboarding/auto-stamp'
 import { resolveStampOwner } from '@/lib/onboarding/manager-stamps'
-import { sanityConfig } from '@/config/integrations'
+import { persistSignedDoc, uploadSignedPdfToSanity, addSignedDocRemarkToSummit, getSignedDocLabel } from '@/lib/onboarding/signed-doc-storage'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -79,37 +79,22 @@ export async function POST(request: Request) {
       }, { status: 409 })
     }
 
-    // Handle external tasks (ב"ל מיוצגים — no 2Sign)
-    if (isExternal) {
-      const externalTask: SigningTask = {
-        taskGuid: `external-${documentType}-${Date.now()}`,
-        twoSignClientId: 0,
-        documentType,
-        status: 'external-done',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        externalRef: externalRef || '',
-      }
 
-      await patch(record._id, {
-        set: { signingTasks: [...currentTasks, externalTask] },
-      })
-
-      return NextResponse.json({ ok: true, taskGuid: externalTask.taskGuid }, { status: 201 })
-    }
-
-    // 2Sign flow — need email + PDF buffer
-    if (!clientEmail) {
-      return NextResponse.json({ error: 'clientEmail is required for 2Sign tasks' }, { status: 400 })
-    }
-
-    // Get PDF buffer from request body (base64 encoded) or from a URL
-    const { pdfBase64, pdfUrl, formType: docFormType, officeSignerName, officeSignerEmail } = body as {
+    // Pull optional fields used by external + manual + 2Sign branches
+    const {
+      pdfBase64,
+      pdfUrl,
+      formType: docFormType,
+      officeSignerName,
+      officeSignerEmail,
+      isManualSign,
+    } = body as {
       pdfBase64?: string
       pdfUrl?: string
       formType?: string
       officeSignerName?: string
       officeSignerEmail?: string
+      isManualSign?: boolean
     }
 
     let pdfBuffer: Buffer | undefined
@@ -120,6 +105,74 @@ export async function POST(request: Request) {
       if (pdfRes.ok) {
         pdfBuffer = Buffer.from(await pdfRes.arrayBuffer())
       }
+    }
+
+    // Handle external tasks (ב"ל מיוצגים — no 2Sign).
+    // Optional pdfBase64/pdfUrl: scanned BTL approval print is uploaded to
+    // Sanity + הערות so the external doc is also retrievable from OS + Summit.
+    if (isExternal) {
+      let externalSignedUrl: string | undefined
+      if (pdfBuffer) {
+        const url = await persistSignedDoc({
+          buffer: pdfBuffer,
+          filename: `${documentType}-${clientName}-signed.pdf`,
+          documentType,
+          summitEntityId,
+        })
+        if (url) externalSignedUrl = url
+      }
+
+      const externalTask: SigningTask = {
+        taskGuid: `external-${documentType}-${Date.now()}`,
+        twoSignClientId: 0,
+        documentType,
+        status: 'external-done',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        externalRef: externalRef || '',
+        ...(externalSignedUrl ? { signedDocUrl: externalSignedUrl } : {}),
+      }
+
+      await patch(record._id, {
+        set: { signingTasks: [...currentTasks, externalTask] },
+      })
+
+      return NextResponse.json({ ok: true, taskGuid: externalTask.taskGuid, signedDocUrl: externalSignedUrl }, { status: 201 })
+    }
+
+    // Manual office-paper override: 2Sign skipped (e.g. office printed + signed
+    // on paper). Caller uploads the final signed PDF; we persist + mark signed.
+    if (isManualSign) {
+      if (!pdfBuffer) {
+        return NextResponse.json({ error: 'pdfBase64 or pdfUrl required for manual sign' }, { status: 400 })
+      }
+      const url = await persistSignedDoc({
+        buffer: pdfBuffer,
+        filename: `${documentType}-${clientName}-signed.pdf`,
+        documentType,
+        summitEntityId,
+      })
+
+      const manualTask: SigningTask = {
+        taskGuid: `manual-${documentType}-${Date.now()}`,
+        twoSignClientId: 0,
+        documentType,
+        status: 'signed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        ...(url ? { signedDocUrl: url, stampedDocUrl: url } : {}),
+      }
+
+      await patch(record._id, {
+        set: { signingTasks: [...currentTasks, manualTask] },
+      })
+
+      return NextResponse.json({ ok: true, taskGuid: manualTask.taskGuid, signedDocUrl: url }, { status: 201 })
+    }
+
+    // 2Sign flow — need email + PDF buffer
+    if (!clientEmail) {
+      return NextResponse.json({ error: 'clientEmail is required for 2Sign tasks' }, { status: 400 })
     }
 
     if (!pdfBuffer) {
@@ -246,8 +299,19 @@ export async function GET(request: Request) {
                           manager,
                           alsoFillClientDate: true,
                         })
-                        const stampedUrl = await uploadStampedPdf(stamped, `${updated.documentType}-${record.clientName || 'client'}-stamped.pdf`)
-                        if (stampedUrl) updated.stampedDocUrl = stampedUrl
+                        const stampedUrl = await uploadSignedPdfToSanity(
+                          stamped,
+                          `${updated.documentType}-${record.clientName || 'client'}-stamped.pdf`,
+                        )
+                        if (stampedUrl) {
+                          updated.stampedDocUrl = stampedUrl
+                          // Mirror to Summit הערות so the doc shows on the client card.
+                          await addSignedDocRemarkToSummit(
+                            summitEntityId,
+                            getSignedDocLabel(updated.documentType),
+                            stampedUrl,
+                          )
+                        }
                       }
                     } catch (stampErr) {
                       // Non-fatal — original signed doc remains usable; office can manually counter-sign as fallback
@@ -320,31 +384,63 @@ export async function GET(request: Request) {
 }
 
 /**
- * Upload a stamped PDF buffer to Sanity assets and return the CDN URL.
- * Returns null if Sanity creds are missing — caller treats stamping as non-fatal.
+ * PUT /api/onboarding/signing — attach a signed PDF to an existing task.
+ * Used for: BTL מיוצגים post-completion upload, late paper-signed POA upload.
+ * Body: { summitEntityId, documentType, pdfBase64 | pdfUrl }
  */
-async function uploadStampedPdf(buffer: Buffer, filename: string): Promise<string | null> {
-  const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || sanityConfig.projectId
-  const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || sanityConfig.dataset || 'production'
-  const apiToken = process.env.SANITY_API_WRITE_TOKEN || process.env.SANITY_API_TOKEN || sanityConfig.apiToken
-  if (!projectId || !apiToken) return null
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json()
+    const { summitEntityId, documentType, pdfBase64, pdfUrl } = body as {
+      summitEntityId: string
+      documentType: string
+      pdfBase64?: string
+      pdfUrl?: string
+    }
 
-  const url = `https://${projectId}.api.sanity.io/v2024-01-01/assets/files/${dataset}?filename=${encodeURIComponent(filename)}`
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      'Content-Type': 'application/pdf',
-    },
-    body: new Uint8Array(buffer),
-  })
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '')
-    console.error('Sanity asset upload failed:', resp.status, text.slice(0, 200))
-    return null
+    if (!summitEntityId || !documentType) {
+      return NextResponse.json({ error: 'summitEntityId and documentType required' }, { status: 400 })
+    }
+
+    let pdfBuffer: Buffer | undefined
+    if (pdfBase64) {
+      pdfBuffer = Buffer.from(pdfBase64, 'base64')
+    } else if (pdfUrl) {
+      const r = await fetch(pdfUrl)
+      if (r.ok) pdfBuffer = Buffer.from(await r.arrayBuffer())
+    }
+    if (!pdfBuffer) {
+      return NextResponse.json({ error: 'pdfBase64 or pdfUrl required' }, { status: 400 })
+    }
+
+    const records = await query<OnboardingRecord[]>(
+      `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id, signingTasks, clientName }`,
+      { eid: summitEntityId }
+    )
+    const record = records?.[0]
+    if (!record) return NextResponse.json({ error: 'Onboarding record not found' }, { status: 404 })
+
+    const tasks: SigningTask[] = record.signingTasks || []
+    const idx = tasks.findIndex(t => t.documentType === documentType)
+    if (idx < 0) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+
+    const url = await persistSignedDoc({
+      buffer: pdfBuffer,
+      filename: `${documentType}-${record.clientName || 'client'}-signed.pdf`,
+      documentType,
+      summitEntityId,
+    })
+    if (!url) return NextResponse.json({ error: 'Sanity upload failed' }, { status: 500 })
+
+    const updated = [...tasks]
+    updated[idx] = { ...tasks[idx], signedDocUrl: url, completedAt: tasks[idx].completedAt || new Date().toISOString() }
+    await patch(record._id, { set: { signingTasks: updated } })
+
+    return NextResponse.json({ ok: true, signedDocUrl: url })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-  const data = await resp.json() as { document?: { url?: string } }
-  return data.document?.url || null
 }
 
 /**

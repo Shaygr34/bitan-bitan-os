@@ -10,6 +10,7 @@ import ClientInfoCard from './components/ClientInfoCard'
 import DocumentsCard from './components/DocumentsCard'
 import ChecklistCard from './components/ChecklistCard'
 import SigningCard from './components/SigningCard'
+import { getSignedDocLabel } from '@/lib/onboarding/signed-doc-storage'
 import styles from './detail.module.css'
 
 interface SummitData {
@@ -439,6 +440,17 @@ export default function ClientDetailPage() {
             documents={state.documents}
             uploadedCount={uploadedCount}
             requiredCount={requiredCount}
+            signedDocs={state.signingTasks
+              .map((t) => {
+                const url = t.stampedDocUrl || t.signedDocUrl
+                if (!url) return null
+                return {
+                  documentType: t.documentType,
+                  label: getSignedDocLabel(t.documentType),
+                  url,
+                }
+              })
+              .filter((x): x is { documentType: string; label: string; url: string } => x !== null)}
           />
           <SigningCard
             summitEntityId={entityId}

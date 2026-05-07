@@ -100,6 +100,8 @@ export default function SigningCard({
   const [externalRef, setExternalRef] = useState<Record<string, string>>({})
   const [externalLink, setExternalLink] = useState<Record<string, string>>({})
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const manualFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const externalDoneFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const relevantDocs = ALL_SIGNING_DOCS.filter(doc => {
     if (!doc.clientTypeFilter) return true
@@ -184,6 +186,74 @@ export default function SigningCard({
       setResending(null)
     }
   }, [clientPhone])
+
+  /** Manual mark-done with optional signed PDF (office-paper override for 2Sign forms). */
+  const handleManualSign = useCallback(async (documentType: string, file: File) => {
+    setSending(documentType)
+    setError(null)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''),
+      )
+      const res = await fetch('/api/onboarding/signing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summitEntityId,
+          clientName,
+          clientEmail: clientEmail || '',
+          clientPhone: clientPhone || '',
+          documentType,
+          isManualSign: true,
+          pdfBase64: base64,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) // eslint-disable-line
+        throw new Error(data.error || 'שגיאה')
+      }
+      onTasksChanged()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאה')
+    } finally {
+      setSending(null)
+      const input = manualFileRefs.current[documentType]
+      if (input) input.value = ''
+    }
+  }, [summitEntityId, clientName, clientEmail, clientPhone, onTasksChanged])
+
+  /** Attach a signed PDF to an already-completed external task (BTL מיוצגים). */
+  const handleExternalDocUpload = useCallback(async (documentType: string, file: File) => {
+    setSending(documentType)
+    setError(null)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''),
+      )
+      const res = await fetch('/api/onboarding/signing', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summitEntityId,
+          documentType,
+          pdfBase64: base64,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) // eslint-disable-line
+        throw new Error(data.error || 'שגיאה')
+      }
+      onTasksChanged()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאה')
+    } finally {
+      setSending(null)
+      const input = externalDoneFileRefs.current[documentType]
+      if (input) input.value = ''
+    }
+  }, [summitEntityId, onTasksChanged])
 
   /** Phase 1: open WhatsApp with drafted BTL מיוצגים message + pasted link. */
   const handleSendBtlLink = useCallback((documentType: string) => {
@@ -294,6 +364,25 @@ export default function SigningCard({
                           type="button"
                         >
                           {sending === doc.documentType ? 'שולח...' : 'העלה PDF ושלח'}
+                        </button>
+                        <input
+                          ref={el => { manualFileRefs.current[doc.documentType] = el }}
+                          type="file"
+                          accept=".pdf"
+                          className={styles.fileInput}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleManualSign(doc.documentType, file)
+                          }}
+                        />
+                        <button
+                          className={styles.resendBtn}
+                          onClick={() => manualFileRefs.current[doc.documentType]?.click()}
+                          disabled={sending === doc.documentType}
+                          title={'העלה PDF חתום ידנית (עוקף 2Sign)'}
+                          type="button"
+                        >
+                          {'סמן כחתום ידנית'}
                         </button>
                       </>
                     )}
@@ -413,7 +502,35 @@ export default function SigningCard({
                     )}
 
                     {isComplete && (
-                      <span className={styles.externalDone}>{'הושלם'}</span>
+                      <>
+                        <span className={styles.externalDone}>{'הושלם'}</span>
+                        {task?.signedDocUrl ? (
+                          <a href={task.signedDocUrl} target="_blank" rel="noopener noreferrer" className={styles.viewBtn}>
+                            {'צפה'}
+                          </a>
+                        ) : (
+                          <>
+                            <input
+                              ref={el => { externalDoneFileRefs.current[doc.documentType] = el }}
+                              type="file"
+                              accept=".pdf"
+                              className={styles.fileInput}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) handleExternalDocUpload(doc.documentType, file)
+                              }}
+                            />
+                            <button
+                              className={styles.resendBtn}
+                              onClick={() => externalDoneFileRefs.current[doc.documentType]?.click()}
+                              disabled={sending === doc.documentType}
+                              type="button"
+                            >
+                              {sending === doc.documentType ? 'מעלה...' : 'העלה PDF חתום'}
+                            </button>
+                          </>
+                        )}
+                      </>
                     )}
                   </>
                 )}

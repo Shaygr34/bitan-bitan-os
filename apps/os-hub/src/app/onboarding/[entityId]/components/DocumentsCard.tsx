@@ -8,10 +8,17 @@ interface DocItem {
   url?: string
 }
 
+interface SignedDocItem {
+  documentType: string
+  label: string
+  url: string
+}
+
 interface Props {
   documents: DocItem[]
   uploadedCount: number
   requiredCount: number
+  signedDocs?: SignedDocItem[]
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -27,7 +34,9 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   rentalContract: '\u05D7\u05D5\u05D6\u05D4 \u05E9\u05DB\u05D9\u05E8\u05D5\u05EA',
 }
 
-export default function DocumentsCard({ documents, uploadedCount, requiredCount }: Props) {
+export default function DocumentsCard({ documents, uploadedCount, requiredCount, signedDocs }: Props) {
+  const hasSigned = !!signedDocs && signedDocs.length > 0
+
   return (
     <div className={styles.card}>
       <div className={styles.headerRow}>
@@ -63,6 +72,31 @@ export default function DocumentsCard({ documents, uploadedCount, requiredCount 
           )
         })}
       </div>
+
+      {hasSigned && (
+        <>
+          <div className={styles.headerRow} style={{ marginTop: '1.25rem' }}>
+            <h3 className={styles.title} style={{ fontSize: '0.95rem' }}>{'מסמכים חתומים'}</h3>
+            <span className={styles.count}>{signedDocs!.length}</span>
+          </div>
+          <div className={styles.list}>
+            {signedDocs!.map((d) => (
+              <div key={`signed-${d.documentType}`} className={styles.docRow}>
+                <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'\u2713'}</div>
+                <span className={styles.docName}>{d.label}</span>
+                <a
+                  href={d.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.viewLink}
+                >
+                  {'צפה \u2197'}
+                </a>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
