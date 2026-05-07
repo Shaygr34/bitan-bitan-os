@@ -25,6 +25,34 @@
   color: var(--gold, #C5A572);
 }
 
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.refreshBtn {
+  background: transparent;
+  color: var(--text-caption);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 200ms;
+}
+
+.refreshBtn:hover:not(:disabled) {
+  border-color: var(--gold, #C5A572);
+  color: var(--gold, #C5A572);
+}
+
+.refreshBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .progressBar {
   height: 4px;
   background: var(--border);

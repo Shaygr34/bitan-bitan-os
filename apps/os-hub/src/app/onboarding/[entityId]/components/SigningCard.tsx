@@ -96,6 +96,7 @@ export default function SigningCard({
 }: Props) {
   const [sending, setSending] = useState<string | null>(null)
   const [resending, setResending] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [externalRef, setExternalRef] = useState<Record<string, string>>({})
   const [externalLink, setExternalLink] = useState<Record<string, string>>({})
@@ -308,9 +309,27 @@ export default function SigningCard({
     <div className={styles.card}>
       <div className={styles.header}>
         <h3 className={styles.title}>{'ייפוי כוח — חתימות'}</h3>
-        <span className={styles.count}>
-          {completedCount}/{totalRequired}
-        </span>
+        <div className={styles.headerRight}>
+          <button
+            type="button"
+            className={styles.refreshBtn}
+            onClick={async () => {
+              setRefreshing(true)
+              try {
+                await onTasksChanged()
+              } finally {
+                setRefreshing(false)
+              }
+            }}
+            disabled={refreshing}
+            title="רענן סטטוס מ-2Sign"
+          >
+            {refreshing ? '...' : '\u21BB רענן'}
+          </button>
+          <span className={styles.count}>
+            {completedCount}/{totalRequired}
+          </span>
+        </div>
       </div>
 
       <div className={styles.progressBar}>

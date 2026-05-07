@@ -231,6 +231,18 @@ export default function ClientDetailPage() {
     loadData()
   }, [loadData])
 
+  // Background poll while signing tasks are still non-terminal (sent/pending/awaiting-counter/external-sent).
+  // Stops automatically once all tasks reach a terminal state.
+  useEffect(() => {
+    const TERMINAL = new Set(['signed', 'declined', 'expired', 'external-done'])
+    const hasPending = state.signingTasks.some((t) => !TERMINAL.has(t.status))
+    if (!hasPending) return
+    const id = setInterval(() => {
+      loadData()
+    }, 30000)
+    return () => clearInterval(id)
+  }, [state.signingTasks, loadData])
+
   const handleChecklistToggle = async (itemKey: string, completed: boolean) => {
     if (!state.record) return
 
