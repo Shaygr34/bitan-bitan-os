@@ -51,6 +51,36 @@ Core posture (Enable):
 Current founders in this repo:
 - **Ron Bitan** — `docs/founders/ron/`. First session: 2026-05-12 15:30. Lab branch: `ron-lab/*`.
 
+### Cowork bootstrap — founder sessions
+
+If you are Cowork mounted on this folder for a founder session:
+
+1. **Operating persona is `docs/founders/<name>/claude-ai-project-kit/00-system-prompt.md`** (Ron: `docs/founders/ron/claude-ai-project-kit/00-system-prompt.md`). Read it FIRST as your system prompt — Hebrew-first, partner posture, Bitan brand defaults.
+2. Then read `docs/founders/founder-partner-protocol.md` for full Enable+Guard protocol.
+3. Then read `docs/founders/<name>/<name>-state.md` for current state.
+4. `RON-START.md` at repo root is the human-visible bootstrap pointer.
+
+Greet the founder in Hebrew with awareness of where things stand. Don't narrate the bootstrap.
+
+### Session 1 — Ron Bitan onboarding (2026-05-12)
+
+**First Founder Lab instance shipped.** Pre-session wiring:
+- `infra/founder-lab-setup` PR merged to main (protocol + Ron's kit + ron-state.md + workstation-design)
+- Global skill `~/.claude/skills/founder-partner/SKILL.md` authored
+- `ron-lab/onboarding` branch rebased onto main (patch-id auto-dropped 2 doppelgangers)
+- claude.ai Project "Bitan OS Lab" configured (system prompt + 2 Knowledge files uploaded)
+- PAT-embedded HTTPS clone zipped for Ron's zero-git-setup Mac (33MB, `.git` included, `credential.helper=""` locally so PAT stays in URL)
+- `RON-START.md` added at repo root as visible Cowork bootstrap pointer
+- "Bitan OS Explained" deck shipped at `/Users/shay/My Drive/Ventures_04/Projects/Bitan/founder-lab/bitan-os-explained-deck.html` — 10-slide founder-POV walkthrough (Hebrew, navy/gold/Heebo, no Dodeca refs)
+
+**Cowork model — corrected mid-session.** Cowork mounts a LOCAL folder via desktop app, has Linux shell, persists across sessions. NOT API-mediated cloud. One-stop-shop = repo folder containing CLAUDE.md + persona kit + state. Project layer optional, not required.
+
+**Session 1 strategy pivot.** Defer repo mount to session 2. Tonight = Summit MCP + drafts in Project chat surface. Mount happens with Ron at keyboard so the bootstrap moment becomes part of his trust beat.
+
+**Ron's Mac onboarding path**: Option 3 hybrid = Option 1 (PAT-embedded zip + AirDrop/Gmail) tonight + Option 2 (GitHub Desktop) session 2 long-term.
+
+**Cross-session memory lynchpin.** claude.ai Project has structure/principles but no live state. 3-tier solution: (1) state file discipline = today, (2) manual Knowledge re-upload = stopgap, (3) memory MCP server = deferred.
+
 ---
 
 ## os-hub: Content Factory — Architecture & Current State
@@ -853,3 +883,32 @@ The 4 emails sent at 10:57 today pointed to nothing. Corrected PDFs visible on e
 1. **Date Y-coordinate fix** in `auto-stamp.ts` (small visible bug, affects every signed PDF going forward)
 2. **Authorize-gate UI (Option C)** — original deferred goal. Plan: new status `awaiting-office-authorize`, magic-link JWT (7-day TTL), `POST /api/onboarding/signing/authorize`, `PendingAuthorizationsCard` widget, env `ONBOARDING_AUTHORIZE_SECRET`. No JWT library in package.json yet — add `jose` or `jsonwebtoken`. Poller flow change: 2Sign signed → transition to `awaiting-office-authorize` + email Avi/Ron → manual click → THEN auto-stamp + persist + Summit. No auto-fallback. Summit stays הערה for Phase 1.
 3. **Sibling-endpoint cleanup PR** — fix the three other dead-code endpoints in `twosign-client.ts`. Trivial.
+
+## Session: May 12, 2026 — Article Image Backfill + Sumit Sync Coda v0.3
+
+### Image backfill (bitancpa.com)
+Generated + uploaded hero images for 7 articles missing `mainImage` in Sanity production (`ul4uwnp7`). Two published (`חמש החשיפות / שאגת הארי`, `מדריך פעולה / שאגת הארי`) confirmed live on bitancpa.com. Five drafts hold asset refs on `drafts.<id>`, will render on publish.
+
+Pipeline: Python script `apps/os-hub/scripts/backfill-article-images.py` → Google Gemini `gemini-3.1-flash-image-preview` (NB2) → Sanity REST asset upload → Sanity REST patch (`setIfMissing.mainImage`). Same prompt template as production `image-generator.ts`: navy `#102040` bg, gold `#C5A572` accents, isometric financial illustration, 16:9, no people/text/photos.
+
+### Two lessons worth promoting
+
+**1. Sanity drafts patch at `drafts.<id>`, not bare `<id>`.** Patching a bare draft ID returns 404. Fix script: `/tmp/fix-draft-patches.py` (created mid-session). Encode this in any future Sanity bulk-patch script that touches both published + draft docs.
+
+**2. NB2 image size 1K, not 2K, for upstream-limited Macs.** First two batches failed: Node `fetch` got Sanity 502 on 2.7 MB PNG uploads; Python `requests` got `TimeoutError` on the SSL sendall halfway through. Curl confirmed via `--trace-time`: ~1.5 MB succeeded in 120s then died — Shay's home upstream choked on the rest. Dropping NB2 config from `imageSize: "2K"` to `imageSize: "1K"` (~700 KB JPG) made uploads succeed on first try. Future image-gen scripts: default to 1K unless you've confirmed the network can sustain 3 MB SSL uploads.
+
+### Sumit Sync — Coda spine bumped v0.2 → v0.3
+No engine code touched. Pure consolidation work via `coda` skill.
+- Spine `~/bitan-summit-sync-system-map.md` v0.2 → v0.3.
+- Added WS-5 (targeted fetch + concurrency + negative cache, PR #122) to §5 with honest N=100 caveat (106s wall, 1.06s/row, extrapolation 12.6 min for 715-row IDOM — concurrency helps network, not batch-cooldown ceiling).
+- Cycle A formally CLOSED in §5; Cycles B/C remain unblocked-but-unrun.
+- Cold-cache estimate updated ~25 min → ~12.6 min in §2.
+- `WS-4` dangling reference surfaced as Open Item #8 (state file referenced it; spine never defined it; resolve at next Coda touch).
+- v0.4 target stated: post first-prod-run validation + WS-4 named-or-dropped.
+
+State file `~/.claude/projects/-Users-shay/memory/coda-bitan-summit-sync-state.md` refreshed per Coda end-of-session ritual.
+
+### Next session pickup (this session's residuals)
+1. Publish the 5 backfilled drafts (or leave for Avi/Ron review in Studio).
+2. Resolve WS-4 dangling reference (name it in one sentence, or drop it). Cheap.
+3. Monitor first production Sumit Sync prod run against PR #122 — validates the 12.6-min extrapolation.
