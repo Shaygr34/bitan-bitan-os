@@ -53,10 +53,12 @@ const STAMP_LAYOUTS: Record<string, StampLayout> = {
     // Section ב on רשות המיסים POA — אישור מנהל התיק.
     // Coordinates tuned via /tmp/bitan-autograph-extract/test-stamp.mjs against tax-authority.pdf (Letter 612x792).
     // - office stamp anchored top-edge at y=540 from page top → bottom of stamp lands on firm signature line.
-    // - officeDate / clientDate land in the right-side תאריך column (x=485).
+    // - officeDate / clientDate baselines aligned to their respective signature rows (per pdf-marker.ts FORM_POSITIONS):
+    //   office signature row = yFromTop 640, client signature row = yFromTop 430.
+    //   Pre-fix (2026-05-12): officeDate sat at 615 (25pt above sig row → landed at the label row).
     office: { x: 90, yFromTop: 540, widthPt: 95 },
-    officeDate: { x: 485, yFromTop: 615, fontSize: 11 },
-    clientDate: { x: 485, yFromTop: 432, fontSize: 11 },
+    officeDate: { x: 485, yFromTop: 640, fontSize: 11 },
+    clientDate: { x: 485, yFromTop: 430, fontSize: 11 },
   },
   'poa-nii-withholdings': {
     // BTL ניכויים has no office counter-sign (employer signs alone) — date only.

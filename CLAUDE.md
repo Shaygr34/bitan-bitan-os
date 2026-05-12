@@ -793,3 +793,63 @@ Cross-session memory: `~/.claude/projects/-Users-shay/memory/bitan-summit-sync-t
 
 ### Why this matters
 The engine has 52 Python tests but no end-to-end production proof. A mock-first, ledger-every-run, three-cycle protocol gives Avi/Ron (and any successor) an auditable trail showing "the write engine works against real Summit, here's exactly what it did, here's how to revert." This is the foundation for trusting the engine with Guy's weekly IDOM file.
+
+## Session: May 12, 2026 — 2Sign Ghost-Records Fix + Self-Healing Cron
+
+### The bug
+4 onboarding records (pj3r0w / 38fpf8 / fbwn1v / jsk388) had been stuck for weeks in a ghost state: `signingTasks[].status = 'signed'`, `notifiedAt` stamped, but `signedDocUrl = null` and `stampedDocUrl = null`. Avi/Ron got "X חתם!" emails pointing at nothing. The PDF link was always broken.
+
+### Root cause
+`getSignedDocument()` in `src/lib/onboarding/twosign-client.ts` was calling the **wrong 2Sign controller** (POST `/Documents/...`). The correct endpoint is **GET `/Tasks/GetSignedTaskLocationBlob?fileDownloadType=0`** with the SAS URL returned in `body.Message` (fallback `body.ResponseObject.SignedTaskLinkBlob`). On top of that, a `catch {}` silently swallowed the failure, so retries never happened and the broken state became permanent. House rule "POST everything for 2Sign" is FALSE for retrieval endpoints — reads are GET.
+
+### What shipped
+
+#### PR #124 — `fix(onboarding): correct 2Sign signed-doc endpoint + kill silent swallow`
+- **Endpoint fix** in `twosign-client.ts:getSignedDocument()` — GET `/Tasks/GetSignedTaskLocationBlob`, SAS extracted from `body.Message`.
+- **Verify script** `apps/os-hub/scripts/verify-getsigned.mjs` — standalone proof against any GUID. POST→405, GET→200 confirmed live. Keep this pattern for any future 2Sign endpoint change.
+- **Silent swallow killed** in `signing-poller.ts` — every PDF-fetch failure now logs diagnostic.
+- **Retry-budget invariant** — new `isFullySettled()` helper: a `signed` task is **non-terminal** until it has `signedDocUrl || stampedDocUrl` OR exhausts 5 retries. New audit fields on `SigningTask`: `pdfFetchAttempts`, `pdfFetchLastError`.
+- **`notifiedAt` gated on artifact** — email only fires when there's a real signed PDF link to point at. No more ghost emails.
+
+#### PR #125 — `fix(cron): widen signing-poll GROQ to include ghost-signed records`
+PR #124 alone left the ghosts invisible to the cron because the GROQ still treated `status == "signed"` as terminal. Widened to mirror `isFullySettled()`:
+```groq
+(status != "signed" && status != "declined" && status != "expired" && status != "external-done") ||
+(status == "signed" && !defined(signedDocUrl) && !defined(stampedDocUrl) && coalesce(pdfFetchAttempts, 0) < 5)
+```
+**Two-layer agreement principle**: GROQ filter is layer 1 (who the poller sees), `isFullySettled()` is layer 2 (per-task action). Both must agree on "non-terminal."
+
+### Verification (cron run #25733838040, 12:17 IST)
+
+| Record | Client | signedDocUrl | stampedDocUrl | pdfFetchAttempts | notifiedAt preserved |
+|---|---|---|---|---|---|
+| pj3r0w | דוד אחדות | ✅ | ✅ | null | 10:57:01 |
+| 38fpf8 | ש.ק.ד | ✅ | ✅ | null | 10:57:07 |
+| fbwn1v | כצמן | ✅ | ✅ | null | 10:57:10 |
+| jsk388 | shay test | ✅ | ✅ | null | 10:57:13 |
+
+`pdfFetchAttempts: null` = succeeded on first retry. SAS URLs were always there; wrong endpoint was the only blocker. UI confirmed visually by Shay (דוד אחדות stamped PDF rendering correctly with office signature + stamp embedded).
+
+### Follow-up: date placement fix (PR #126)
+**`fix(auto-stamp): align date baselines with signature rows`** — both `officeDate` and `clientDate` Y-coordinates in `STAMP_LAYOUTS['poa-tax-authority']` were drifting from `pdf-marker.ts` `FORM_POSITIONS` (the single source of truth for placement). Office date was 25pt above the signature row — text landed at the תאריך label instead of on the date fill-in line. Re-aligned: officeDate yFromTop 615 → 640, clientDate yFromTop 432 → 430. Comment added pointing back to `pdf-marker.ts` to prevent re-drift.
+
+### Latent sibling bugs (NOT fixed — flag for cleanup PR)
+Same wrong-controller pattern still exists in `twosign-client.ts`:
+- `getOriginalDocument` (~line 541)
+- `getAllAttachments` (~line 551)
+- `deleteTask` (~line 566)
+
+Dead code in current flows. Will break the moment anyone calls them.
+
+### Heads-up for Avi/Ron
+The 4 emails sent at 10:57 today pointed to nothing. Corrected PDFs visible on each onboarding detail page as of 12:17. No automated follow-up email was sent (idempotency held via `notifiedAt`). Worth a manual note so they know the signed PDFs are now accessible.
+
+### Lessons / patterns
+- **Verify-first script lives in repo** (`scripts/verify-getsigned.mjs`) — high-leverage external APIs deserve in-repo proof scripts.
+- **Apiary blueprint raw at `jsapi.apiary.io/apis/2signsdk.apib`** — the data layer Apiary's own UI consumes. Faster than scraping rendered docs.
+- **2-layer guard pattern** (GROQ + invariant) — when adding self-healing to a cron, BOTH discovery filter AND per-item logic must be widened together.
+
+### Next session pickup (priority order)
+1. **Date Y-coordinate fix** in `auto-stamp.ts` (small visible bug, affects every signed PDF going forward)
+2. **Authorize-gate UI (Option C)** — original deferred goal. Plan: new status `awaiting-office-authorize`, magic-link JWT (7-day TTL), `POST /api/onboarding/signing/authorize`, `PendingAuthorizationsCard` widget, env `ONBOARDING_AUTHORIZE_SECRET`. No JWT library in package.json yet — add `jose` or `jsonwebtoken`. Poller flow change: 2Sign signed → transition to `awaiting-office-authorize` + email Avi/Ron → manual click → THEN auto-stamp + persist + Summit. No auto-fallback. Summit stays הערה for Phase 1.
+3. **Sibling-endpoint cleanup PR** — fix the three other dead-code endpoints in `twosign-client.ts`. Trivial.
