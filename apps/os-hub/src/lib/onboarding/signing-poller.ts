@@ -249,12 +249,12 @@ export async function materializeSignedArtifact(
             await patch(record._id, {
               set: { cachedStage: targetStage, lastSyncedAt: now },
             })
-            notifyStageAdvanced({
-              clientName: record.clientName,
-              summitEntityId: record.summitEntityId,
-              toStage: targetStage,
-              reason: allSigned ? 'כל החתימות הושלמו' : 'הלקוח חתם ואושר על ידי המשרד',
-            })
+            // notifyStageAdvanced dropped 2026-05-12 — auto-advance after
+            // signing is implicit (the completion email already implies the
+            // stage move, and the authorize-page success state names the
+            // stage explicitly). Manual stage advance from /api/onboarding/
+            // advance still fires this notifier because that is an explicit
+            // user action with different intent.
           }
         }
       } catch (err) {
@@ -505,12 +505,9 @@ export async function pollRecord(
             await patch(record._id, {
               set: { cachedStage: targetStage, lastSyncedAt: now },
             })
-            notifyStageAdvanced({
-              clientName: record.clientName,
-              summitEntityId: record.summitEntityId,
-              toStage: targetStage,
-              reason: allSigned ? 'כל החתימות הושלמו' : 'הלקוח חתם',
-            })
+            // notifyStageAdvanced dropped 2026-05-12 — see twin comment in
+            // materializeSignedArtifact above. Auto-advance after signing is
+            // implicit; only explicit user-clicked advances notify.
             result.stageAdvancedTo = targetStage
           }
         }

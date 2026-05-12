@@ -496,7 +496,25 @@ export async function searchTasks(params: {
   return res.json()
 }
 
-/** Resend a task notification. */
+/**
+ * Resend a task notification.
+ *
+ * On 404 (task GUID invalid / purged on 2Sign side / email-binding broken)
+ * throws `Error` with `code = 'TASK_NOT_FOUND'`. Office staff see this when
+ * they manually fix a typo'd client email AFTER the task was already created
+ * — 2Sign tasks are immutable post-creation. Recovery requires creating a new
+ * task with the corrected email (handled UI-side).
+ */
+export class ResendTaskError extends Error {
+  code: 'TASK_NOT_FOUND' | 'UNKNOWN'
+  status: number
+  constructor(code: 'TASK_NOT_FOUND' | 'UNKNOWN', status: number, message: string) {
+    super(message)
+    this.code = code
+    this.status = status
+  }
+}
+
 export async function resendTask(
   taskGuid: string,
   options: { phone?: boolean; email?: boolean; whatsapp?: boolean } = {},
@@ -509,7 +527,12 @@ export async function resendTask(
       IsSendWhatsAppOnCreation: options.whatsapp ?? false,
     }),
   })
-  if (!res.ok) throw new Error(`2Sign resendTask failed: ${res.status}`)
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new ResendTaskError('TASK_NOT_FOUND', 404, `2Sign resendTask 404 for ${taskGuid}`)
+    }
+    throw new ResendTaskError('UNKNOWN', res.status, `2Sign resendTask failed: ${res.status}`)
+  }
 }
 
 // ---------------------------------------------------------------------------
