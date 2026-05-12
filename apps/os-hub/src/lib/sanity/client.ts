@@ -73,7 +73,10 @@ export async function query<T = unknown>(
     headers.Authorization = `Bearer ${apiToken}`;
   }
 
-  const response = await fetch(url, { headers });
+  // Opt out of Next.js Data Cache — Sanity has its own consistency layer,
+  // and caching this fetch caused the cron poller to see a frozen result set
+  // (including deleted "ghost" records and missing newly-created records).
+  const response = await fetch(url, { headers, cache: "no-store" });
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");

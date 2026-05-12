@@ -332,7 +332,7 @@ Direct API writes to Summit CRM — replaces manual XLSX import.
 2. Operator approval before live execution (confirmation dialog)
 3. Every write logged to `write_logs` table with before/after values
 4. Never writes: שם, מספר_תיק (identifying fields)
-5. Skips: קוד_שידור, מח (no Summit counterpart)
+5. Skips: מח (no Summit counterpart)
 
 **API routes:** `GET /runs/{id}/write-plan`, `POST /runs/{id}/write-back/dry-run`, `POST /runs/{id}/write-back`
 **Frontend proxy:** `/api/sumit-sync/runs/{id}/write-plan`, `/api/sumit-sync/runs/{id}/write-back?mode=dry-run|live`
@@ -648,7 +648,8 @@ src/app/api/onboarding/signing/route.ts           — 2Sign signing task CRUD
 
 ### 7. Template V2 (SHAAM column order)
 - Removed שנת שומה column (set in OS UI, not in file)
-- Column order matches exact SHAAM שאילתא output: קוד שידור → תאריך ארכה → תאריך הגשה → מח → סוג תיק → פקיד שומה → שם → מספר תיק
+- Column order matches exact SHAAM שאילתא מעקב דוחות output (7 cols): תאריך ארכה → תאריך הגשה → מח → סוג תיק → פקיד שומה → שם → מספר תיק
+- **No קוד שידור column** — that was a phantom carried over from the earliest template and was never an actual SHAAM שאילתא column. Removed everywhere 2026-05-12.
 - Guy can copy-paste directly from שאילתא output without rearranging
 - Saved to `apps/os-hub/public/idom-template.xlsx` + Google Drive
 
@@ -671,3 +672,96 @@ src/app/api/onboarding/signing/route.ts           — 2Sign signing task CRUD
 4. **Run recovery**: on startup, detect runs stuck at "processing" for >1 hour and mark as failed
 5. **Cache warm-up**: consider pre-warming via `/mapping/refresh` before sync to decouple cold start
 6. **Ops dashboard vision**: once sync works, build the internal dashboard for Avi/Ron (see memory: `bitan-operations-dashboard-vision.md`)
+
+## Session: May 7-8, 2026 — 2Sign Always-On Polling Fix
+
+### The regression
+2Sign signed-status transitions were captured ONLY while the onboarding detail page was mounted (30s `setInterval` in `onboarding/[entityId]/page.tsx`). Avi/Ron's workflow is "send → close → wait for email" — meaning the page was almost never open at the moment the client signed, so `'sent'` tasks froze in Sanity, no email fired, and stage advance never triggered.
+
+### What shipped (PR #118 — merged + verified)
+- **`/api/cron/signing-poll`** — Bearer-CRON_SECRET-authed route. GROQ filter: `count(signingTasks[status != "signed" && status != "declined" && status != "expired" && status != "external-done"]) > 0`. Sequential `pollRecord()` calls. `maxDuration = 300`.
+- **`.github/workflows/signing-poll.yml`** — 10-min cron + `workflow_dispatch`. Curl with bearer; fails on non-200. Uses `OS_HUB_BASE_URL` + `CRON_SECRET` GitHub secrets.
+- **`src/lib/onboarding/signing-poller.ts`** — shared `pollRecord()` extracted from the page-presence GET handler. Idempotent: skips terminal tasks, stamps `notifiedAt` on first email send to prevent duplicates.
+- **`SigningTask` type** — added `formType`, `lastPolledAt`, `notifiedAt` audit fields.
+- **`/api/onboarding/signing` GET** — refactored to use `pollRecord()`. Removed dead imports (getTask, getSignedDocument, applyOfficeStamp, etc. — all moved into the poller).
+
+### Verification (workflow run #25492734797)
+- Polled 7 records carrying non-terminal signing tasks
+- 8 active task GUIDs probed against 2Sign — all returned `IsSigned=false`
+- No errors, no false positives, no duplicate emails
+- Audit fields proven: every `'sent'` task got `lastPolledAt: 2026-05-07T11:21:55-11:22:03Z`, `notifiedAt: null`
+- **Cannot simulate the full transition** (`IsSigned=true` → Sanity flip → email + auto-stamp + stage advance) without an actual 2Sign-side signature — needs real ייפוי כוח sent + signed end-to-end.
+
+### CI infrastructure fix (drive-by during this session)
+- pnpm 11.0.8 auto-released and broke CI on Node 20 (uses `node:sqlite` builtin). Initial Node-22 bump still failed because pnpm 11 errors on ignored build scripts (`ERR_PNPM_IGNORED_BUILDS`).
+- **Fix**: pinned `"packageManager": "pnpm@10.18.1"` in root `package.json`, kept Node 20 in workflow.
+
+### Env vars (set this session)
+- Railway: `CRON_SECRET` set on os-hub service
+- GitHub repo `Shaygr34/bitan-bitan-os`: `CRON_SECRET`, `OS_HUB_BASE_URL` secrets set
+
+### Stage 4-6 still need specs (outstanding)
+Sent to Avi/Ron on WhatsApp (May 8) — open characterization questions for stages currently blocked:
+- **Stage 4 (רשויות)**: which authorities, who executes (Guy?), tracking surface (manual / dashboard / API), completion signal, variance by client type
+- **Stage 5 (לקוח חדש)**: definition, opening checklist, who "receives" the client (מנה"ח / manager / auditor), expected duration to "active"
+- **Stage 6 (פעיל)**: definition (first bookkeeping close? first VAT report?), internal sub-states, exit triggers
+- Hidden steps not on the map (initial coordination call, separate fee agreement signing, etc.)
+
+### Two executive deliverables produced
+- `~/Desktop/bitan-מנוע-חישוב-2026.pdf` — one-pager engineering brief for Avi/Ron explaining the shared tax/financial engine behind both calculators (leasing + employer cost). Bitan brand (navy + gold + Heebo). Architecture, constants, QA stats, capabilities.
+- `~/Desktop/bitan-עדכון-חתימות-2sign.pdf` — executive-friendly progress note on the signing fix. Plain Hebrew, no jargon. Status bar (תיקון בייצור / בדיקה עברה / אימות מלא ממתין), before-after panels.
+
+## Session: May 11, 2026 — Sumit Sync Test Initiative
+
+### Why this session exists
+The IDOM→Summit write engine (build_write_plan + write_executor + write-back API) was shipped April 14 and has **never completed an uninterrupted year-2024 cold run** against real data. Every prior attempt either zombied from a mid-run deploy, hit Summit 403, or never reconciled because of the year-mismatch finding (IDOM=שנת שומה, Summit=שנת מס). Instead of fighting the cold-cache 25-min cycle yet again, this initiative tests the **engine semantics** directly with hand-crafted mock IDOM files against a single test client. Mock-first, ledger every run, no production data.
+
+### Approach lock — API path only
+NOT Summit's UI spreadsheet import. The test target is the full API write engine:
+`write-plan → write-back/dry-run → write-back (live)` against `Summit MCP` writes through the existing `summit_update_entity` / `summit_create_entity` path. The UI import is out of scope ("we do not want to really worry about the native UI spreadsheet").
+
+### Test fixtures — LOCKED
+- **Client-α (test client)**: Summit entity **`1864195687`** in folder `557688522` (לקוחות). Display name `שי גרייבר בדיקה`. `Customers_CompanyNumber = 206775140` (Shay's actual ת.ז, used as ח.פ for matching).
+- **סוג לקוח** on Client-α: עצמאי (semantic mismatch with דוחות כספיים folder, but mechanically the engine only cares about folder + לקוח link, not type).
+- **Existing report on Client-α**: entity **`1896724808`** in folder `1124761700` (דוחות כספיים), tagged year 2024, status "2) עבודה מקדימה". All date fields EMPTY (clean state for UPDATE test).
+- **Zero reports** in folder `1144157121` (דוחות שנתיים) for this client — useful negative space.
+
+### Three-cycle plan (LOCKED)
+Engine constraint: **one tax_year per run** — UPDATE and CREATE for the same client cannot mix in a single run. Hence three sequential cycles.
+
+| Cycle | Year | IDOM row(s) | Expected OpType | What it proves |
+|-------|------|-------------|------------------|----------------|
+| **A** | 2024 | ח.פ 206775140, ארכה=30/06/2026, no הגשה | `UPDATE_REPORT` on `1896724808` — writes תאריך אורכה מ"ה only | Matched-with-changes path; status preserved (no הגשה) |
+| **B** | 2025 | ח.פ 206775140, ארכה=15/05/2027, הגשה=30/04/2026 | `CREATE_REPORT` in folder 1124761700 with לקוח=`1864195687`, status=COMPLETED | Unmatched-but-known-client path; CREATE wiring |
+| **C** | 2023 | (1) ח.פ 206775140 ארכה=15/03/2025 no הגשה (2) ח.פ 999999990 (unknown) | (1) regression flag + status preserved (2) `FLAG` op | Status-regression guard + unmatched-unknown-client flag |
+
+Cycle C requires **prep**: create a 2023 COMPLETED report on Client-α via Summit MCP first, so that there's a real "Summit shows COMPLETED but IDOM lacks הגשה" condition to regress against.
+
+### Pre-flight build sequence (Phase 1 — local code, zero Summit touch)
+1. **`seed_test_mapping.py`** (~40 lines) — write a single `{206775140 → 1864195687}` entry to `client_mapping.json` so the engine recognizes Client-α without fetching all 960 clients (sidesteps the 25-min cold cache).
+2. **Deep-dry-run mode** in `write_executor.py` (~80 lines) — beyond current SHALLOW (presence check), validate field types + taxonomy IDs + folder schema before live write. Surfaces malformed plans without touching Summit.
+3. **`revert_run.py`** (~60 lines) — read `write_logs` for a given run_id, reverse each op (delete created entities, restore prior field values). Required safety net for Cycles B/C.
+4. **Mock IDOM XLSX builders** — `cycle-A.xlsx`, `cycle-B.xlsx`, `cycle-C.xlsx`. Each one ≤3 rows, חברות sheet only (financial). Generated via openpyxl, committed under `apps/sumit-sync/tests/fixtures/cycle-*/`.
+
+### Out of scope (LOCKED)
+- ❌ Summit UI spreadsheet import path
+- ❌ Multi-sheet (עצמאים, מנהלים) testing — חברות only for this initiative
+- ❌ Cold-cache full 960-client fetch — `seed_test_mapping.py` short-circuits this
+- ❌ פקיד שומה / סוג תיק client-card writes — already covered by separate test path; not part of three cycles
+- ❌ Real Guy IDOM file — that's a separate production cutover, comes after engine is proven
+
+### Ledger
+Every cycle gets a markdown file under `apps/sumit-sync/docs/test-runs/`:
+- `INDEX.md` — chronological list of all runs with status badges
+- `TEMPLATE.md` — copy-paste structure (run_id, inputs, write plan diff, dry-run result, live result, revert state, lessons)
+- `cycle-A-{run_id}.md`, `cycle-B-{run_id}.md`, etc.
+
+Cross-session memory: `~/.claude/projects/-Users-shay/memory/bitan-summit-sync-test-ledger.md` — links to every run, surfaces patterns across cycles.
+
+### Risk gating (non-optional)
+- **Phase 0** (memory + docs only, zero Summit touch) — proceeding without further confirmation
+- **Phase 1** (local code + mock XLSX files, zero Summit touch) — pause for green light before starting
+- **Phase 2** (live MCP writes against Summit) — pause + confirm before EACH cycle. Revert script must be proven on dry-run first.
+
+### Why this matters
+The engine has 52 Python tests but no end-to-end production proof. A mock-first, ledger-every-run, three-cycle protocol gives Avi/Ron (and any successor) an auditable trail showing "the write engine works against real Summit, here's exactly what it did, here's how to revert." This is the foundation for trusting the engine with Guy's weekly IDOM file.
