@@ -51,14 +51,16 @@ interface StampLayout {
 const STAMP_LAYOUTS: Record<string, StampLayout> = {
   'poa-tax-authority': {
     // Section ב on רשות המיסים POA — אישור מנהל התיק.
-    // Coordinates tuned via /tmp/bitan-autograph-extract/test-stamp.mjs against tax-authority.pdf (Letter 612x792).
+    // Coordinates tuned visually against signed PDFs from production (2026-05-12).
     // - office stamp anchored top-edge at y=540 from page top → bottom of stamp lands on firm signature line.
-    // - officeDate / clientDate baselines aligned to their respective signature rows (per pdf-marker.ts FORM_POSITIONS):
-    //   office signature row = yFromTop 640, client signature row = yFromTop 430.
-    //   Pre-fix (2026-05-12): officeDate sat at 615 (25pt above sig row → landed at the label row).
+    // - Date positions (verified against shay-test-3 stamped PDF on 2026-05-12):
+    //   * officeDate at yFromTop=640 (post-#126) dropped INTO "דברי הסבר" body text — bug.
+    //   * officeDate at yFromTop=615 (pre-#126) sat ON the label "תאריך" row — also wrong.
+    //   * The actual underline (where dates fill) sits ~12pt ABOVE the label row.
+    //   * Date column x: signature labels measure ~420pt; the prior 485 was 65pt too far right.
     office: { x: 90, yFromTop: 540, widthPt: 95 },
-    officeDate: { x: 485, yFromTop: 640, fontSize: 11 },
-    clientDate: { x: 485, yFromTop: 430, fontSize: 11 },
+    officeDate: { x: 420, yFromTop: 605, fontSize: 11 },
+    clientDate: { x: 420, yFromTop: 422, fontSize: 11 },
   },
   'poa-nii-withholdings': {
     // BTL ניכויים has no office counter-sign (employer signs alone) — date only.

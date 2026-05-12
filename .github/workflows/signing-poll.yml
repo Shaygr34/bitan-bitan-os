@@ -7,7 +7,9 @@ name: Signing Poll
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Every 5 min — GitHub Actions cron minimum. Note: actual interval drifts
+    # to 5-15 min during peak hours (GHA scheduler is best-effort, not strict).
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
