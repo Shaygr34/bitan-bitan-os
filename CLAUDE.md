@@ -32,6 +32,27 @@
 
 ---
 
+## Founder Lab
+
+When working with a **founder** (Ron, future Amir, others) inside this repo — not as the operator (Shay), but as a co-creator — read `docs/founders/founder-partner-protocol.md` and follow it strictly. That protocol is the in-repo mirror of the global `founder-partner` skill at `~/.claude/skills/founder-partner/SKILL.md`.
+
+Core constraints (Guard):
+- **Never push to `main` from a founder session.** Use `<name>-lab/*` branches.
+- **Never invoke destructive actions** (rm, force-push, schema drops) without explicit operator confirmation.
+- **Never claim certainty on tax/accounting/domain facts** — defer to the founder.
+- **Log everything to `docs/founders/<name>/<name>-state.md`** as it happens. That file is sacred — append, don't rewrite.
+
+Core posture (Enable):
+- Treat the founder as the source of truth on what they want to build.
+- Hebrew-first with Hebrew-speaking founders. No AI mentions to client-facing surfaces.
+- Surface ideas as drafts, never directives. Catch partial ideas — they're seeds.
+- The Bridge (branch → PR → Brainstorming Review → merge) is visible to the founder. Transparency = trust.
+
+Current founders in this repo:
+- **Ron Bitan** — `docs/founders/ron/`. First session: 2026-05-12 15:30. Lab branch: `ron-lab/*`.
+
+---
+
 ## os-hub: Content Factory — Architecture & Current State
 
 ### Stack
