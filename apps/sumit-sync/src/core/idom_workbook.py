@@ -86,7 +86,7 @@ def _is_template_format(filepath: str, sheet_name: str) -> bool:
 
         # Check if row 2 contains known IDOM header strings
         row2_values = [str(v).strip() for v in df_raw.iloc[2].tolist() if pd.notna(v)]
-        known_headers = {'מספר תיק', 'שם משפחה ופרטי', 'תאריך ארכה', 'תאריך הגשה', 'פקיד שומה', 'קוד שידור'}
+        known_headers = {'מספר תיק', 'שם משפחה ופרטי', 'תאריך ארכה', 'תאריך הגשה', 'פקיד שומה', 'סוג תיק'}
         matches = sum(1 for v in row2_values if v in known_headers)
 
         if matches >= 3:
@@ -100,11 +100,13 @@ def _is_template_format(filepath: str, sheet_name: str) -> bool:
 
 # Positional column assignments for Guy's headerless freeform paste.
 # Derived from actual IDOM 2025 file analysis.
-# עצמאים: 8 cols [empty, empty, תאריך_ארכה, קוד_שידור, סוג_תיק, פקיד_שומה, שם, מספר_תיק]
-# חברות/מנהלים: 7 cols [empty, תאריך_ארכה, קוד_שידור, סוג_תיק, פקיד_שומה, שם, מספר_תיק]
+# Real SHAAM שאילתת מעקב דוחות output (7 cols, no transmission-code column):
+#   תאריך_ארכה | תאריך_הגשה | מח | סוג_תיק | פקיד_שומה | שם | מספר_תיק
+# Guy's historical paste has an extra leading blank column (8 total) — same data shape.
 POSITIONAL_MAP_8COL = {
-    2: 'תאריך_ארכה',
-    3: 'קוד_שידור',
+    1: 'תאריך_ארכה',
+    2: 'תאריך_הגשה',
+    3: 'מח',
     4: 'סוג_תיק',
     5: 'פקיד_שומה',
     6: 'שם',
@@ -112,8 +114,9 @@ POSITIONAL_MAP_8COL = {
 }
 
 POSITIONAL_MAP_7COL = {
-    1: 'תאריך_ארכה',
-    2: 'קוד_שידור',
+    0: 'תאריך_ארכה',
+    1: 'תאריך_הגשה',
+    2: 'מח',
     3: 'סוג_תיק',
     4: 'פקיד_שומה',
     5: 'שם',
@@ -189,7 +192,7 @@ def _parse_sheet(filepath: str, sheet_name: str) -> SheetResult:
         parser = IDOMParser()
 
         # Check if columns are already named (from positional mapping or template)
-        known_cols = {'מספר_תיק', 'תאריך_ארכה', 'תאריך_הגשה', 'שם', 'פקיד_שומה', 'סוג_תיק', 'קוד_שידור', 'מח', 'שנת_שומה'}
+        known_cols = {'מספר_תיק', 'תאריך_ארכה', 'תאריך_הגשה', 'שם', 'פקיד_שומה', 'סוג_תיק', 'מח', 'שנת_שומה'}
         has_named_cols = len(set(df.columns) & known_cols) >= 2
 
         if has_named_cols:

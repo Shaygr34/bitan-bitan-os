@@ -87,12 +87,12 @@ def tmp_data_dir(tmp_path, monkeypatch):
 #   123456789 (dup) → deduplicated away (row 4 has older extension)
 
 IDOM_ROWS = [
-    # מספר תיק | שם            | תאריך ארכה  | תאריך הגשה  | קוד שידור | שנת שומה | מח
-    ("123456789", "כהן יעקב",   "2024-06-30",  "2024-05-15", "100",  "2024", "01"),
-    ("987654321", "לוי שרה",    "2024-09-30",  None,          "200",  "2024", "02"),
-    ("555555555", "אברהם דוד",  "2024-06-30",  None,          "300",  "2024", "01"),
-    ("111111111", "גולן רחל",   "2024-06-30",  None,          "400",  "2024", "03"),
-    ("123456789", "כהן יעקב",   "2024-03-31",  None,          "100",  "2024", "01"),  # dup - older extension
+    # מספר תיק | שם            | תאריך ארכה  | תאריך הגשה  | שנת שומה | מח
+    ("123456789", "כהן יעקב",   "2024-06-30",  "2024-05-15", "2024", "01"),
+    ("987654321", "לוי שרה",    "2024-09-30",  None,          "2024", "02"),
+    ("555555555", "אברהם דוד",  "2024-06-30",  None,          "2024", "01"),
+    ("111111111", "גולן רחל",   "2024-06-30",  None,          "2024", "03"),
+    ("123456789", "כהן יעקב",   "2024-03-31",  None,          "2024", "01"),  # dup - older extension
 ]
 
 # SUMIT Financial export: columns from FINANCIAL_EXPORT_SCHEMA.all_columns
@@ -134,17 +134,16 @@ def golden_idom_file(tmp_path) -> Path:
     ws = wb.active
     ws.title = "IDOM"
 
-    headers = ["מספר תיק", "שם משפחה ופרטי", "תאריך ארכה", "תאריך הגשה", "קוד שידור", "ס'ש", "מח"]
+    headers = ["מספר תיק", "שם משפחה ופרטי", "תאריך ארכה", "תאריך הגשה", "ס'ש", "מח"]
     ws.append(headers)
 
     for row in IDOM_ROWS:
-        tik, name, ext_date, sub_date, code, year, mch = row
+        tik, name, ext_date, sub_date, year, mch = row
         ws.append([
             int(tik),
             name,
             datetime.strptime(ext_date, "%Y-%m-%d") if ext_date else None,
             datetime.strptime(sub_date, "%Y-%m-%d") if sub_date else None,
-            code,
             year,
             mch,
         ])

@@ -6,9 +6,25 @@ Matching, transformation, and output generation.
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 from dataclasses import dataclass, field
 import logging
+
+# Israel timezone — handles IST (+02:00, Oct-Mar) and IDT (+03:00, Mar-Oct) automatically.
+# Hardcoding +03:00 caused IST-season dates to land one calendar day early in Summit
+# (Cycle C, 2026-05-12 — March 15 stored as March 14). Use this for all date wire encoding.
+ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
+
+
+def _encode_israel_midnight(d) -> str:
+    """Wire-encode a calendar date as midnight Israel local time (ISO 8601).
+
+    Picks the correct UTC offset for the date (+02:00 IST winter, +03:00 IDT summer)
+    so Summit's Date-typed properties truncate to the intended calendar day.
+    """
+    cal = d.date() if hasattr(d, "date") and callable(d.date) else d
+    return datetime.combine(cal, time.min, tzinfo=ISRAEL_TZ).isoformat()
 
 from .config import (
     ReportConfig, ReportType,
@@ -281,7 +297,6 @@ class SyncEngine:
             'שם': idom_row.get('שם', ''),
             'תאריך_ארכה': idom_row.get('תאריך_ארכה', ''),
             'תאריך_הגשה': idom_row.get('תאריך_הגשה', ''),
-            'קוד_שידור': idom_row.get('קוד_שידור', ''),
             'notes': 'רשומת IDOM ללא התאמה בייצוא SUMIT. ייתכן לקוח חדש או סינון ייצוא.'
         }
     
@@ -430,7 +445,7 @@ class SyncEngine:
         # Extension date (אורכה מ"ה)
         idom_ext = idom_row.get("תאריך_ארכה")
         if pd.notna(idom_ext):
-            ext_str = idom_ext.strftime("%d/%m/%Y") if hasattr(idom_ext, "strftime") else str(idom_ext)
+            ext_str = _encode_israel_midnight(idom_ext) if hasattr(idom_ext, "strftime") else str(idom_ext)
             old_ext = sumit_row.get('תאריך אורכה מ"ה', "")
             properties['תאריך אורכה מ"ה'] = ext_str
             old_values['תאריך אורכה מ"ה'] = str(old_ext) if pd.notna(old_ext) else ""
@@ -438,7 +453,7 @@ class SyncEngine:
         # Submission date
         idom_sub = idom_row.get("תאריך_הגשה")
         if pd.notna(idom_sub):
-            sub_str = idom_sub.strftime("%d/%m/%Y") if hasattr(idom_sub, "strftime") else str(idom_sub)
+            sub_str = _encode_israel_midnight(idom_sub) if hasattr(idom_sub, "strftime") else str(idom_sub)
             old_sub = sumit_row.get("תאריך הגשה", "")
             properties["תאריך הגשה"] = sub_str
             old_values["תאריך הגשה"] = str(old_sub) if pd.notna(old_sub) else ""
@@ -482,11 +497,11 @@ class SyncEngine:
 
             idom_ext = idom_row.get("תאריך_ארכה")
             if pd.notna(idom_ext):
-                properties['תאריך אורכה מ"ה'] = idom_ext.strftime("%d/%m/%Y") if hasattr(idom_ext, "strftime") else str(idom_ext)
+                properties['תאריך אורכה מ"ה'] = _encode_israel_midnight(idom_ext) if hasattr(idom_ext, "strftime") else str(idom_ext)
 
             idom_sub = idom_row.get("תאריך_הגשה")
             if pd.notna(idom_sub):
-                properties["תאריך הגשה"] = idom_sub.strftime("%d/%m/%Y") if hasattr(idom_sub, "strftime") else str(idom_sub)
+                properties["תאריך הגשה"] = _encode_israel_midnight(idom_sub) if hasattr(idom_sub, "strftime") else str(idom_sub)
 
             plan.add(WriteOperation(
                 op_type=OpType.CREATE_REPORT,
