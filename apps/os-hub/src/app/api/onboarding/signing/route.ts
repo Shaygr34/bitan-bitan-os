@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query, patch } from '@/lib/sanity/client'
-import { initiateSigning, resendTask } from '@/lib/onboarding/twosign-client'
+import { initiateSigning, resendTask, ResendTaskError } from '@/lib/onboarding/twosign-client'
 import type { OnboardingRecord, SigningTask } from '@/lib/onboarding/types'
 import { formNeedsAutoStamp } from '@/lib/onboarding/auto-stamp'
 import { persistSignedDoc } from '@/lib/onboarding/signed-doc-storage'
@@ -230,12 +230,10 @@ export async function POST(request: Request) {
       set: { signingTasks: [...currentTasks, signingTask] },
     })
 
-    notifySigningSent({
-      clientName,
-      summitEntityId,
-      documentType,
-      clientEmail,
-    })
+    // notifySigningSent dropped 2026-05-12 — the SigningCard status surface
+    // already shows "נשלח" the moment the office clicks the button. The mail
+    // was firing redundantly into bitan@bitancpa.com (4 emails per sign event
+    // was too noisy — Resend quota at 80% confirmed the pressure).
 
     return NextResponse.json({
       ok: true,
@@ -379,6 +377,20 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ ok: true })
   } catch (err) {
+    // 2Sign tasks are immutable post-creation: if the office edited the client
+    // email/phone in the OS after the task was sent, 2Sign's task→contact
+    // linkage breaks and ResendTask returns 404. Surface a Hebrew message that
+    // tells the office how to recover (re-upload the PDF + send a fresh task),
+    // since v1 cannot auto-recreate (we don't store the original PDF).
+    if (err instanceof ResendTaskError && err.code === 'TASK_NOT_FOUND') {
+      return NextResponse.json(
+        {
+          error: 'הקישור פג תוקף או נמחק ב-2Sign — נא לשלוח מחדש מההתחלה (העלאת PDF חדש)',
+          code: 'TASK_NOT_FOUND',
+        },
+        { status: 410 },
+      )
+    }
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
   }
