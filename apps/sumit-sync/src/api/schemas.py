@@ -110,6 +110,7 @@ class DrillDownOut(BaseModel):
 class MappingSummaryOut(BaseModel):
     total_mappings: int
     with_names: int
+    known_absent: int = 0
 
 
 class WriteOperationOut(BaseModel):

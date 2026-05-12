@@ -949,7 +949,7 @@ def _run_reconciliation_api(
     from ..core.config import get_config
     from ..core.idom_parser import parse_idom_file
     from ..core.idom_workbook import parse_idom_workbook
-    from ..core.sumit_api_source import fetch_sumit_data
+    from ..core.sumit_api_source import fetch_sumit_data_targeted
     from ..core.sync_engine import run_sync
     from ..core.output_writer import write_outputs
 
@@ -985,8 +985,22 @@ def _run_reconciliation_api(
         logger.info("Workbook parse failed (%s), falling back to single-sheet parser", wb_err)
         idom_df, idom_conflicts, idom_warnings = parse_idom_file(idom_path)
 
-    # Fetch SUMIT data from API (replaces parse_sumit_file)
-    sumit_df, sumit_lookup, sumit_warnings = fetch_sumit_data(config, tax_year)
+    # Fetch SUMIT data from API — targeted per-row lookup keyed on IDOM ח.פ values.
+    # Replaces the previous fetch-all path (which scanned the entire report folder).
+    if "מספר_תיק" not in idom_df.columns:
+        raise ValueError("IDOM data missing מספר_תיק column — cannot perform targeted Summit lookup")
+    idom_company_numbers = [
+        str(v).strip() for v in idom_df["מספר_תיק"].dropna().tolist() if str(v).strip()
+    ]
+    logger.info(
+        "Targeted Summit fetch: %d IDOM rows → %d distinct ח.פ values",
+        len(idom_df), len(set(idom_company_numbers)),
+    )
+    sumit_df, sumit_lookup, sumit_warnings = fetch_sumit_data_targeted(
+        config=config,
+        tax_year=tax_year,
+        idom_company_numbers=idom_company_numbers,
+    )
 
     # Run sync
     result = run_sync(idom_df, sumit_df, sumit_lookup, config, tax_year)
@@ -1015,7 +1029,7 @@ def _build_write_plan_for_run(run: models.Run):
 
     from ..core.config import get_config
     from ..core.idom_parser import parse_idom_file
-    from ..core.sumit_api_source import fetch_sumit_data
+    from ..core.sumit_api_source import fetch_sumit_data_targeted
     from ..core.sync_engine import SyncEngine
     from ..core.mapping_store import MappingStore
     from ..core.taxonomy import load_full_taxonomies, is_loaded
@@ -1023,7 +1037,16 @@ def _build_write_plan_for_run(run: models.Run):
 
     config = get_config(run.report_type)
     idom_df, _, _ = parse_idom_file(files_by_role["idom_upload"].stored_path)
-    sumit_df, sumit_lookup, _ = fetch_sumit_data(config, run.year)
+    if "מספר_תיק" not in idom_df.columns:
+        raise HTTPException(400, "קובץ IDOM חסר עמודת מספר_תיק")
+    idom_company_numbers = [
+        str(v).strip() for v in idom_df["מספר_תיק"].dropna().tolist() if str(v).strip()
+    ]
+    sumit_df, sumit_lookup, _ = fetch_sumit_data_targeted(
+        config=config,
+        tax_year=run.year,
+        idom_company_numbers=idom_company_numbers,
+    )
     mapping = MappingStore()
 
     # Ensure full taxonomy tables are loaded

@@ -12,7 +12,9 @@ import pandas as pd
 import numpy as np
 import re
 import logging
-from typing import Dict, List, Optional, Tuple
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
 from .config import (
@@ -22,8 +24,14 @@ from .config import (
 )
 from .sumit_api_client import SummitAPIClient
 from .mapping_store import MappingStore
+from . import taxonomy
 
 logger = logging.getLogger(__name__)
+
+# Concurrency for per-row Summit lookups. With 200ms slot spacing and ~500ms
+# HTTP RTT, concurrency=4 fills the inter-call gap with real network work
+# without exceeding Summit's burst ceiling (~100 calls before 403).
+TARGETED_CONCURRENCY = 4
 
 # Summit CRM folder IDs
 FOLDER_IDS = {
@@ -386,3 +394,214 @@ def _build_lookup(df: pd.DataFrame) -> Dict[str, pd.Series]:
             if normalized and normalized != key and normalized not in lookup:
                 lookup[normalized] = row
     return lookup
+
+
+# ─── Targeted (per-row filtered) fetch ─────────────────────────────────────
+# Replaces the fetch-all-then-match path with per-row Summit-side filtering.
+# For an IDOM file of N rows, this issues at most 3N calls (client lookup +
+# report lookup + report detail), vs the fetch-all path's ~243 + ~400 calls
+# on cold cache. See `fetch_sumit_data_targeted` for the inverted data flow.
+
+def fetch_sumit_data_targeted(
+    config: ReportConfig,
+    tax_year: int,
+    idom_company_numbers: List[str],
+    client: Optional[SummitAPIClient] = None,
+    mapping: Optional[MappingStore] = None,
+    progress_callback=None,
+) -> Tuple[pd.DataFrame, Dict[str, pd.Series], List[str]]:
+    """
+    Per-row Summit fetch: looks up only the reports that appear in the IDOM file.
+
+    Compatible drop-in for `fetch_sumit_data()`: returns the same
+    (DataFrame, lookup, warnings) shape with the same columns and types.
+
+    Args:
+        config: Report configuration (financial or annual)
+        tax_year: Tax year to filter
+        idom_company_numbers: ח.פ/ת"ז values from the IDOM file (one per row,
+            duplicates ok — they're deduped here)
+        client: Optional pre-configured API client
+        mapping: Optional pre-loaded mapping store (used as cache, gets updated)
+        progress_callback: Optional (stage, current, total) callback
+
+    Returns:
+        Tuple of (parsed_df, lookup_dict, warnings) — same as fetch_sumit_data()
+    """
+    import sys as _sys
+
+    warnings: List[str] = []
+    api = client or SummitAPIClient()
+    store = mapping or MappingStore()
+
+    folder_id = FOLDER_IDS[config.report_type]
+    field_map = FIELD_MAPS[config.report_type]
+    match_key_header = config.export_schema.match_key_header
+
+    year_entity_id = taxonomy.resolve_tax_year(tax_year)
+    if year_entity_id is None:
+        warnings.append(f"Tax year {tax_year} not found in taxonomy")
+        return _empty_result(config, warnings)
+
+    # Dedup IDOM company numbers, preserving order
+    seen = set()
+    unique_company_numbers: List[str] = []
+    for raw in idom_company_numbers:
+        cn = _normalize_key(raw)
+        if cn and cn not in seen:
+            seen.add(cn)
+            unique_company_numbers.append(cn)
+
+    total_rows = len(unique_company_numbers)
+    print(
+        f"[SYNC-TARGETED] {total_rows} unique IDOM ח.פ values, "
+        f"folder={folder_id}, year={tax_year} (entity={year_entity_id})",
+        file=_sys.stderr, flush=True,
+    )
+
+    if progress_callback:
+        progress_callback("targeted_lookup", 0, total_rows)
+
+    entities: List[Dict] = []
+    no_client = 0
+    no_report = 0
+    completed = 0
+    results_lock = threading.Lock()
+
+    def _lookup_one(cn: str) -> Dict[str, Any]:
+        """
+        Resolve one IDOM ח.פ to a report entity (or a no-match outcome).
+        Returns dict with: status ∈ {'matched','no_client','no_report'},
+        and entity payload when status='matched'.
+        Negative cache short-circuits known-absent ח.פ values to 0 API calls.
+        """
+        # Negative-cache hit: this ח.פ was previously confirmed absent in Summit.
+        if store.is_known_absent(cn):
+            return {"status": "no_client", "cn": cn}
+
+        # 1. Resolve client_id (positive cache first)
+        client_id_str = store.get_client_id(cn)
+        if client_id_str:
+            client_id = int(client_id_str)
+        else:
+            found = api.find_client_id_by_company_number(cn)
+            if found is None:
+                store.mark_absent(cn)
+                return {"status": "no_client", "cn": cn}
+            client_id = int(found)
+            store.add(client_id, cn)
+
+        # 2. Find the report (folder × client × year)
+        report_id = api.find_report_id(folder_id, client_id, year_entity_id)
+        if report_id is None:
+            return {"status": "no_report", "cn": cn}
+
+        # 3. Fetch report details
+        entity = api.get_entity(int(report_id), folder_id)
+        if not entity:
+            return {"status": "no_report", "cn": cn}
+        return {"status": "matched", "cn": cn, "entity": entity}
+
+    def _on_complete(result: Dict[str, Any]):
+        nonlocal no_client, no_report, completed
+        with results_lock:
+            if result["status"] == "no_client":
+                no_client += 1
+            elif result["status"] == "no_report":
+                no_report += 1
+            elif result["status"] == "matched":
+                entities.append(result["entity"])
+            completed += 1
+            if completed % 25 == 0:
+                print(f"[SYNC-TARGETED] {completed}/{total_rows} processed", file=_sys.stderr, flush=True)
+            if progress_callback:
+                progress_callback("targeted_lookup", completed, total_rows)
+
+    # Run lookups concurrently. Shared rate limiter on SummitAPIClient gates
+    # global QPS to ~5 calls/sec, well under Summit's burst ceiling.
+    with ThreadPoolExecutor(max_workers=TARGETED_CONCURRENCY) as pool:
+        futures = [pool.submit(_lookup_one, cn) for cn in unique_company_numbers]
+        for fut in as_completed(futures):
+            try:
+                _on_complete(fut.result())
+            except Exception as exc:
+                # Surface but don't kill the run — count as no_client for visibility
+                logger.error("Targeted lookup raised: %s", exc, exc_info=True)
+                with results_lock:
+                    no_client += 1
+                    completed += 1
+
+    # Persist any newly-discovered client mappings
+    if store.size:
+        try:
+            store.save()
+        except OSError as e:
+            logger.warning("Could not save mapping store: %s", e)
+
+    print(
+        f"[SYNC-TARGETED] resolved={len(entities)} no_client={no_client} "
+        f"no_report={no_report} api_calls={api.call_count}",
+        file=_sys.stderr, flush=True,
+    )
+
+    if no_client:
+        warnings.append(f"{no_client} IDOM rows had no matching Summit client")
+    if no_report:
+        warnings.append(
+            f"{no_report} IDOM rows have a known Summit client but no "
+            f"{config.report_type.value} report for tax year {tax_year}"
+        )
+
+    # Build DataFrame rows in the same shape as fetch_sumit_data()
+    rows = []
+    for entity in entities:
+        row: Dict[str, Any] = {}
+        row["מזהה"] = str(entity["ID"])
+
+        client_id = _extract_client_id(entity.get("לקוח"))
+        if client_id:
+            row[match_key_header] = store.get_company_number(client_id) or ""
+            row["מספר לקוח"] = str(client_id)
+        else:
+            row[match_key_header] = ""
+            row["מספר לקוח"] = ""
+
+        for api_field, export_col in field_map.items():
+            raw_value = entity.get(api_field)
+            if api_field in ENTITY_REF_API_FIELDS:
+                row[export_col] = _format_entity_ref(raw_value)
+            elif export_col in DATE_FIELDS:
+                row[export_col] = _extract_date(raw_value)
+            elif api_field in NUMBER_FIELDS:
+                row[export_col] = _extract_number(raw_value)
+            else:
+                row[export_col] = _extract_text(raw_value)
+
+        rows.append(row)
+
+    if not rows:
+        df = pd.DataFrame(columns=config.export_schema.all_columns)
+    else:
+        df = pd.DataFrame(rows)
+        for col in config.export_schema.all_columns:
+            if col not in df.columns:
+                df[col] = ""
+
+    df["_match_key"] = df[match_key_header].apply(_normalize_key)
+    df["_match_key_raw"] = df[match_key_header].apply(
+        lambda x: str(x) if pd.notna(x) else ""
+    )
+
+    lookup = _build_lookup(df)
+
+    return df, lookup, warnings
+
+
+def _empty_result(
+    config: ReportConfig, warnings: List[str]
+) -> Tuple[pd.DataFrame, Dict[str, pd.Series], List[str]]:
+    """Return an empty result tuple with the right shape."""
+    df = pd.DataFrame(columns=config.export_schema.all_columns)
+    df["_match_key"] = []
+    df["_match_key_raw"] = []
+    return df, {}, warnings

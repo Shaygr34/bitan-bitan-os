@@ -11,8 +11,9 @@ annual and financial reports.
 import json
 import logging
 import os
+import threading
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,12 @@ class MappingStore:
     {
         "client_to_company": { "1223591798": "516582061", ... },
         "company_to_client": { "516582061": "1223591798", ... },
-        "client_names": { "1223591798": "גו סווימינג בע\"מ", ... }
+        "client_names": { "1223591798": "גו סווימינג בע\"מ", ... },
+        "known_absent": [ "999999990", ... ]   # company numbers known to have NO Summit client
     }
+
+    Thread-safe: all mutations are guarded by an internal lock so concurrent
+    fetchers can update the store without races.
     """
 
     def __init__(self, path: Optional[Path] = None):
@@ -39,6 +44,8 @@ class MappingStore:
             "company_to_client": {},
             "client_names": {},
         }
+        self._known_absent: Set[str] = set()
+        self._lock = threading.Lock()
         self._load()
 
     def _load(self):
@@ -47,13 +54,14 @@ class MappingStore:
             try:
                 with open(self.path, "r", encoding="utf-8") as f:
                     loaded = json.load(f)
-                # Merge into structure (handles legacy format)
                 self._data["client_to_company"] = loaded.get("client_to_company", {})
                 self._data["company_to_client"] = loaded.get("company_to_client", {})
                 self._data["client_names"] = loaded.get("client_names", {})
+                self._known_absent = set(loaded.get("known_absent", []))
                 logger.info(
-                    "Loaded mapping: %d client↔company entries",
+                    "Loaded mapping: %d client↔company entries, %d known-absent",
                     len(self._data["client_to_company"]),
+                    len(self._known_absent),
                 )
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("Failed to load mapping file, starting fresh: %s", e)
@@ -61,20 +69,41 @@ class MappingStore:
     def _save(self):
         """Persist mapping to disk."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = dict(self._data)
+        payload["known_absent"] = sorted(self._known_absent)
         with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(self._data, f, ensure_ascii=False, indent=2)
+            json.dump(payload, f, ensure_ascii=False, indent=2)
 
     def add(self, client_id: int, company_number: str, client_name: str = ""):
-        """Add a client → company number mapping."""
+        """Add a client → company number mapping. Clears any negative-cache entry."""
         cid = str(client_id)
         cn = company_number.strip()
         if not cn:
             return
 
-        self._data["client_to_company"][cid] = cn
-        self._data["company_to_client"][cn] = cid
-        if client_name:
-            self._data["client_names"][cid] = client_name
+        with self._lock:
+            self._data["client_to_company"][cid] = cn
+            self._data["company_to_client"][cn] = cid
+            if client_name:
+                self._data["client_names"][cid] = client_name
+            self._known_absent.discard(cn)
+
+    def is_known_absent(self, company_number: str) -> bool:
+        """True if this ח.פ has been resolved before and returned no Summit client."""
+        return company_number.strip() in self._known_absent
+
+    def mark_absent(self, company_number: str):
+        """Record that this ח.פ has no matching Summit client (negative cache)."""
+        cn = company_number.strip()
+        if not cn:
+            return
+        with self._lock:
+            self._known_absent.add(cn)
+
+    def clear_absent(self):
+        """Drop the entire negative cache (use when adding new clients to Summit)."""
+        with self._lock:
+            self._known_absent.clear()
 
     def get_company_number(self, client_id: int) -> Optional[str]:
         """Look up company number by client entity ID."""
@@ -110,4 +139,5 @@ class MappingStore:
         return {
             "total_mappings": len(self._data["client_to_company"]),
             "with_names": len(self._data["client_names"]),
+            "known_absent": len(self._known_absent),
         }
