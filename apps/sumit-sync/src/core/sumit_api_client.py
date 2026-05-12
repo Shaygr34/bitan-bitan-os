@@ -11,6 +11,7 @@ We batch requests with delays and exponential backoff on 403.
 import json
 import os
 import time
+import threading
 import logging
 from typing import Any, Dict, List, Optional
 from urllib.request import Request, urlopen
@@ -25,7 +26,7 @@ TIMEOUT_SECONDS = 15
 # Rate limiting defaults
 # Summit returns 403 after ~100-150 rapid calls. Being conservative.
 CALLS_PER_BATCH = 60           # Summit threshold ~100-150, pause at 60 (safe margin)
-DELAY_BETWEEN_CALLS = 0.5     # 500ms between calls
+DELAY_BETWEEN_CALLS = 0.2      # 200ms spacing → 5 QPS ceiling; under burst threshold
 BATCH_COOLDOWN = 35            # 35s pause every batch
 MAX_RETRIES = 4
 INITIAL_BACKOFF = 45           # First retry backoff in seconds
@@ -67,6 +68,12 @@ class SummitAPIClient:
         self.credentials = self._resolve_credentials(company_id, api_key)
         self._call_count = 0
         self._batch_start = time.monotonic()
+        # Thread-safe rate limiter: slot reservation pattern.
+        # Threads briefly take the lock to reserve their "next allowed call time",
+        # then release the lock and sleep until that time. This lets concurrent
+        # HTTP roundtrips overlap with each other's spacing intervals.
+        self._rate_lock = threading.Lock()
+        self._next_slot = time.monotonic()
 
     @staticmethod
     def _resolve_credentials(
@@ -86,16 +93,30 @@ class SummitAPIClient:
         )
 
     def _rate_limit_pause(self):
-        """Pause if we've hit the batch threshold."""
-        self._call_count += 1
-        if self._call_count % CALLS_PER_BATCH == 0:
-            logger.info(
-                "Rate limit pause after %d calls (cooling down %ds)",
-                self._call_count, BATCH_COOLDOWN,
-            )
-            time.sleep(BATCH_COOLDOWN)
-        else:
-            time.sleep(DELAY_BETWEEN_CALLS)
+        """
+        Reserve a slot in the rate-limited queue and sleep until our turn.
+        Thread-safe: the lock is held only to compute the slot; the sleep
+        happens outside the lock so other threads can be reserving their
+        own slots and/or running concurrent HTTP requests.
+        """
+        with self._rate_lock:
+            self._call_count += 1
+            count = self._call_count
+            now = time.monotonic()
+            my_slot = max(now, self._next_slot)
+            # Every CALLS_PER_BATCH calls, schedule a long cooldown AFTER our slot
+            if count % CALLS_PER_BATCH == 0:
+                logger.info(
+                    "Rate limit cooldown after %d calls (next slot +%ds)",
+                    count, BATCH_COOLDOWN,
+                )
+                self._next_slot = my_slot + BATCH_COOLDOWN
+            else:
+                self._next_slot = my_slot + DELAY_BETWEEN_CALLS
+
+        sleep_for = my_slot - time.monotonic()
+        if sleep_for > 0:
+            time.sleep(sleep_for)
 
     def _post(self, endpoint: str, body: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -248,6 +269,74 @@ class SummitAPIClient:
             len(results), total, folder_id,
         )
         return results
+
+    def find_client_id_by_company_number(self, company_number: str) -> Optional[int]:
+        """
+        Find a client entity by Customers_CompanyNumber (ח.פ/ת"ז).
+        Returns the entity ID, or None if no client matches.
+
+        Uses Summit's exact-match filter API — single call instead of
+        scanning the full לקוחות folder. Filter on Customers_CompanyNumber
+        is supported by the Summit HTTP API (this client) but redacted by
+        the MCP proxy.
+        """
+        cn = str(company_number).strip()
+        if not cn:
+            return None
+        data = self._post(
+            "/crm/data/listentities/",
+            {
+                "Folder": "557688522",  # לקוחות
+                "Paging": {"StartIndex": 0, "PageSize": 10},
+                "Filters": [
+                    {"Property": "Customers_CompanyNumber", "Value": cn},
+                ],
+            },
+        )
+        entities = data.get("Entities", [])
+        if not entities:
+            return None
+        if len(entities) > 1:
+            logger.warning(
+                "Multiple clients matched company_number=%s (%d); using first",
+                cn, len(entities),
+            )
+        return entities[0].get("ID")
+
+    def find_report_id(
+        self,
+        folder_id: str,
+        client_id: int,
+        year_entity_id: int,
+    ) -> Optional[int]:
+        """
+        Find a single report entity by (folder, לקוח, שנת מס).
+        Returns the entity ID, or None if no report matches.
+
+        Reports are uniquely keyed by (client, year) within a folder, so a
+        match returns at most one ID. Used in place of fetch-all + in-memory
+        filter.
+        """
+        data = self._post(
+            "/crm/data/listentities/",
+            {
+                "Folder": folder_id,
+                "Paging": {"StartIndex": 0, "PageSize": 10},
+                "Filters": [
+                    {"Property": "לקוח", "Value": str(client_id)},
+                    {"Property": "שנת מס", "Value": str(year_entity_id)},
+                ],
+            },
+        )
+        entities = data.get("Entities", [])
+        if not entities:
+            return None
+        if len(entities) > 1:
+            logger.warning(
+                "Multiple reports matched folder=%s client=%s year=%s (%d); using first",
+                folder_id, client_id, year_entity_id, len(entities),
+            )
+        return entities[0].get("ID")
 
     def get_client_company_number(self, client_id: int) -> str:
         """
