@@ -935,6 +935,37 @@ def refresh_mapping():
 #  Internal: run reconciliation with API source
 # ------------------------------------------------------------------ #
 
+def _load_idom_dataframe(idom_path: str, report_type: str):
+    """
+    Parse an IDOM upload as either a multi-sheet workbook or a single-sheet
+    file, returning (df, conflicts, warnings). Mirrors the workbook-first /
+    single-sheet-fallback logic used by both execute-api and write-plan paths
+    so they stay in sync.
+    """
+    from ..core.idom_parser import parse_idom_file
+    from ..core.idom_workbook import parse_idom_workbook
+
+    try:
+        wb_result = parse_idom_workbook(idom_path)
+        matching = [s for s in wb_result.sheets if s.report_type == report_type and s.error is None and len(s.records) > 0]
+        if matching:
+            sheet = matching[0]
+            logger.info("Workbook: using sheet '%s' (%d records) for %s", sheet.sheet_name, len(sheet.records), report_type)
+            return sheet.records, sheet.conflicts, sheet.warnings
+        if wb_result.total_records > 0:
+            first_good = next((s for s in wb_result.sheets if s.error is None and len(s.records) > 0), None)
+            if first_good:
+                warnings = first_good.warnings + [
+                    "Sheet '{}' used (no exact match for report type '{}')".format(first_good.sheet_name, report_type)
+                ]
+                logger.info("Workbook: no '%s' sheet, using '%s' (%d records)", report_type, first_good.sheet_name, len(first_good.records))
+                return first_good.records, first_good.conflicts, warnings
+        raise ValueError("Workbook parsed but no usable sheets")
+    except Exception as wb_err:
+        logger.info("Workbook parse failed (%s), falling back to single-sheet parser", wb_err)
+        return parse_idom_file(idom_path)
+
+
 def _run_reconciliation_api(
     idom_path: str,
     report_type: str,
@@ -947,43 +978,12 @@ def _run_reconciliation_api(
     Supports both multi-sheet workbooks and single-sheet files.
     """
     from ..core.config import get_config
-    from ..core.idom_parser import parse_idom_file
-    from ..core.idom_workbook import parse_idom_workbook
     from ..core.sumit_api_source import fetch_sumit_data_targeted
     from ..core.sync_engine import run_sync
     from ..core.output_writer import write_outputs
 
     config = get_config(report_type)
-
-    # Try multi-sheet workbook first, fall back to single-sheet parser
-    try:
-        wb_result = parse_idom_workbook(idom_path)
-        # Find the sheet matching the requested report type
-        matching = [s for s in wb_result.sheets if s.report_type == report_type and s.error is None and len(s.records) > 0]
-        if matching:
-            sheet = matching[0]
-            idom_df = sheet.records
-            idom_conflicts = sheet.conflicts
-            idom_warnings = sheet.warnings
-            logger.info("Workbook: using sheet '%s' (%d records) for %s", sheet.sheet_name, len(idom_df), report_type)
-        elif wb_result.total_records > 0:
-            # Workbook has data but not for this report type — use first non-empty sheet
-            first_good = next((s for s in wb_result.sheets if s.error is None and len(s.records) > 0), None)
-            if first_good:
-                idom_df = first_good.records
-                idom_conflicts = first_good.conflicts
-                idom_warnings = first_good.warnings + [
-                    "Sheet '{}' used (no exact match for report type '{}')".format(first_good.sheet_name, report_type)
-                ]
-                logger.info("Workbook: no '%s' sheet, using '%s' (%d records)", report_type, first_good.sheet_name, len(idom_df))
-            else:
-                raise ValueError("Workbook parsed but all sheets empty or errored")
-        else:
-            raise ValueError("Workbook parsed but no records found")
-    except Exception as wb_err:
-        # Fall back to original single-sheet parser
-        logger.info("Workbook parse failed (%s), falling back to single-sheet parser", wb_err)
-        idom_df, idom_conflicts, idom_warnings = parse_idom_file(idom_path)
+    idom_df, idom_conflicts, idom_warnings = _load_idom_dataframe(idom_path, report_type)
 
     # Fetch SUMIT data from API — targeted per-row lookup keyed on IDOM ח.פ values.
     # Replaces the previous fetch-all path (which scanned the entire report folder).
@@ -1028,7 +1028,6 @@ def _build_write_plan_for_run(run: models.Run):
         raise HTTPException(400, "קובץ IDOM לא נמצא")
 
     from ..core.config import get_config
-    from ..core.idom_parser import parse_idom_file
     from ..core.sumit_api_source import fetch_sumit_data_targeted
     from ..core.sync_engine import SyncEngine
     from ..core.mapping_store import MappingStore
@@ -1036,7 +1035,7 @@ def _build_write_plan_for_run(run: models.Run):
     from ..core.sumit_api_client import SummitAPIClient
 
     config = get_config(run.report_type)
-    idom_df, _, _ = parse_idom_file(files_by_role["idom_upload"].stored_path)
+    idom_df, _, _ = _load_idom_dataframe(files_by_role["idom_upload"].stored_path, run.report_type)
     if "מספר_תיק" not in idom_df.columns:
         raise HTTPException(400, "קובץ IDOM חסר עמודת מספר_תיק")
     idom_company_numbers = [
