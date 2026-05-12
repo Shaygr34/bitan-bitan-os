@@ -7,6 +7,7 @@ import styles from './SigningCard.module.css'
 
 interface Props {
   summitEntityId: string
+  recordId?: string
   clientName: string
   clientEmail: string
   clientPhone: string
@@ -23,6 +24,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending: 'הופק — ממתין להעלאה',
   sent: 'נשלח — ממתין לחתימת לקוח',
   'awaiting-counter': 'לקוח חתם — ממתין לחתימת מנהל',
+  'awaiting-office-authorize': 'לקוח חתם — ממתין לאישור משרד',
   signed: 'נחתם',
   declined: 'סורב',
   expired: 'פג תוקף',
@@ -35,6 +37,7 @@ const STATUS_ICONS: Record<string, string> = {
   pending: '\u23F3',
   sent: '\u2709',
   'awaiting-counter': '\u270D',
+  'awaiting-office-authorize': '\u23F1',
   signed: '\u2714',
   declined: '\u2718',
   expired: '\u26A0',
@@ -84,6 +87,7 @@ const ALL_SIGNING_DOCS: SigningDocType[] = [
 
 export default function SigningCard({
   summitEntityId,
+  recordId,
   clientName,
   clientEmail,
   clientPhone,
@@ -96,6 +100,7 @@ export default function SigningCard({
 }: Props) {
   const [sending, setSending] = useState<string | null>(null)
   const [resending, setResending] = useState<string | null>(null)
+  const [authorizing, setAuthorizing] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [externalRef, setExternalRef] = useState<Record<string, string>>({})
@@ -162,6 +167,44 @@ export default function SigningCard({
       if (input) input.value = ''
     }
   }, [summitEntityId, clientName, clientEmail, clientPhone, clientIdNumber, accountManager, onTasksChanged])
+
+  /** In-app authorize for tasks at the office-authorize gate (Option C). */
+  const handleAuthorize = useCallback(async (taskGuid: string) => {
+    if (!recordId) {
+      setError('חסר מזהה רשומה לאישור — רענן את הדף ונסה שוב')
+      return
+    }
+    setAuthorizing(taskGuid)
+    setError(null)
+    try {
+      const mintRes = await fetch('/api/onboarding/signing/authorize/mint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recordId, taskGuid }),
+      })
+      const mintData = await mintRes.json().catch(() => ({})) as { token?: string; error?: string }
+      if (!mintRes.ok || !mintData.token) {
+        throw new Error(mintData.error || 'לא ניתן להפיק טוקן אישור')
+      }
+      const authRes = await fetch('/api/onboarding/signing/authorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: mintData.token }),
+      })
+      const authData = await authRes.json().catch(() => ({})) as { error?: string | { message?: string } }
+      if (!authRes.ok) {
+        const msg = typeof authData.error === 'string'
+          ? authData.error
+          : authData.error?.message || 'אישור נכשל'
+        throw new Error(msg)
+      }
+      onTasksChanged()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאה באישור')
+    } finally {
+      setAuthorizing(null)
+    }
+  }, [recordId, onTasksChanged])
 
   const handleResend = useCallback(async (taskGuid: string) => {
     setResending(taskGuid)
@@ -350,7 +393,7 @@ export default function SigningCard({
           const isComplete = status === 'signed' || status === 'external-done'
 
           return (
-            <div key={doc.documentType} className={`${styles.taskRow} ${isComplete ? styles.status_signed : ''} ${status === 'declined' || status === 'expired' ? styles.status_declined : ''}`}>
+            <div key={doc.documentType} className={`${styles.taskRow} ${isComplete ? styles.status_signed : ''} ${status === 'declined' || status === 'expired' ? styles.status_declined : ''} ${status === 'awaiting-office-authorize' ? styles.status_awaitingAuthorize : ''}`}>
               <div className={styles.taskInfo}>
                 <span className={styles.taskIcon}>{icon}</span>
                 <div className={styles.taskLabels}>
@@ -414,6 +457,18 @@ export default function SigningCard({
                         type="button"
                       >
                         {resending === task.taskGuid ? 'שולח...' : 'שלח שוב'}
+                      </button>
+                    )}
+
+                    {task && status === 'awaiting-office-authorize' && (
+                      <button
+                        className={styles.authorizeBtn}
+                        onClick={() => handleAuthorize(task.taskGuid)}
+                        disabled={authorizing === task.taskGuid}
+                        type="button"
+                        title="החל חתימת משרד — יחתום, ישמור ויעדכן את הסאמיט"
+                      >
+                        {authorizing === task.taskGuid ? 'מאשר...' : 'אשר עכשיו'}
                       </button>
                     )}
 

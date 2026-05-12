@@ -108,6 +108,12 @@
   background: rgba(239, 68, 68, 0.04);
 }
 
+/* Awaiting office authorize — amber/orange between sent (yellow) and signed (green) */
+.status_awaitingAuthorize {
+  border-color: #F59E0B;
+  background: rgba(245, 158, 11, 0.06);
+}
+
 .taskInfo {
   display: flex;
   align-items: center;
@@ -193,6 +199,28 @@
 
 .viewBtn:hover {
   background: rgba(34, 197, 94, 0.08);
+}
+
+.authorizeBtn {
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 200ms;
+  background: #F59E0B;
+  color: #fff;
+  border: 1px solid #F59E0B;
+}
+
+.authorizeBtn:hover:not(:disabled) {
+  background: #D97706;
+  border-color: #D97706;
+}
+
+.authorizeBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .fileInput {

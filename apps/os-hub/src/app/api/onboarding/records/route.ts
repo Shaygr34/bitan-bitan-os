@@ -16,7 +16,8 @@ export async function GET() {
       `*[_type == "onboardingRecord"] | order(_createdAt desc) {
         _id, _createdAt, summitEntityId, clientName, clientType,
         accountManager, intakeToken, startDate, checklistItems, notes,
-        cachedStage, cachedUploadedDocs, cachedRequiredDocs, lastSyncedAt
+        cachedStage, cachedUploadedDocs, cachedRequiredDocs, lastSyncedAt,
+        signingTasks
       }`
     )
     return NextResponse.json({ records })

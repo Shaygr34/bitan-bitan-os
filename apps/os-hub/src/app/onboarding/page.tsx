@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader'
 import PipelineFunnel from './components/PipelineFunnel'
 import ClientTable from './components/ClientTable'
 import NewClientModal from './components/NewClientModal'
+import PendingAuthorizationsCard from './components/PendingAuthorizationsCard'
 import CompletionDashboard from './CompletionDashboard'
 import type { OnboardingRecord, PipelineClient } from '@/lib/onboarding/types'
 import { calculateCompletion } from '@/lib/onboarding/completion'
@@ -281,6 +282,11 @@ export default function OnboardingPage() {
           {/* Pipeline Funnel */}
           {!loading && (
             <>
+              <PendingAuthorizationsCard
+                clients={clients}
+                onNavigate={handleNavigate}
+              />
+
               <div className={styles.funnelSection}>
                 <PipelineFunnel
                   counts={pipelineCounts}

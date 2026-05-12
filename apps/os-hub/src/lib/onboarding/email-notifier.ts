@@ -15,6 +15,8 @@
  */
 
 import { STAGE_LABELS } from './types'
+import { signAuthorizeToken } from './authorize-token'
+import { osHubPublicBaseUrl, onboardingAuthorizeSecret } from '@/config/integrations'
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
 
@@ -175,6 +177,57 @@ export function notifySigningCompleted(opts: {
       <tr><td style="padding:6px 16px 6px 0;font-weight:600;color:#1B2A4A">לקוח:</td><td>${escapeHtml(opts.clientName)}</td></tr>
       <tr><td style="padding:6px 16px 6px 0;font-weight:600;color:#1B2A4A">מסמך:</td><td>${escapeHtml(docLabel)}</td></tr>
       ${linkRow}
+      <tr><td style="padding:6px 16px 6px 0;font-weight:600;color:#1B2A4A">מזהה Summit:</td><td>${escapeHtml(opts.summitEntityId)}</td></tr>
+    </table>`
+  fireAndForget(subject, renderShell(subject, body, opts.summitEntityId))
+}
+
+/**
+ * Office authorize-gate (Option C) — client signed, firm has NOT yet
+ * counter-stamped. Sent once when the cron detects 2Sign IsSigned=true.
+ *
+ * The single CTA in this email is the only way (besides the dashboard widget)
+ * to apply the office stamp + Sanity persist + Summit הערה + stage advance.
+ * Until clicked, the firm's signature appears nowhere on the doc.
+ */
+export function notifyAwaitingOfficeAuthorize(opts: {
+  recordId: string
+  taskGuid: string
+  clientName: string
+  summitEntityId: string
+  documentType: string
+}): void {
+  const docLabel = getDocLabel(opts.documentType)
+  const subject = `[ביטן OS] ${opts.clientName} חתם — נדרש אישור משרד`
+
+  if (!onboardingAuthorizeSecret) {
+    console.warn(
+      '[email-notifier] ONBOARDING_AUTHORIZE_SECRET missing — skipping authorize email for',
+      opts.recordId,
+    )
+    return
+  }
+  if (!osHubPublicBaseUrl) {
+    console.warn(
+      '[email-notifier] OS_HUB_PUBLIC_BASE_URL missing — skipping authorize email for',
+      opts.recordId,
+    )
+    return
+  }
+
+  const token = signAuthorizeToken({ recordId: opts.recordId, taskGuid: opts.taskGuid })
+  const base = osHubPublicBaseUrl.replace(/\/$/, '')
+  const authorizeUrl = `${base}/onboarding/authorize?token=${encodeURIComponent(token)}`
+
+  const body = `
+    <p style="margin:0 0 14px;font-size:15px"><strong>${escapeHtml(opts.clientName)}</strong> חתם על ${escapeHtml(docLabel)}.</p>
+    <p style="margin:0 0 18px;font-size:14px;color:#4A5568">כדי להחיל את חתימת המשרד ולסיים את התהליך, אנא לחץ על הכפתור למטה.</p>
+    <div style="margin:24px 0">
+      <a href="${authorizeUrl}" style="display:inline-block;background:#C5A572;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:15px">${escapeHtml('אישור & חתימת משרד \u2190')}</a>
+    </div>
+    <table style="border-collapse:collapse;font-size:14px">
+      <tr><td style="padding:6px 16px 6px 0;font-weight:600;color:#1B2A4A">לקוח:</td><td>${escapeHtml(opts.clientName)}</td></tr>
+      <tr><td style="padding:6px 16px 6px 0;font-weight:600;color:#1B2A4A">מסמך:</td><td>${escapeHtml(docLabel)}</td></tr>
       <tr><td style="padding:6px 16px 6px 0;font-weight:600;color:#1B2A4A">מזהה Summit:</td><td>${escapeHtml(opts.summitEntityId)}</td></tr>
     </table>`
   fireAndForget(subject, renderShell(subject, body, opts.summitEntityId))
