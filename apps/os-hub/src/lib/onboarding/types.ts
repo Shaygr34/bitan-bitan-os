@@ -83,7 +83,7 @@ export interface SigningTask {
   taskGuid: string           // 2Sign GUID, or 'external-{documentType}' for non-2Sign
   twoSignClientId: number    // 0 for external tasks
   documentType: string       // 'poa-tax-authority' | 'poa-nii-withholdings' | 'poa-nii-representatives'
-  status: 'not-started' | 'pending' | 'sent' | 'awaiting-counter' | 'signed' | 'declined' | 'expired' | 'external-sent' | 'external-done'
+  status: 'not-started' | 'pending' | 'sent' | 'awaiting-counter' | 'awaiting-office-authorize' | 'signed' | 'declined' | 'expired' | 'external-sent' | 'external-done'
   createdAt: string
   completedAt?: string
   signedDocUrl?: string

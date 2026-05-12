@@ -87,3 +87,22 @@ export const sanityConfig = {
    ═══════════════════════════════════════════════════ */
 
 export const cronSecret = process.env.CRON_SECRET ?? "";
+
+/* ═══════════════════════════════════════════════════
+   Onboarding — Office authorize-gate (Option C)
+
+   ONBOARDING_AUTHORIZE_SECRET signs HMAC magic links
+   sent to Avi/Ron to consciously authorize firm signing
+   on a signed POA before the artifact is materialized.
+
+   OS_HUB_PUBLIC_BASE_URL is the absolute base used to
+   build the magic-link URL embedded in those emails.
+   ═══════════════════════════════════════════════════ */
+
+export const onboardingAuthorizeSecret =
+  process.env.ONBOARDING_AUTHORIZE_SECRET ?? "";
+
+export const osHubPublicBaseUrl =
+  process.env.OS_HUB_PUBLIC_BASE_URL ??
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  "";

@@ -466,6 +466,7 @@ export default function ClientDetailPage() {
           />
           <SigningCard
             summitEntityId={entityId}
+            recordId={record?._id}
             clientName={record?.clientName || ''}
             clientEmail={state.summitData.email || ''}
             clientPhone={state.summitData.phone || ''}
