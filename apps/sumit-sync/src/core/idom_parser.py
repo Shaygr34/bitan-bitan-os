@@ -173,7 +173,7 @@ class IDOMParser:
             df['מספר_תיק'] = df['מספר_תיק'].apply(self._normalize_key)
         
         # Clean string fields
-        for str_col in ['שם']:
+        for str_col in ['שם', 'קוד_שידור']:
             if str_col in df.columns:
                 df[str_col] = df[str_col].astype(str).str.strip()
                 df[str_col] = df[str_col].replace('nan', '')

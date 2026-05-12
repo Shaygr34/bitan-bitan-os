@@ -25,6 +25,7 @@ class IDOMSchema:
     """Schema for SHAAM/IDOM paste data - resolved by header detection."""
     # Headers to detect (Hebrew)
     HEADERS = {
+        'קוד_שידור': ['קוד שידור'],
         'תאריך_ארכה': ['תאריך ארכה', 'מועד חוקי/ תאריך ארכה', 'מועד חוקי'],
         'תאריך_הגשה': ['תאריך הגשה'],
         'מח': ['מח'],

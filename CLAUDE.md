@@ -332,7 +332,7 @@ Direct API writes to Summit CRM — replaces manual XLSX import.
 2. Operator approval before live execution (confirmation dialog)
 3. Every write logged to `write_logs` table with before/after values
 4. Never writes: שם, מספר_תיק (identifying fields)
-5. Skips: מח (no Summit counterpart)
+5. Skips: קוד_שידור, מח (no Summit counterpart)
 
 **API routes:** `GET /runs/{id}/write-plan`, `POST /runs/{id}/write-back/dry-run`, `POST /runs/{id}/write-back`
 **Frontend proxy:** `/api/sumit-sync/runs/{id}/write-plan`, `/api/sumit-sync/runs/{id}/write-back?mode=dry-run|live`
@@ -646,12 +646,19 @@ src/app/api/onboarding/signing/route.ts           — 2Sign signing task CRUD
 - **Year semantics**: IDOM uses שנת שומה (2025 = reports FOR 2024). Summit uses שנת מס (2024). Off by one.
 - **Guy's IDOM file**: No headers, no תאריך הגשה, no שנת שומה. Positional parsing works but sync can't determine filing status without הגשה.
 
-### 7. Template V2 (SHAAM column order)
-- Removed שנת שומה column (set in OS UI, not in file)
-- Column order matches exact SHAAM שאילתא מעקב דוחות output (7 cols): תאריך ארכה → תאריך הגשה → מח → סוג תיק → פקיד שומה → שם → מספר תיק
-- **No קוד שידור column** — that was a phantom carried over from the earliest template and was never an actual SHAAM שאילתא column. Removed everywhere 2026-05-12.
-- Guy can copy-paste directly from שאילתא output without rearranging
-- Saved to `apps/os-hub/public/idom-template.xlsx` + Google Drive
+### 7. Template V2 — real 10-column SHAAM order (corrected 2026-05-12)
+- Column order matches the actual SHAAM שאילתת מעקב דוחות export (10 columns A-J):
+  `קוד שידור | תאריך ארכה | תאריך הגשה | מח | ס"ש | סוג תיק | ח | פקיד שומה | שם משפחה ופרטי | מספר תיק`
+- Bitan-side adds 3 formula columns K-M (`מזהה דוח בסאמיט | סטטוס | סטטוס סופי`) — VLOOKUPs against Summit, NOT in the SHAAM input
+- **Column-level notes from real SHAAM output** (`/Users/shay/Downloads/idom_annual_reports_2024.xlsx`, 388 rows ground truth):
+  - `קוד שידור`: `MK` (online filing), `13` (semantics TBD), or empty (~30%) — filing-mode flag
+  - `מח` (מחוז): observed 100% empty in modern SHAAM export — kept but not a parse requirement
+  - `ס"ש`: SHAAM-internal year, always `0` in observed file
+  - `ח`: חוליה — sub-classifier under פקיד שומה (1-21 range observed)
+  - `סוג תיק`: numeric codes (42 / 52 / 94 / 96 observed)
+- Year (שנת מס) is set in OS UI at upload time — never in the file
+- Templates: `apps/os-hub/public/idom-template.xlsx` (empty, 4 sheets) and `apps/os-hub/public/example-idom-2024.xlsx` (worked example)
+- **Lesson — 2026-05-12**: Don't reason about external system schemas from session memory. The "קוד שידור is phantom" claim earlier that day was wrong; the schema was already correct and the cleanup damaged it. Always open the real file before claiming anything about its shape.
 
 ### 8. Progress Logging in fetch_sumit_data
 - `[SYNC]` stderr logs at every stage: fetching reports (50/572), year filter result, resolving clients (50/400), cache saved
