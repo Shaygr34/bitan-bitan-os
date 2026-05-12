@@ -201,7 +201,7 @@ export default function AuthorizeFlow({ token }: Props) {
         >
           <p style={{ margin: 0, fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
             <strong>לחיצה על &quot;אשר וחתום&quot;</strong> תחיל את חתימת המשרד +
-            תאריך על המסמך, תשלח אותו לסאמיט כהערה, ותעביר את הלקוח לשלב 3 (אישור מנהל).
+            תאריך על המסמך, תשלח אותו לסאמיט כהערה, ותעביר את הלקוח לשלב 4 (רשויות).
           </p>
         </div>
 
@@ -313,7 +313,7 @@ export default function AuthorizeFlow({ token }: Props) {
         </div>
         <p style={{ margin: '0 0 18px', fontSize: 14, color: '#4A5568', lineHeight: 1.6 }}>
           {state.clientName ? `${state.clientName} ` : ''}
-          חתם — חתימת המשרד הוטמעה. הלקוח עבר לשלב 3.
+          חתם — חתימת המשרד הוטמעה. הלקוח עבר לשלב 4 (רשויות).
         </p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {link && (
