@@ -31,15 +31,18 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
-// Records with at least one non-terminal task. Terminal = signed/declined/expired/external-done.
+// Records with at least one non-fully-settled task. Mirrors `isFullySettled()` in signing-poller.ts:
+//   - Not signed/declined/expired/external-done → always poll
+//   - Signed but missing artifact (no signedDocUrl AND no stampedDocUrl) and retry budget not exhausted →
+//     poll so the corrected GetSignedTaskLocationBlob endpoint can populate the PDF on next tick.
+//     Without this branch, ghost-completed records (status=signed + notifiedAt stamped + signedDocUrl=null)
+//     stay invisible to the cron forever — which is exactly what produced the 4 frozen records pre-PR #124.
 // External and manual taskGuids are skipped inside pollRecord — but we still want their parent
 // records included if they ALSO carry a 2Sign task in flight.
 const NON_TERMINAL_QUERY = `
   *[_type == "onboardingRecord" && count(signingTasks[
-    status != "signed" &&
-    status != "declined" &&
-    status != "expired" &&
-    status != "external-done"
+    (status != "signed" && status != "declined" && status != "expired" && status != "external-done") ||
+    (status == "signed" && !defined(signedDocUrl) && !defined(stampedDocUrl) && coalesce(pdfFetchAttempts, 0) < 5)
   ]) > 0]{
     _id,
     summitEntityId,
