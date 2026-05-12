@@ -96,6 +96,16 @@ export interface SigningTask {
   lastPolledAt?: string
   /** ISO timestamp when notifySigningCompleted was fired. Prevents resend if a future poll re-detects 'signed'. */
   notifiedAt?: string
+  /**
+   * How many times the poller tried (and failed) to fetch the signed PDF artifact
+   * after the 2Sign status flipped to 'signed'. Capped at 5 — beyond that the
+   * task is considered permanently broken and surfaces in the operations log.
+   * Once the artifact is successfully fetched, notifiedAt is stamped and this
+   * counter stops mattering.
+   */
+  pdfFetchAttempts?: number
+  /** Last error message from the PDF artifact fetch, for ops visibility. */
+  pdfFetchLastError?: string
 }
 
 export function getDocCategory(clientType?: string): 'individual' | 'company' | 'exempt' {

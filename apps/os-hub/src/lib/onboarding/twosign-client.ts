@@ -517,6 +517,7 @@ export async function resendTask(
 // ---------------------------------------------------------------------------
 
 export interface TwoSignAttachment {
+  /** Azure Blob SAS URL to the signed PDF — short-lived (~hours), download promptly. */
   FileUrl?: string
   FileBytes?: string // base64
   FileName?: string
@@ -525,16 +526,41 @@ export interface TwoSignAttachment {
 
 /**
  * Get the signed document for a completed task.
+ *
+ * Endpoint canonicalized from the 2Sign API Blueprint (Apiary §2709):
+ *   GET /Tasks/GetSignedTaskLocationBlob?guid={guid}&fileDownloadType={0|1|2}
+ *
+ * Verified live 2026-05-12 against task `6692c8f7-...` — POST returns 405,
+ * GET returns 200 with `Status:"success"` and a SAS URL in `Message` (also
+ * mirrored at `ResponseObject.SignedTaskLinkBlob`).
+ *
+ * Prior implementation called `/TaskAttachments/GetSignedTaskDocument/{guid}`
+ * which never existed — silent 404s were swallowed in signing-poller.ts and
+ * caused 4 records to "ghost-complete" (status=signed, signedDocUrl=null).
+ *
  * @param guid Task GUID
- * @param format 0=None (URL only), 1=Bytes, 2=Base64
+ * @param format 0=URL only (recommended — we download the PDF separately), 1=Bytes, 2=Base64
  */
 export async function getSignedDocument(
   guid: string,
-  format: 0 | 1 | 2 = 2,
+  format: 0 | 1 | 2 = 0,
 ): Promise<TwoSignAttachment> {
-  const res = await authFetch(`/TaskAttachments/GetSignedTaskDocument/${guid}?fileDownloadType=${format}`)
-  if (!res.ok) throw new Error(`2Sign getSignedDocument failed: ${res.status}`)
-  return res.json()
+  const path = `/Tasks/GetSignedTaskLocationBlob?guid=${encodeURIComponent(guid)}&fileDownloadType=${format}`
+  const res = await authFetch(path, { method: 'GET' })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`2Sign getSignedDocument failed: ${res.status} ${text}`)
+  }
+  const body = (await res.json()) as {
+    Status?: string
+    Message?: string
+    ResponseObject?: { SignedTaskLinkBlob?: string }
+  }
+  const fileUrl = body.Message || body.ResponseObject?.SignedTaskLinkBlob
+  if (!fileUrl) {
+    throw new Error(`2Sign getSignedDocument: no SAS URL in response (Status=${body.Status})`)
+  }
+  return { FileUrl: fileUrl }
 }
 
 /** Get the original (unsigned) document for a task. */

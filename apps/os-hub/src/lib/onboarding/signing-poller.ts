@@ -25,7 +25,22 @@ import {
 import { notifySigningCompleted, notifyStageAdvanced } from '@/lib/onboarding/email-notifier'
 import { SUMMIT_STATUS_IDS } from '@/lib/onboarding/types'
 
-const TERMINAL_STATUSES = new Set(['signed', 'declined', 'expired', 'external-done'])
+const TERMINAL_STATUSES = new Set(['declined', 'expired', 'external-done'])
+const PDF_FETCH_RETRY_BUDGET = 5
+
+/**
+ * A 'signed' task is **terminal-ready** but only **terminal** once we have the
+ * artifact (signedDocUrl or stampedDocUrl) AND have notified. Until then the
+ * cron must keep polling to retry the artifact fetch. This is the invariant
+ * that was missing pre-2026-05-12 and caused 4 records to ghost-complete.
+ */
+function isFullySettled(task: SigningTask): boolean {
+  if (TERMINAL_STATUSES.has(task.status)) return true
+  if (task.status !== 'signed') return false
+  const hasArtifact = Boolean(task.signedDocUrl || task.stampedDocUrl)
+  const exhausted = (task.pdfFetchAttempts || 0) >= PDF_FETCH_RETRY_BUDGET
+  return (hasArtifact && Boolean(task.notifiedAt)) || exhausted
+}
 
 export interface PollResult {
   recordId: string
@@ -63,8 +78,8 @@ export async function pollRecord(
 
   const updatedTasks = await Promise.all(
     tasks.map(async (task) => {
-      // Skip terminal tasks completely — no API call, no lastPolledAt bump
-      if (TERMINAL_STATUSES.has(task.status)) return task
+      // Fully settled = terminal status OR (signed + has artifact + notified) OR (signed + retry budget exhausted)
+      if (isFullySettled(task)) return task
       // Skip external/manual taskGuids — these have no 2Sign GUID to query
       if (task.taskGuid.startsWith('external-') || task.taskGuid.startsWith('manual-')) return task
 
@@ -86,21 +101,40 @@ export async function pollRecord(
         // Always bump lastPolledAt — gives an audit trail in Sanity that the cron actually ran.
         const updated: SigningTask = { ...task, status: newStatus, lastPolledAt: now }
 
-        if (newStatus !== task.status && newStatus === 'signed') {
-          updated.completedAt = detail.CompletedDate || now
-          newlySigned++
+        const isNewlySigned = newStatus !== task.status && newStatus === 'signed'
+        const needsArtifactRetry =
+          newStatus === 'signed' &&
+          !task.signedDocUrl &&
+          !task.stampedDocUrl &&
+          (task.pdfFetchAttempts || 0) < PDF_FETCH_RETRY_BUDGET
 
-          // Pull signed PDF for downstream persistence (auto-stamp + Sanity mirror)
+        if (isNewlySigned || needsArtifactRetry) {
+          if (isNewlySigned) {
+            updated.completedAt = detail.CompletedDate || now
+            newlySigned++
+          }
+
+          // Pull signed PDF — surface failures, do NOT swallow.
+          // Production code's prior `catch {}` here is what let 4 records ghost-complete
+          // (status=signed, signedDocUrl=null, notifiedAt=stamped, never retried).
           let signedBuf: Buffer | null = null
+          let pdfFetchError: string | null = null
           try {
             const signedDoc = await getSignedDocument(task.taskGuid, 0)
-            if (signedDoc.FileUrl) {
-              updated.signedDocUrl = signedDoc.FileUrl
+            if (!signedDoc.FileUrl) {
+              pdfFetchError = '2Sign response had no SAS URL (Message / SignedTaskLinkBlob)'
+            } else {
               const pdfRes = await fetch(signedDoc.FileUrl)
-              if (pdfRes.ok) signedBuf = Buffer.from(await pdfRes.arrayBuffer())
+              if (pdfRes.ok) {
+                signedBuf = Buffer.from(await pdfRes.arrayBuffer())
+                updated.signedDocUrl = signedDoc.FileUrl
+              } else {
+                pdfFetchError = `SAS URL download returned HTTP ${pdfRes.status}`
+              }
             }
-          } catch {
-            /* non-fatal — see fallbacks below */
+          } catch (pdfErr) {
+            pdfFetchError = pdfErr instanceof Error ? pdfErr.message : String(pdfErr)
+            console.error('[signing-poller] getSignedDocument threw for', task.taskGuid, pdfFetchError)
           }
 
           // Form-key for auto-stamp routing: prefer persisted formType, fall back to documentType
@@ -148,8 +182,10 @@ export async function pollRecord(
             }
           }
 
-          // One notification per signed transition. notifiedAt prevents resend on subsequent polls.
-          if (record.summitEntityId) {
+          // Invariant: only fire notification + stamp notifiedAt when an artifact actually exists.
+          // Without this gate, Avi/Ron get a "X חתם!" email pointing at nothing.
+          const hasArtifact = Boolean(updated.stampedDocUrl || updated.signedDocUrl)
+          if (hasArtifact && !task.notifiedAt && record.summitEntityId) {
             notifySigningCompleted({
               clientName: record.clientName || 'לקוח',
               summitEntityId: record.summitEntityId,
@@ -157,8 +193,17 @@ export async function pollRecord(
               signedDocUrl: updated.stampedDocUrl || updated.signedDocUrl,
               source: updated.stampedDocUrl ? 'auto-stamp' : '2sign',
             })
+            updated.notifiedAt = now
+          } else if (!hasArtifact) {
+            // No artifact this cycle — record the retry attempt for ops visibility.
+            // The poller will try again next tick until budget is exhausted.
+            updated.pdfFetchAttempts = (task.pdfFetchAttempts || 0) + 1
+            updated.pdfFetchLastError = pdfFetchError || 'auto-stamp/persist produced no URL'
+            console.warn(
+              `[signing-poller] No artifact for signed task ${task.taskGuid} ` +
+                `(attempt ${updated.pdfFetchAttempts}/${PDF_FETCH_RETRY_BUDGET}): ${updated.pdfFetchLastError}`,
+            )
           }
-          updated.notifiedAt = now
         }
 
         return updated
