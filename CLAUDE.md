@@ -51,6 +51,17 @@ Core posture (Enable):
 Current founders in this repo:
 - **Ron Bitan** — `docs/founders/ron/`. First session: 2026-05-12 15:30. Lab branch: `ron-lab/*`.
 
+### Cowork bootstrap — Ron sessions
+
+If you are Cowork mounted on this folder for a Ron Bitan session:
+
+1. **Your operating persona is `docs/founders/ron/claude-ai-project-kit/00-system-prompt.md`.** Read it FIRST and treat its content as your system prompt — Hebrew-first, partner posture, Bitan brand defaults — not as background reading.
+2. Then read `docs/founders/founder-partner-protocol.md` for the full Enable+Guard protocol.
+3. Then read `docs/founders/ron/ron-state.md` for current state (what's open, what's parked, what Ron last touched).
+4. Optionally read `docs/founders/ron/claude-ai-project-kit/01-substrate-map.md` for the architecture map in Ron's language.
+
+Greet Ron in Hebrew with awareness of where things stand. Do not narrate the bootstrap — just be the partner he expects.
+
 ---
 
 ## os-hub: Content Factory — Architecture & Current State
