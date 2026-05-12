@@ -51,14 +51,14 @@ interface StampLayout {
 const STAMP_LAYOUTS: Record<string, StampLayout> = {
   'poa-tax-authority': {
     // Section ב on רשות המיסים POA — אישור מנהל התיק.
-    // Coordinates tuned visually against signed PDFs from production (2026-05-12).
-    // - office stamp anchored top-edge at y=540 from page top → bottom of stamp lands on firm signature line.
-    // - Date positions (verified against shay-test-3 stamped PDF on 2026-05-12):
-    //   * officeDate at yFromTop=640 (post-#126) dropped INTO "דברי הסבר" body text — bug.
-    //   * officeDate at yFromTop=615 (pre-#126) sat ON the label "תאריך" row — also wrong.
-    //   * The actual underline (where dates fill) sits ~12pt ABOVE the label row.
-    //   * Date column x: signature labels measure ~420pt; the prior 485 was 65pt too far right.
-    office: { x: 90, yFromTop: 540, widthPt: 95 },
+    // Coordinates verified against REAL ייפוי כוח template via Chrome-agent QA run
+    // (record 1903144037, 2026-05-12, stamped PDF inspected at pixel level):
+    //   - Office stamp cell ("חתימה וחותמת") centered at x≈260 on the 612pt-wide Letter page.
+    //     Stamp width 95pt → left edge at 260-47.5 ≈ 213. Prior x=90 landed in left margin.
+    //   - officeDate at yFromTop=605 → renders at y=187, ON the תאריך underline (y≈186). Correct.
+    //   - clientDate at yFromTop=422 → renders at y=370, ON the section-א תאריך underline. Correct.
+    //   - Both dates share x=420 because section-א and section-ב rows have parallel geometry.
+    office: { x: 213, yFromTop: 540, widthPt: 95 },
     officeDate: { x: 420, yFromTop: 605, fontSize: 11 },
     clientDate: { x: 420, yFromTop: 422, fontSize: 11 },
   },
@@ -106,9 +106,21 @@ export async function applyOfficeStamp(
 
   const pdfDoc = await PDFDocument.load(signedPdfBuffer)
   const page = pdfDoc.getPages()[0]
-  const { height } = page.getSize()
+  const { width, height } = page.getSize()
   const dateStr = options.signedDate || formatToday()
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+
+  // Diagnostic — surfaces effective coordinates in Railway logs so any future
+  // placement drift (#126-class bug) is debuggable in seconds, not hours.
+  console.log('[auto-stamp]', {
+    formType: options.formType,
+    manager: options.manager,
+    pageSize: { width, height },
+    office: layout.office,
+    officeDate: layout.officeDate,
+    clientDate: layout.clientDate,
+    dateStr,
+  })
 
   // Office stamp + date (only if form requires it)
   if (layout.office) {

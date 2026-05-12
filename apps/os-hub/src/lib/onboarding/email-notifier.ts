@@ -58,7 +58,11 @@ function summitClientUrl(summitEntityId: string): string {
 }
 
 function osClientUrl(summitEntityId: string): string {
-  const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://os.bitancpa.com'
+  // Use the canonical base from integrations.ts (OS_HUB_PUBLIC_BASE_URL →
+  // NEXT_PUBLIC_SITE_URL → empty). Prior hard-coded fallback to
+  // os.bitancpa.com was a dead DNS — every "פתיחה ב-OS" button in production
+  // emails pointed at an unloadable page (QA-confirmed 2026-05-12).
+  const base = osHubPublicBaseUrl || 'https://bitan-bitan-os-production.up.railway.app'
   return `${base.replace(/\/$/, '')}/onboarding/${summitEntityId}`
 }
 
