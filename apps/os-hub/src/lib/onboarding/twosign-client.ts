@@ -442,7 +442,15 @@ export interface TwoSignTaskDetail {
   }>
 }
 
-/** Get task details by GUID via search. */
+/** Get task details by GUID via search.
+ *
+ * IMPORTANT: 2Sign's top-level `IsSigned` / `SignedOn` summarize the primary
+ * signer's gate only, and in multi-signer Signature Routine tasks they stay
+ * false/null even after the client signs. The per-signer truth lives in
+ * `TaskClients[]` — `SignedOn` (timestamp) and `TaskStatus === 20` flip
+ * when that signer completes. We read the first (client) signer to decide
+ * whether the customer has signed back to us.
+ */
 export async function getTask(guid: string): Promise<TwoSignTaskDetail> {
   const res = await authFetch('/Tasks/GetTasksBySearchParams', {
     body: JSON.stringify({ TaskGuid: guid }),
@@ -452,14 +460,18 @@ export async function getTask(guid: string): Promise<TwoSignTaskDetail> {
   const tasks = data.ResponseObject || []
   const task = Array.isArray(tasks) ? tasks.find((t: Record<string, unknown>) => t.TaskGuid === guid) : null
   if (!task) throw new Error(`2Sign task ${guid} not found`)
+  const taskClients = Array.isArray(task.TaskClients) ? task.TaskClients : []
+  const clientSigner = taskClients[0] || {}
+  const clientSignedOn: string | null = clientSigner.SignedOn || null
+  const clientHasSigned = clientSignedOn != null
   return {
     Guid: task.TaskGuid,
     TaskId: task.TaskId || 0,
-    Status: task.IsSigned ? 'signed' : 'pending',
+    Status: clientHasSigned ? 'signed' : 'pending',
     StatusId: task.TaskStatusNumeric || 0,
     ClientId: task.ClientId || 0,
     CreatedDate: task.CreatedOn || '',
-    CompletedDate: task.SignedOn,
+    CompletedDate: clientSignedOn || task.SignedOn,
     TaskTitle: task.TaskSubject,
   }
 }
