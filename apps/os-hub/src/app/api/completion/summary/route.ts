@@ -10,6 +10,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { extractDocUrls } from "@/lib/onboarding/summit-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,23 @@ interface ClientCompletion {
   fields: Record<string, boolean>;
 }
 
-// Summit field name → our key mapping
+// Summit field name → our key mapping.
+//
+// These are real Summit fields (ValueType: "File") that exist on every customer
+// entity in folder 557688522. They're how the firm's completion tracking
+// dashboard knows whether a doc has been received. Confirmed via
+// /crm/schema/getfolder/ (see summit_get_folder_schema MCP tool) on 2026-05-13.
+//
+// IMPORTANT: Sumit's PUBLIC API does NOT expose a CRM file-upload endpoint —
+// `/crm/downloadfile/{GUID}/` exists but no counterpart upload route is in the
+// Swagger spec at https://app.sumit.co.il/swagger/v1/swagger.json (83 endpoints
+// surveyed 2026-05-13, none under file/upload/attach for the CRM namespace).
+// Browser-UI uploads go through an internal endpoint Sumit hasn't documented.
+//
+// Practical implication: the OS pipeline (intake form, signing flow,
+// office-doc-upload from P3.a) CANNOT write to these typed File fields
+// directly. It writes the URL into the הערות (RichText) field instead. The
+// fallback below ensures completion tracking respects those הערה-uploaded docs.
 const DOC_FIELDS_MAP: Record<string, string> = {
   "ת.ז/ רישיון בעלים": "idCard",
   "אישור ניהול חשבון": "bankApproval",
@@ -34,6 +51,25 @@ const DOC_FIELDS_MAP: Record<string, string> = {
   "פרוטוקול מורשה חתימה": "protokolSignature",
   "נסח חברה": "nesachCompany",
   "פתיחת תיק רשויות / ייפוי כח": "ptichaTikRashuyot",
+};
+
+/**
+ * Map summit-client.extractDocUrls keys → DOC_FIELDS_MAP keys.
+ * extractDocUrls uses our internal doc-type slugs (camelCase: idCard,
+ * driverLicense, bankApproval, etc.). DOC_FIELDS_MAP uses Summit's typed-field
+ * "our key" names. These overlap for some fields and don't for others —
+ * explicit map keeps the round-trip honest.
+ */
+const HERA_TO_TYPED_KEY: Record<string, string> = {
+  idCard: "idCard",
+  bankApproval: "bankApproval",
+  osekMurshe: "osekMurshe",
+  teudatHitagdut: "teudatHitagdut",
+  takanonHevra: "takanonCompany",      // hera uses Hevra; typed uses Company
+  protokolMurshe: "protokolSignature", // hera uses Murshe; typed uses Signature
+  nesahHevra: "nesachCompany",         // hera uses Hevra; typed uses Company
+  // driverLicense, ptihaTikMaam, rentalContract have no typed-field equivalent
+  // — they're tracked via הערות only.
 };
 
 const NON_DOC_FIELDS_MAP: Record<string, string> = {
@@ -232,10 +268,18 @@ function parseEntity(entity: Record<string, unknown>): ClientCompletion {
   const clientType = resolveEntityRef(entity["סוג לקוח"]);
   const manager = resolveEntityRef(entity["מנהל תיק"]);
 
-  // Check document fields
+  // Check document fields. A doc is "filled" if EITHER (a) the typed Summit
+  // File field is populated, OR (b) the OS pipeline has written a URL into
+  // the הערות (RichText) field via extractDocUrls — see the explainer above
+  // DOC_FIELDS_MAP for why both paths exist.
+  const heraDocs = extractDocUrls(entity);
   const docs: Record<string, boolean> = {};
   for (const [summitKey, ourKey] of Object.entries(DOC_FIELDS_MAP)) {
-    docs[ourKey] = isFieldFilled(entity[summitKey]);
+    const typedFilled = isFieldFilled(entity[summitKey]);
+    // Find the hera key that maps to this typed key, if any.
+    const heraKey = Object.entries(HERA_TO_TYPED_KEY).find(([, t]) => t === ourKey)?.[0];
+    const heraFilled = !!(heraKey && heraDocs[heraKey]);
+    docs[ourKey] = typedFilled || heraFilled;
   }
 
   // Check non-doc fields
