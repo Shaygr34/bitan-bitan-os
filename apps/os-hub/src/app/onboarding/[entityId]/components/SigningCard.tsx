@@ -1,9 +1,16 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { resolveOfficeSigner, type SigningTask } from '@/lib/onboarding/types'
+import { FORM_LAYOUTS } from '@/lib/onboarding/form-layouts'
 import { getBtlMiyutzagimMessage, buildWhatsAppUrl } from '@/lib/onboarding/letter-templates'
 import styles from './SigningCard.module.css'
+
+// react-pdf brings in pdfjs + worker setup that should only load when the
+// office actually opens the click-to-place modal. Dynamic import + ssr:false
+// keeps the SigningCard bundle slim and avoids server-side pdfjs issues.
+const RestampModal = dynamic(() => import('./RestampModal'), { ssr: false })
 
 interface Props {
   summitEntityId: string
@@ -105,6 +112,8 @@ export default function SigningCard({
   const [error, setError] = useState<string | null>(null)
   const [externalRef, setExternalRef] = useState<Record<string, string>>({})
   const [externalLink, setExternalLink] = useState<Record<string, string>>({})
+  /** documentType currently open in the click-to-place restamp modal (Path B). */
+  const [restampOpenFor, setRestampOpenFor] = useState<string | null>(null)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const manualFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const externalDoneFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
@@ -537,7 +546,7 @@ export default function SigningCard({
                       >
                         {'⚙ התערבות ידנית'}
                       </summary>
-                      <div style={{ marginTop: 6, paddingInlineStart: 12 }}>
+                      <div style={{ marginTop: 6, paddingInlineStart: 12, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                         <input
                           ref={el => { manualFileRefs.current[doc.documentType] = el }}
                           type="file"
@@ -561,6 +570,29 @@ export default function SigningCard({
                         >
                           {task ? '⤴ העלה PDF חתום (החלף משימה קיימת)' : '⤴ העלה PDF חתום (עקיפת 2Sign)'}
                         </button>
+
+                        {/*
+                          Path B — click-to-place coord override + re-stamp.
+                          Only meaningful when:
+                            (a) the form has an office stamp (auto-stamp territory) — checked via FORM_LAYOUTS.officeStamp
+                            (b) the task exists AND has a preStampDocUrl (preserved by signing-poller from PR #133 onward)
+                          Older records lack preStampDocUrl → button disabled with a tooltip explaining Path A is the fallback.
+                        */}
+                        {FORM_LAYOUTS[doc.formType]?.officeStamp && (
+                          <button
+                            className={styles.resendBtn}
+                            onClick={() => setRestampOpenFor(doc.documentType)}
+                            disabled={!task?.preStampDocUrl}
+                            title={
+                              task?.preStampDocUrl
+                                ? 'פתח חלון לכיוון מיקום החותמת והתאריך — יחיל מחדש על ה-PDF המקורי'
+                                : 'ה-PDF המקורי לא נשמר עבור משימה זו — השתמש בנתיב ההעלאה הידנית'
+                            }
+                            type="button"
+                          >
+                            {'🎯 כיוון מיקום החותמת'}
+                          </button>
+                        )}
                       </div>
                     </details>
                   </>
@@ -676,6 +708,32 @@ export default function SigningCard({
       <div className={styles.helpNote}>
         {'PDF ייפוי כוח מופק ידנית בשע"מ / ביטוח לאומי ומועלה כאן לחתימה. קישור ב"ל מיוצגים נשלח ללקוח ישירות.'}
       </div>
+
+      {/* Path B click-to-place coord override modal. Mounted lazily via Next.js dynamic import. */}
+      {restampOpenFor && (() => {
+        const targetTask = tasks.find(t => t.documentType === restampOpenFor)
+        const targetDoc = ALL_SIGNING_DOCS.find(d => d.documentType === restampOpenFor)
+        const layout = targetDoc ? FORM_LAYOUTS[targetDoc.formType] : undefined
+        if (!targetTask?.preStampDocUrl || !layout?.officeStamp || !layout.officeDate) {
+          // Defensive: button shouldn't have been clickable without these, but guard anyway.
+          return null
+        }
+        return (
+          <RestampModal
+            open
+            onClose={() => setRestampOpenFor(null)}
+            preStampDocUrl={targetTask.preStampDocUrl}
+            summitEntityId={summitEntityId}
+            documentType={restampOpenFor}
+            defaultStampWidthPt={layout.officeStamp.widthPt}
+            defaultDateFontSize={layout.officeDate.fontSize}
+            onSuccess={() => {
+              setRestampOpenFor(null)
+              onTasksChanged()
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }

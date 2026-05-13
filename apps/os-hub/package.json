@@ -26,7 +26,8 @@
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "react-pdf": "^10.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
