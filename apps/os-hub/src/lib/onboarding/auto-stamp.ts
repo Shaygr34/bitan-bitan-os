@@ -1,72 +1,23 @@
 /**
  * Auto-stamp — applies the office אישור מנהל תיק watermark + date to a
  * client-signed PDF, removing the need for a manual office counter-sign step
- * in 2Sign.
+ * in 2Sign (Option C / PR #127).
  *
- * Flow elevation: previously the office signer (Avi/Ron) received a 2Sign
- * email after the client signed and had to log in and draw their signature.
- * Now: the client signs once → this module fetches the signed PDF → embeds
- * Avi/Ron's autograph PNG at the office signature position from FORM_POSITIONS
- * → fills the date next to it → returns the final stamped PDF as a Buffer.
+ * Flow: client signs once → this module fetches the signed PDF → embeds
+ * Avi/Ron's autograph PNG at the office stamp position → fills the office
+ * date next to it → optionally fills the client date as a backup when 2Sign's
+ * auto-fill missed → returns the final stamped PDF as a Buffer.
  *
- * Coordinates are owned by pdf-marker.ts (single source of truth for both
- * signature placement and stamping). Date strings are formatted in he-IL
- * dd/mm/yyyy.
+ * Coordinates: imported from `form-layouts.ts` (single source of truth).
+ * pdf-marker.ts is the 2Sign-side consumer; this file is the post-sign
+ * paint-side consumer. See form-layouts.ts for the rationale on why some
+ * fields (like clientDate) carry both 2Sign-rectangle and text-baseline
+ * anchors.
  */
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { getManagerStamp, type ManagerName } from './manager-stamps'
-
-/** Layout per form. Mirrors FORM_POSITIONS in pdf-marker.ts but for stamping. */
-interface StampLayout {
-  office?: {
-    /** Bottom-left x in PDF points where stamp image is drawn */
-    x: number
-    /** Distance from top of page in PDF points */
-    yFromTop: number
-    /** Stamp width in pt (height auto-computed from PNG aspect ratio) */
-    widthPt: number
-  }
-  /** Date text drawn next to office stamp */
-  officeDate?: {
-    x: number
-    yFromTop: number
-    fontSize: number
-  }
-  /** Date text drawn next to client signature (auto-fill replacement when 2Sign field unreliable) */
-  clientDate?: {
-    x: number
-    yFromTop: number
-    fontSize: number
-  }
-}
-
-/**
- * Stamp + date positions per form type.
- *
- * Tuned against the real PDFs in /tmp/bitan-autograph-extract:
- *   tax-authority.pdf (Letter 612x792)
- *   btl-nikuyim.pdf   (A4 594.96x841.92) — no office stamp (employer signs alone)
- */
-const STAMP_LAYOUTS: Record<string, StampLayout> = {
-  'poa-tax-authority': {
-    // Section ב on רשות המיסים POA — אישור מנהל התיק.
-    // Coordinates verified against REAL ייפוי כוח template via Chrome-agent QA run
-    // (record 1903144037, 2026-05-12, stamped PDF inspected at pixel level):
-    //   - Office stamp cell ("חתימה וחותמת") centered at x≈260 on the 612pt-wide Letter page.
-    //     Stamp width 95pt → left edge at 260-47.5 ≈ 213. Prior x=90 landed in left margin.
-    //   - officeDate at yFromTop=605 → renders at y=187, ON the תאריך underline (y≈186). Correct.
-    //   - clientDate at yFromTop=422 → renders at y=370, ON the section-א תאריך underline. Correct.
-    //   - Both dates share x=420 because section-א and section-ב rows have parallel geometry.
-    office: { x: 213, yFromTop: 540, widthPt: 95 },
-    officeDate: { x: 420, yFromTop: 605, fontSize: 11 },
-    clientDate: { x: 420, yFromTop: 422, fontSize: 11 },
-  },
-  'poa-nii-withholdings': {
-    // BTL ניכויים has no office counter-sign (employer signs alone) — date only.
-    clientDate: { x: 350, yFromTop: 542, fontSize: 11 },
-  },
-}
+import { FORM_LAYOUTS } from './form-layouts'
 
 /** Format today's date as dd/mm/yyyy (Israeli convention). */
 function formatToday(): string {
@@ -78,7 +29,7 @@ function formatToday(): string {
 }
 
 export interface ApplyStampOptions {
-  /** Form type — must match a key in STAMP_LAYOUTS */
+  /** Form type — must match a key in FORM_LAYOUTS */
   formType: string
   /** Which manager's autograph to apply (resolved from מנהל תיק upstream) */
   manager: ManagerName
@@ -99,9 +50,9 @@ export async function applyOfficeStamp(
   signedPdfBuffer: Buffer,
   options: ApplyStampOptions,
 ): Promise<Buffer> {
-  const layout = STAMP_LAYOUTS[options.formType]
+  const layout = FORM_LAYOUTS[options.formType]
   if (!layout) {
-    throw new Error(`No stamp layout for form type: ${options.formType}`)
+    throw new Error(`No form layout for form type: ${options.formType}`)
   }
 
   const pdfDoc = await PDFDocument.load(signedPdfBuffer)
@@ -116,23 +67,23 @@ export async function applyOfficeStamp(
     formType: options.formType,
     manager: options.manager,
     pageSize: { width, height },
-    office: layout.office,
+    officeStamp: layout.officeStamp,
     officeDate: layout.officeDate,
     clientDate: layout.clientDate,
     dateStr,
   })
 
-  // Office stamp + date (only if form requires it)
-  if (layout.office) {
+  // Office stamp + date (only if form has an office counter-stamp)
+  if (layout.officeStamp) {
     const stamp = getManagerStamp(options.manager)
     const png = await pdfDoc.embedPng(stamp.png)
     const aspect = png.height / png.width
-    const stampWidth = layout.office.widthPt
+    const stampWidth = layout.officeStamp.widthPt
     const stampHeight = stampWidth * aspect
     page.drawImage(png, {
-      x: layout.office.x,
+      x: layout.officeStamp.x,
       // Anchor the bottom of the image at (yFromTop) measured from page top
-      y: height - layout.office.yFromTop - stampHeight,
+      y: height - layout.officeStamp.yFromTop - stampHeight,
       width: stampWidth,
       height: stampHeight,
       opacity: 0.9,
@@ -149,11 +100,11 @@ export async function applyOfficeStamp(
     })
   }
 
-  if (options.alsoFillClientDate && layout.clientDate) {
+  if (options.alsoFillClientDate) {
     page.drawText(dateStr, {
       x: layout.clientDate.x,
-      y: height - layout.clientDate.yFromTop,
-      size: layout.clientDate.fontSize,
+      y: height - layout.clientDate.autoStampTextBaselineFromTop,
+      size: layout.clientDate.autoStampFontSize,
       font,
       color: rgb(0, 0, 0),
     })
@@ -163,7 +114,5 @@ export async function applyOfficeStamp(
   return Buffer.from(out)
 }
 
-/** Whether a form type triggers auto-stamp (i.e. has an office position). */
-export function formNeedsAutoStamp(formType: string): boolean {
-  return !!STAMP_LAYOUTS[formType]?.office
-}
+/** Re-exported for callers that import from auto-stamp.ts. */
+export { formNeedsAutoStamp } from './form-layouts'
