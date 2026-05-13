@@ -912,3 +912,137 @@ State file `~/.claude/projects/-Users-shay/memory/coda-bitan-summit-sync-state.m
 1. Publish the 5 backfilled drafts (or leave for Avi/Ron review in Studio).
 2. Resolve WS-4 dangling reference (name it in one sentence, or drop it). Cheap.
 3. Monitor first production Sumit Sync prod run against PR #122 — validates the 12.6-min extrapolation.
+
+## Session: May 12, 2026 — Signing workflow consolidation (PR #130)
+
+`fix(onboarding): consolidate signing emails + typed resend recovery` —
+squash-merged to `main`, Railway auto-deployed.
+
+- `apps/os-hub/src/app/api/onboarding/signing/route.ts` — PATCH handler now catches
+  `ResendTaskError` with `code: 'TASK_NOT_FOUND'` and returns **HTTP 410 Gone** with a Hebrew
+  recovery message: `"הקישור פג תוקף או נמחק ב-2Sign — נא לשלוח מחדש מההתחלה (העלאת PDF חדש)"`.
+- `apps/os-hub/src/lib/onboarding/twosign-client.ts` — typed `ResendTaskError` exported.
+- `apps/os-hub/src/lib/onboarding/signing-poller.ts` — also touched (consolidation).
+
+Rationale: 2Sign tasks are immutable post-creation. If the office edits the client
+email/phone after a task is sent, the task→contact linkage breaks and ResendTask returns 404.
+410 Gone is correct here because the resource existed but is no longer available — tells the
+UI it's recoverable user action, not server fault. Typed code lets `SigningCard` branch on
+intent later (e.g. show a "שלח חדש" button) without parsing Hebrew strings. v1 cannot
+auto-recreate the 2Sign task because we don't store the original PDF blob.
+
+**Typed-error pattern** (keep using): throw a typed Error subclass with `code: 'CONSTANT'` at
+the client layer, catch at the route layer, map to a precise HTTP status + Hebrew user
+message. Apply to any new failure mode that warrants UI branching.
+
+## Session: May 13, 2026 — Manual-overtake arc end-to-end (PRs #131–#136)
+
+Six PRs in one session closing the office's manual-overtake gap on the signing flow plus
+opening the OS-side doc upload surface. The cut session of 2026-05-12 was resumed; user
+pivoted from the original Batch 4 plan (still deferred — see below) to this higher-leverage
+arc on placement fixes + doc-upload bidirectionality.
+
+### What shipped
+- **PR #131** — `refactor(onboarding): unify form-coordinate sources of truth`. New
+  `apps/os-hub/src/lib/onboarding/form-layouts.ts` is the single source of truth for sig +
+  date coords; `pdf-marker.ts` (2Sign-side) and `auto-stamp.ts` (paint-side) both consume.
+  Anchor semantics codified per field (e.g. `clientDate.autoStampTextBaselineFromTop` vs
+  `twoSignFieldRectTopFromTop`) so the 3–10pt deltas between consumers are explicit, not
+  hidden drift. Dead `pdf-marker` office config for `poa-tax-authority` removed — post-Option-C
+  (#127) the office side is fully owned by auto-stamp.
+- **PR #132** — `feat(onboarding): Path A manual overtake — pre-signed PDF upload in all task
+  states`. New `supersedeExisting: true` flag on the existing `isManualSign` POST branch lets
+  the office REPLACE an in-flight 2Sign task with a manually-signed PDF instead of 409-ing.
+  Audit trail in new `SigningTask.manualOverride: { kind: 'uploaded', supersededTaskGuid?,
+  originalSignedDocUrl? }`. UI: new "⚙ התערבות ידנית" `<details>` disclosure visible in all
+  task states; inline `<button>` removed. Window.confirm before superseding.
+- **PR #133** — `feat(onboarding): Path B backend — preserve pre-stamp PDF + restamp route
+  with coord overrides`. New `SigningTask.preStampDocUrl` persists the client-signed-only PDF
+  before auto-stamp overlays (idempotent — never clobbers). `applyOfficeStamp` accepts
+  `coordOverrides: ApplyStampCoordOverrides` (partial overrides per field). New
+  `POST /api/onboarding/signing/restamp` route fetches `preStampDocUrl`, re-stamps with
+  overrides, persists fresh asset, writes audit `manualOverride: { kind: 'restamped' }`.
+  Returns **412** with `code: NO_PRE_STAMP` when missing — legacy records signed before this
+  PR fall through to Path A.
+- **PR #134** — `feat(onboarding): Path B UI — click-to-place coord override modal
+  (react-pdf)`. New `RestampModal` dynamically imports react-pdf; renders page 1 of the
+  pre-stamp PDF at `PIXEL_WIDTH=640`. Office clicks (1) stamp center, (2) date baseline.
+  Visual preview (dashed gold rectangle + dark baseline marker). `dynamic({ ssr: false })` so
+  pdfjs only loads when the modal opens. Worker pinned via
+  `unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`.
+  Button only renders for forms with `officeStamp` in FORM_LAYOUTS; disabled with Hebrew
+  tooltip when `preStampDocUrl` missing.
+- **PR #135** — `feat(onboarding): P3.a — office-side doc upload (bidirectional via הערות)`.
+  Per-row "⤴ העלה" / "⤴ החלף" button in `DocumentsCard`. New
+  `POST /api/onboarding/docs/upload` route accepts PDF/JPEG/PNG/WEBP/HEIC up to 12 MB;
+  persists to Sanity, appends `label: url` remark to Summit הערות. Critical detail:
+  `summit-client.extractDocUrls` widened to scan **all** notes (not just `notes[0]`) so
+  office-appended remarks round-trip. Colon separator (`label: url`) is the round-trip
+  anchor; signed-doc remarks use a dash separator on purpose and don't collide.
+- **PR #136** — `fix(completion-summary): count הערות-uploaded docs as filled (P3.b
+  mitigation)`. `parseEntity` now OR-merges typed-Summit-field presence with
+  `extractDocUrls(entity)` so the firm's completion dashboard reflects docs uploaded via
+  intake form / signing flow / office-OS upload. New `HERA_TO_TYPED_KEY` map handles slug
+  differences (`takanonHevra` ↔ `takanonCompany`, etc.). Three docs (`driverLicense`,
+  `ptihaTikMaam`, `rentalContract`) have no typed-field equivalent and stay הערות-only.
+
+### P3.b API gap — tracked, not solved
+Writing to Summit's **typed File fields** (`ValueType: "File"`: `ת.ז/ רישיון בעלים`,
+`אישור ניהול חשבון`, etc.) programmatically was supposed to be P3.b. Sumit's public Swagger
+spec (`https://app.sumit.co.il/swagger/v1/swagger.json`, **83 endpoints** surveyed
+2026-05-13) has **no CRM file-upload endpoint** — `/crm/downloadfile/{GUID}/` exists, no
+counterpart. Browser UI uses an internal endpoint Sumit hasn't documented. Unblock path:
+Sumit support to expose the endpoint, OR browser automation against `app.sumit.co.il`. The
+#136 completion-summary fallback means the firm's day-to-day workflow has zero impact from
+this gap.
+
+### Lessons / patterns worth keeping
+- **Stack PRs without waiting on CI.** Branching b2 directly off b1 (PR #134 off the still-CI
+  #133 branch) then rebasing onto main once b1 merged let momentum continue without ceremony.
+- **Schema lookup via the Summit MCP turned an "ask Avi/Ron" wait into a 30-second answer.**
+  `summit_get_folder_schema` revealed all the typed File fields are unused across clients,
+  and `summit_get_entity` against the QA record (1903144037) confirmed the intake form has
+  always used `הערות` only. That moved the schema-confirmation step from blocker to footnote.
+- **One source of truth for coordinates kills future drift.** Before #131, `pdf-marker.ts`
+  and `auto-stamp.ts` drifted across 4 PRs (#126–#129) trying to fix placement. The
+  unification makes the next tuning pass a one-number edit in one file.
+- **Forward-only persistence is fine when paired with a fallback.** `preStampDocUrl` is only
+  populated for new signings post-#133. Legacy records can't be Path-B-restamped, but Path A
+  (#132) gives them an upload-pre-signed escape hatch and the UI surfaces the right tooltip.
+- **Dynamic-import heavy deps.** `react-pdf` brings ~800 KB of pdfjs. `next/dynamic({ ssr:
+  false })` on `RestampModal` keeps the SigningCard bundle slim — pdfjs only loads when an
+  office user actually opens a modal.
+
+### Next session pickup (priority order)
+1. **Visual QA of Path B placement.** First office user opens the click-to-place modal, picks
+   coords, sees the result. Iterate on the rough `STAMP_ASPECT_APPROX = 0.5` constant in
+   `RestampModal.tsx` if real autograph aspect drifts off it. This is the iteration that the
+   prior 4 placement PRs (#126–#129) tried to nail via code changes; now it's a per-record
+   click instead.
+2. **P3.b unblock.** Either ping Sumit support about exposing the CRM file-upload endpoint,
+   or — if office-side time allows — spike browser automation (Playwright in a Railway job)
+   to upload to typed File fields. Lower priority since #136 already closes the completion-
+   tracking gap.
+3. **Original Batch 4 work** (separate thread, deferred not abandoned — see below).
+
+## Deferred — Onboarding Batch 4 (spouse fields + BTL link + doc badges)
+
+Scoped and decisions-locked on 2026-05-12 but deferred when Shay pivoted to the manual-
+overtake arc shipped 2026-05-13. Still in scope; pick up after visual-QA on #131–#136 settles.
+
+- **(1b) Spouse fields → bundled (no Summit schema change).** Add `spouseFullName`,
+  `spouseIdNumber`, `spousePhone` to the intake form (`bitan-bitan-website` repo,
+  `src/app/intake/`). Bundle into office-notification email + הערה + `submittedData` JSON.
+  Do NOT add new Summit Customer Properties — Shay has not opened spouse fields in Summit.
+- **(2a) ב"ל מיוצגים link → office-side CMS field.** Add `nationalInsuranceRepLink` (URL) to
+  the `onboardingRecord` Sanity schema + a small input in `ClientInfoCard`. Office-managed,
+  pasted after registering at `meyutzagim.btl.gov.il`. Not client-entered.
+- **(3) Doc badges on reopen.** When a client opens an update-mode intake link, look up
+  matching `clientDocument` rows in Sanity and render `✓ הועלה — {filename}` badges under
+  each doc slot. Note: P3.a (#135) gave the OFFICE the same per-doc visibility — this remains
+  about the CLIENT-side reopen UI.
+
+**Batch 3 (canonical signing templates from Sanity) is still BLOCKED on 3 PDFs from Shay:**
+`poa-tax-authority`, `poa-nii-withholdings`, `poa-nii-representatives`. Schema + dropdown
+ship without them but the `templates` field stays empty and SigningCard's "Send" button has
+nothing to pick from.
