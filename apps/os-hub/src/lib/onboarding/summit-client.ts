@@ -47,30 +47,50 @@ export function extractClientData(entity: Record<string, unknown>) {
   }
 }
 
-/** Extract uploaded doc URLs from Summit הערות field */
+/**
+ * Extract uploaded doc URLs from Summit הערות.
+ *
+ * Scans ALL remarks (not just notes[0]) so that office-side uploads from the
+ * OS (which arrive as fresh remarks via /crm/data/addclientremark/) round-trip
+ * into the OS view. First match wins per doc-type — since `addclientremark`
+ * appends, the most recent remark naturally wins because it ends up at notes[0]
+ * (Summit returns remarks newest-first).
+ *
+ * Format anchor: lines of the form `label: https://cdn.sanity.io/...`.
+ * Signed-doc remarks (signed-doc-storage.ts) intentionally use a DASH
+ * separator (`—`) and have no colon, so they don't accidentally match here.
+ */
 export function extractDocUrls(entity: Record<string, unknown>): Record<string, string> {
   const notes = entity['הערות'] as Array<{ Item1?: string; Item2?: string }> | undefined
-  const text = notes?.[0]?.Item2 || notes?.[0]?.Item1 || ''
-  if (!text) return {}
+  if (!notes || notes.length === 0) return {}
 
   const docs: Record<string, string> = {}
-  const lines = text.split('\n')
-  for (const line of lines) {
-    const match = line.match(/^(.+?):\s*(https:\/\/cdn\.sanity\.io\/.+)$/i)
-    if (match) {
+
+  for (const note of notes) {
+    const text = note?.Item2 || note?.Item1 || ''
+    if (!text) continue
+
+    const lines = text.split('\n')
+    for (const line of lines) {
+      const match = line.match(/^(.+?):\s*(https:\/\/cdn\.sanity\.io\/.+)$/i)
+      if (!match) continue
       const label = match[1].trim()
       const url = match[2].trim()
-      // Map Hebrew label back to doc key
-      if (label.includes('ת.ז')) docs.idCard = url
-      else if (label.includes('רישיון')) docs.driverLicense = url
-      else if (label.includes('ניהול חשבון') || label.includes('שיק')) docs.bankApproval = url
-      else if (label.includes('עוסק מורשה')) docs.osekMurshe = url
-      else if (label.includes('מע"מ') || label.includes('מעמ')) docs.ptihaTikMaam = url
-      else if (label.includes('התאגדות')) docs.teudatHitagdut = url
-      else if (label.includes('תקנון')) docs.takanonHevra = url
-      else if (label.includes('מורשה חתימה') || label.includes('פרוטוקול')) docs.protokolMurshe = url
-      else if (label.includes('נסח')) docs.nesahHevra = url
-      else if (label.includes('שכירות')) docs.rentalContract = url
+
+      // Map Hebrew label back to doc key — first match wins per doc-type so
+      // a newer remark doesn't get overwritten by an older one we scan later.
+      const set = (key: string) => { if (!docs[key]) docs[key] = url }
+
+      if (label.includes('ת.ז')) set('idCard')
+      else if (label.includes('רישיון')) set('driverLicense')
+      else if (label.includes('ניהול חשבון') || label.includes('שיק')) set('bankApproval')
+      else if (label.includes('עוסק מורשה')) set('osekMurshe')
+      else if (label.includes('מע"מ') || label.includes('מעמ')) set('ptihaTikMaam')
+      else if (label.includes('התאגדות')) set('teudatHitagdut')
+      else if (label.includes('תקנון')) set('takanonHevra')
+      else if (label.includes('מורשה חתימה') || label.includes('פרוטוקול')) set('protokolMurshe')
+      else if (label.includes('נסח')) set('nesahHevra')
+      else if (label.includes('שכירות')) set('rentalContract')
     }
   }
   return docs
