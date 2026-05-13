@@ -106,6 +106,20 @@ export interface SigningTask {
   pdfFetchAttempts?: number
   /** Last error message from the PDF artifact fetch, for ops visibility. */
   pdfFetchLastError?: string
+  /**
+   * Audit trail for manual office overtake — set when the office bypassed the
+   * normal flow by either uploading a pre-signed PDF or (future P2.b) re-stamping
+   * with overridden coordinates. Always paired with a `manual-` prefixed taskGuid
+   * or a regular taskGuid when the override superseded an in-flight 2Sign task.
+   */
+  manualOverride?: {
+    kind: 'uploaded' | 'restamped'
+    at: string                       // ISO timestamp
+    /** taskGuid of the task that was superseded (when overriding an in-flight 2Sign task) */
+    supersededTaskGuid?: string
+    /** Pre-override stamped/signed URL (kept for audit) */
+    originalSignedDocUrl?: string
+  }
 }
 
 export function getDocCategory(clientType?: string): 'individual' | 'company' | 'exempt' {

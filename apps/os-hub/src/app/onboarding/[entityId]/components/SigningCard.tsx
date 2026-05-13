@@ -231,8 +231,33 @@ export default function SigningCard({
     }
   }, [clientPhone])
 
-  /** Manual mark-done with optional signed PDF (office-paper override for 2Sign forms). */
-  const handleManualSign = useCallback(async (documentType: string, file: File) => {
+  /**
+   * Manual mark-done with optional signed PDF (office-paper override for 2Sign forms).
+   *
+   * Path A of the office manual-overtake flow (Path B = coord override + re-stamp
+   * lands in a follow-up PR). Used in three situations:
+   *   1. No task yet — office bypasses 2Sign entirely, uploads a pre-signed PDF.
+   *   2. In-flight 2Sign task that's stuck (client never signed, sent on paper
+   *      instead) — office uploads the pre-signed PDF; backend supersedes the
+   *      stuck task in place, preserving audit trail.
+   *   3. Already-signed task whose stamped output is wrong — office replaces the
+   *      stored PDF with a corrected one (re-stamped externally or scanned).
+   * The supersedeExisting flag tells the backend whether a confirmed override
+   * was intended; without it the backend 409s on duplicate documentType.
+   */
+  const handleManualSign = useCallback(async (
+    documentType: string,
+    file: File,
+    existingTask?: SigningTask | null,
+  ) => {
+    if (existingTask) {
+      const statusLabel = STATUS_LABELS[existingTask.status] || existingTask.status
+      const ok = window.confirm(
+        `קיימת משימה (${statusLabel}) עבור מסמך זה. ` +
+        `העלאת PDF חתום תחליף את המשימה הקיימת — להמשיך?`,
+      )
+      if (!ok) return
+    }
     setSending(documentType)
     setError(null)
     try {
@@ -250,6 +275,7 @@ export default function SigningCard({
           clientPhone: clientPhone || '',
           documentType,
           isManualSign: true,
+          supersedeExisting: !!existingTask,
           pdfBase64: base64,
         }),
       })
@@ -427,25 +453,6 @@ export default function SigningCard({
                         >
                           {sending === doc.documentType ? 'שולח...' : 'העלה PDF ושלח'}
                         </button>
-                        <input
-                          ref={el => { manualFileRefs.current[doc.documentType] = el }}
-                          type="file"
-                          accept=".pdf"
-                          className={styles.fileInput}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) handleManualSign(doc.documentType, file)
-                          }}
-                        />
-                        <button
-                          className={styles.resendBtn}
-                          onClick={() => manualFileRefs.current[doc.documentType]?.click()}
-                          disabled={sending === doc.documentType}
-                          title={'העלה PDF חתום ידנית (עוקף 2Sign)'}
-                          type="button"
-                        >
-                          {'סמן כחתום ידנית'}
-                        </button>
                       </>
                     )}
 
@@ -504,6 +511,58 @@ export default function SigningCard({
                         </button>
                       </>
                     )}
+
+                    {/*
+                      Office manual-overtake disclosure (Path A — upload pre-signed PDF).
+                      Visible in ALL task states for 2Sign docs (no-task, in-flight, signed).
+                      Lets the office bypass 2Sign entirely OR replace a stuck/wrong task.
+                      Path B (click-to-place coord override + re-stamp) lands here in a
+                      follow-up PR — same disclosure, second action.
+                    */}
+                    <details
+                      style={{
+                        marginInlineStart: 8,
+                        fontSize: 12,
+                        flexBasis: '100%',
+                        marginTop: 4,
+                      }}
+                    >
+                      <summary
+                        style={{
+                          cursor: 'pointer',
+                          color: '#6B7280',
+                          userSelect: 'none',
+                          listStyle: 'none',
+                        }}
+                      >
+                        {'⚙ התערבות ידנית'}
+                      </summary>
+                      <div style={{ marginTop: 6, paddingInlineStart: 12 }}>
+                        <input
+                          ref={el => { manualFileRefs.current[doc.documentType] = el }}
+                          type="file"
+                          accept=".pdf"
+                          className={styles.fileInput}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleManualSign(doc.documentType, file, task)
+                          }}
+                        />
+                        <button
+                          className={styles.resendBtn}
+                          onClick={() => manualFileRefs.current[doc.documentType]?.click()}
+                          disabled={sending === doc.documentType}
+                          title={
+                            task
+                              ? 'העלאת PDF חתום ידנית תחליף את המשימה הקיימת'
+                              : 'העלה PDF חתום ידנית (עוקף 2Sign)'
+                          }
+                          type="button"
+                        >
+                          {task ? '⤴ העלה PDF חתום (החלף משימה קיימת)' : '⤴ העלה PDF חתום (עקיפת 2Sign)'}
+                        </button>
+                      </div>
+                    </details>
                   </>
                 )}
 

@@ -66,20 +66,6 @@ export async function POST(request: Request) {
 
     const currentTasks: SigningTask[] = record.signingTasks || []
 
-    // Check if a task for this document type already exists and is active
-    const existing = currentTasks.find(
-      t => t.documentType === documentType &&
-        !['signed', 'declined', 'expired', 'external-done'].includes(t.status)
-    )
-    if (existing) {
-      return NextResponse.json({
-        error: 'signing task already exists for this document type',
-        taskGuid: existing.taskGuid,
-        status: existing.status,
-      }, { status: 409 })
-    }
-
-
     // Pull optional fields used by external + manual + 2Sign branches
     const {
       pdfBase64,
@@ -88,6 +74,7 @@ export async function POST(request: Request) {
       officeSignerName,
       officeSignerEmail,
       isManualSign,
+      supersedeExisting,
     } = body as {
       pdfBase64?: string
       pdfUrl?: string
@@ -95,6 +82,29 @@ export async function POST(request: Request) {
       officeSignerName?: string
       officeSignerEmail?: string
       isManualSign?: boolean
+      /**
+       * When true + isManualSign + an existing non-terminal task exists for
+       * this documentType, REPLACE that task instead of returning 409.
+       * Used by the office manual-overtake UI to bypass an in-flight 2Sign
+       * task (e.g. client never signed, office signing on paper instead).
+       */
+      supersedeExisting?: boolean
+    }
+
+    // Existing-task conflict check.
+    // Manual overtake with supersedeExisting bypasses this — that path replaces
+    // the existing task instead of erroring. Re-uploads to the same documentType
+    // by any other path still 409 to prevent accidental duplication.
+    const existing = currentTasks.find(
+      t => t.documentType === documentType &&
+        !['signed', 'declined', 'expired', 'external-done'].includes(t.status)
+    )
+    if (existing && !(isManualSign && supersedeExisting)) {
+      return NextResponse.json({
+        error: 'signing task already exists for this document type',
+        taskGuid: existing.taskGuid,
+        status: existing.status,
+      }, { status: 409 })
     }
 
     let pdfBuffer: Buffer | undefined
@@ -148,7 +158,9 @@ export async function POST(request: Request) {
     }
 
     // Manual office-paper override: 2Sign skipped (e.g. office printed + signed
-    // on paper). Caller uploads the final signed PDF; we persist + mark signed.
+    // on paper, or office uploads a pre-signed PDF via manual-overtake UI).
+    // When supersedeExisting is true, replaces an in-flight 2Sign task for the
+    // same documentType — preserving audit trail in manualOverride.
     if (isManualSign) {
       if (!pdfBuffer) {
         return NextResponse.json({ error: 'pdfBase64 or pdfUrl required for manual sign' }, { status: 400 })
@@ -160,18 +172,34 @@ export async function POST(request: Request) {
         summitEntityId,
       })
 
+      const now = new Date().toISOString()
       const manualTask: SigningTask = {
         taskGuid: `manual-${documentType}-${Date.now()}`,
         twoSignClientId: 0,
         documentType,
         status: 'signed',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
+        createdAt: existing?.createdAt || now,  // preserve original createdAt when superseding
+        completedAt: now,
         ...(url ? { signedDocUrl: url, stampedDocUrl: url } : {}),
+        manualOverride: {
+          kind: 'uploaded',
+          at: now,
+          ...(existing ? {
+            supersededTaskGuid: existing.taskGuid,
+            ...(existing.signedDocUrl || existing.stampedDocUrl
+              ? { originalSignedDocUrl: existing.stampedDocUrl || existing.signedDocUrl }
+              : {}),
+          } : {}),
+        },
       }
 
+      // If superseding, drop the old task in-place; otherwise append the new manual task.
+      const updatedTasks = existing
+        ? currentTasks.map(t => (t.taskGuid === existing.taskGuid ? manualTask : t))
+        : [...currentTasks, manualTask]
+
       await patch(record._id, {
-        set: { signingTasks: [...currentTasks, manualTask] },
+        set: { signingTasks: updatedTasks },
       })
 
       notifySigningCompleted({
@@ -182,7 +210,12 @@ export async function POST(request: Request) {
         source: 'manual',
       })
 
-      return NextResponse.json({ ok: true, taskGuid: manualTask.taskGuid, signedDocUrl: url }, { status: 201 })
+      return NextResponse.json({
+        ok: true,
+        taskGuid: manualTask.taskGuid,
+        signedDocUrl: url,
+        superseded: existing ? existing.taskGuid : undefined,
+      }, { status: 201 })
     }
 
     // 2Sign flow — need email + PDF buffer
