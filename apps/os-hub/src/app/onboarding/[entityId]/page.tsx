@@ -449,9 +449,11 @@ export default function ClientDetailPage() {
             companyNumber={state.companyNumber}
           />
           <DocumentsCard
+            summitEntityId={entityId}
             documents={state.documents}
             uploadedCount={uploadedCount}
             requiredCount={requiredCount}
+            onUploaded={loadData}
             signedDocs={state.signingTasks
               .map((t) => {
                 const url = t.stampedDocUrl || t.signedDocUrl

@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef, useState } from 'react'
 import styles from './DocumentsCard.module.css'
 
 interface DocItem {
@@ -15,27 +16,98 @@ interface SignedDocItem {
 }
 
 interface Props {
+  summitEntityId: string
   documents: DocItem[]
   uploadedCount: number
   requiredCount: number
   signedDocs?: SignedDocItem[]
+  /** Called after a successful office upload so the parent re-fetches. */
+  onUploaded?: () => void
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
-  idCard: '\u05E6\u05D9\u05DC\u05D5\u05DD \u05EA.\u05D6 + \u05E1\u05E4\u05D7',
-  driverLicense: '\u05E6\u05D9\u05DC\u05D5\u05DD \u05E8\u05D9\u05E9\u05D9\u05D5\u05DF \u05E0\u05D4\u05D9\u05D2\u05D4',
-  bankApproval: '\u05D0\u05D9\u05E9\u05D5\u05E8 \u05E0\u05D9\u05D4\u05D5\u05DC \u05D7\u05E9\u05D1\u05D5\u05DF',
-  osekMurshe: '\u05EA\u05E2\u05D5\u05D3\u05EA \u05E2\u05D5\u05E1\u05E7 \u05DE\u05D5\u05E8\u05E9\u05D4',
-  ptihaTikMaam: '\u05E4\u05EA\u05D9\u05D7\u05EA \u05EA\u05D9\u05E7 \u05DE\u05E2"\u05DE',
-  teudatHitagdut: '\u05EA\u05E2\u05D5\u05D3\u05EA \u05D4\u05EA\u05D0\u05D2\u05D3\u05D5\u05EA',
-  takanonHevra: '\u05EA\u05E7\u05E0\u05D5\u05DF \u05D7\u05D1\u05E8\u05D4',
-  protokolMurshe: '\u05E4\u05E8\u05D5\u05D8\u05D5\u05E7\u05D5\u05DC \u05DE\u05D5\u05E8\u05E9\u05D4 \u05D7\u05EA\u05D9\u05DE\u05D4',
-  nesahHevra: '\u05E0\u05E1\u05D7 \u05D7\u05D1\u05E8\u05D4',
-  rentalContract: '\u05D7\u05D5\u05D6\u05D4 \u05E9\u05DB\u05D9\u05E8\u05D5\u05EA',
+  idCard: 'צילום ת.ז + ספח',
+  driverLicense: 'צילום רישיון נהיגה',
+  bankApproval: 'אישור ניהול חשבון',
+  osekMurshe: 'תעודת עוסק מורשה',
+  ptihaTikMaam: 'פתיחת תיק מע"מ',
+  teudatHitagdut: 'תעודת התאגדות',
+  takanonHevra: 'תקנון חברה',
+  protokolMurshe: 'פרוטוקול מורשה חתימה',
+  nesahHevra: 'נסח חברה',
+  rentalContract: 'חוזה שכירות',
 }
 
-export default function DocumentsCard({ documents, uploadedCount, requiredCount, signedDocs }: Props) {
+// Doc-types the office can upload from the OS (subset of all doc-types — only
+// those the OS-side helper office-doc-storage.ts knows how to label).
+const OFFICE_UPLOADABLE = new Set([
+  'idCard',
+  'driverLicense',
+  'bankApproval',
+  'osekMurshe',
+  'ptihaTikMaam',
+  'teudatHitagdut',
+  'takanonHevra',
+  'protokolMurshe',
+  'nesahHevra',
+  'rentalContract',
+])
+
+const ACCEPT_MIME = '.pdf,application/pdf,image/jpeg,image/png,image/webp,image/heic'
+
+export default function DocumentsCard({
+  summitEntityId,
+  documents,
+  uploadedCount,
+  requiredCount,
+  signedDocs,
+  onUploaded,
+}: Props) {
   const hasSigned = !!signedDocs && signedDocs.length > 0
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const uploadDoc = async (docType: string, file: File) => {
+    setUploadingFor(docType)
+    setError(null)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      // chunked base64 to avoid call-stack blowup on large files
+      const bytes = new Uint8Array(arrayBuffer)
+      const CHUNK = 0x8000
+      let bin = ''
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)))
+      }
+      const base64 = btoa(bin)
+
+      const res = await fetch('/api/onboarding/docs/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summitEntityId,
+          docType,
+          fileBase64: base64,
+          contentType: file.type || 'application/octet-stream',
+          filename: file.name,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(data.error || `שגיאה: ${res.status}`)
+      }
+
+      onUploaded?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאה')
+    } finally {
+      setUploadingFor(null)
+      const input = fileRefs.current[docType]
+      if (input) input.value = ''
+    }
+  }
 
   return (
     <div className={styles.card}>
@@ -43,15 +115,32 @@ export default function DocumentsCard({ documents, uploadedCount, requiredCount,
         <h3 className={styles.title}>מסמכים</h3>
         <span className={styles.count}>{uploadedCount}/{requiredCount}</span>
       </div>
+      {error && (
+        <div
+          style={{
+            background: '#FEE2E2',
+            border: '1px solid #FCA5A5',
+            color: '#991B1B',
+            padding: 6,
+            borderRadius: 4,
+            margin: '6px 0',
+            fontSize: 12,
+          }}
+        >
+          {error}
+        </div>
+      )}
       <div className={styles.list}>
         {documents.map((doc) => {
           const isUploaded = !!doc.url
           const displayLabel = DOC_TYPE_LABELS[doc.docType] || doc.label
+          const canOfficeUpload = OFFICE_UPLOADABLE.has(doc.docType)
+          const isUploadingThis = uploadingFor === doc.docType
 
           return (
             <div key={doc.docType} className={styles.docRow}>
               <div className={`${styles.iconCircle} ${isUploaded ? styles.iconUploaded : styles.iconMissing}`}>
-                {isUploaded ? '\u2713' : '!'}
+                {isUploaded ? '✓' : '!'}
               </div>
               <span className={isUploaded ? styles.docName : styles.docNameMissing}>
                 {displayLabel}
@@ -63,10 +152,46 @@ export default function DocumentsCard({ documents, uploadedCount, requiredCount,
                   rel="noopener noreferrer"
                   className={styles.viewLink}
                 >
-                  {'צפה \u2197'}
+                  {'צפה ↗'}
                 </a>
               ) : (
                 <span className={styles.missingBadge}>חסר</span>
+              )}
+              {canOfficeUpload && (
+                <>
+                  <input
+                    ref={(el) => { fileRefs.current[doc.docType] = el }}
+                    type="file"
+                    accept={ACCEPT_MIME}
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) uploadDoc(doc.docType, file)
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileRefs.current[doc.docType]?.click()}
+                    disabled={isUploadingThis}
+                    title={
+                      isUploaded
+                        ? 'החלף קובץ קיים — תכתוב הערה חדשה בסאמיט'
+                        : 'העלה קובץ מטעם המשרד — יישמר ב-Sanity וייכתב כהערה בסאמיט'
+                    }
+                    style={{
+                      marginInlineStart: 8,
+                      padding: '2px 8px',
+                      fontSize: 12,
+                      border: '1px solid #D1D5DB',
+                      background: '#fff',
+                      borderRadius: 4,
+                      cursor: isUploadingThis ? 'wait' : 'pointer',
+                      color: '#374151',
+                    }}
+                  >
+                    {isUploadingThis ? 'מעלה…' : isUploaded ? '⤴ החלף' : '⤴ העלה'}
+                  </button>
+                </>
               )}
             </div>
           )
@@ -82,7 +207,7 @@ export default function DocumentsCard({ documents, uploadedCount, requiredCount,
           <div className={styles.list}>
             {signedDocs!.map((d) => (
               <div key={`signed-${d.documentType}`} className={styles.docRow}>
-                <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'\u2713'}</div>
+                <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'✓'}</div>
                 <span className={styles.docName}>{d.label}</span>
                 <a
                   href={d.url}
@@ -90,7 +215,7 @@ export default function DocumentsCard({ documents, uploadedCount, requiredCount,
                   rel="noopener noreferrer"
                   className={styles.viewLink}
                 >
-                  {'צפה \u2197'}
+                  {'צפה ↗'}
                 </a>
               </div>
             ))}
