@@ -148,6 +148,26 @@ export async function materializeSignedArtifact(
 
   if (formNeedsAutoStamp(stampKey)) {
     try {
+      // Persist the pre-stamp (client-signed only) PDF to Sanity FIRST, so the
+      // office can later re-stamp with override coords without the 2Sign SAS
+      // URL expiring. Only set preStampDocUrl on the first pass — if a
+      // subsequent run hits this branch (e.g. cron retry), don't clobber the
+      // original pre-stamp asset reference.
+      if (!target.preStampDocUrl) {
+        try {
+          const preStampUrl = await uploadSignedPdfToSanity(
+            signedBuf,
+            `${stampKey}-${record.clientName || 'client'}-pre-stamp.pdf`,
+          )
+          if (preStampUrl) updated.preStampDocUrl = preStampUrl
+        } catch (preStampErr) {
+          // Non-fatal: re-stamp won't work for this record, but the main stamp
+          // flow continues. Log for ops visibility.
+          console.error('[materializeSignedArtifact] preStamp upload failed:',
+            preStampErr instanceof Error ? preStampErr.message : String(preStampErr))
+        }
+      }
+
       const manager = resolveStampOwner(record.accountManager)
       const stamped = await applyOfficeStamp(signedBuf, {
         formType: stampKey,
@@ -374,6 +394,21 @@ export async function pollRecord(
 
           const stampKey = updated.formType || updated.documentType
           if (signedBuf && formNeedsAutoStamp(stampKey)) {
+            // Persist pre-stamp PDF first (idempotent — only on first pass).
+            // Enables Path B manual-overtake re-stamp later.
+            if (!task.preStampDocUrl) {
+              try {
+                const preStampUrl = await uploadSignedPdfToSanity(
+                  signedBuf,
+                  `${stampKey}-${record.clientName || 'client'}-pre-stamp.pdf`,
+                )
+                if (preStampUrl) updated.preStampDocUrl = preStampUrl
+              } catch (preStampErr) {
+                console.error('[signing-poller] preStamp upload failed:',
+                  preStampErr instanceof Error ? preStampErr.message : String(preStampErr))
+              }
+            }
+
             try {
               const manager = resolveStampOwner(record.accountManager)
               const stamped = await applyOfficeStamp(signedBuf, {

@@ -19,6 +19,17 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { getManagerStamp, type ManagerName } from './manager-stamps'
 import { FORM_LAYOUTS } from './form-layouts'
 
+/**
+ * Coordinate overrides for Path B manual-overtake re-stamp.
+ * Each subfield is partial — missing keys fall through to FORM_LAYOUTS defaults.
+ * Used by the office click-to-place UI to nudge stamp / date placement when
+ * auto-stamp's default location is wrong for a specific signed PDF.
+ */
+export interface ApplyStampCoordOverrides {
+  officeStamp?: { x?: number; yFromTop?: number; widthPt?: number }
+  officeDate?: { x?: number; yFromTop?: number; fontSize?: number }
+}
+
 /** Format today's date as dd/mm/yyyy (Israeli convention). */
 function formatToday(): string {
   const d = new Date()
@@ -37,6 +48,13 @@ export interface ApplyStampOptions {
   signedDate?: string
   /** Stamp client signature date too — useful when 2Sign auto-fill missed */
   alsoFillClientDate?: boolean
+  /**
+   * Per-call coordinate overrides for officeStamp / officeDate. Missing keys
+   * fall through to FORM_LAYOUTS defaults. Used by the Path B manual-overtake
+   * re-stamp flow so the office can nudge placement on a specific signed PDF
+   * without changing the form's defaults for everyone.
+   */
+  coordOverrides?: ApplyStampCoordOverrides
 }
 
 /**
@@ -61,40 +79,59 @@ export async function applyOfficeStamp(
   const dateStr = options.signedDate || formatToday()
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
 
+  // Resolve effective coordinates: FORM_LAYOUTS defaults, overridden per-call
+  // by options.coordOverrides (Path B manual-overtake). Each override key is
+  // optional and only the provided fields shift; missing keys keep defaults.
+  const effOfficeStamp = layout.officeStamp
+    ? {
+        x: options.coordOverrides?.officeStamp?.x ?? layout.officeStamp.x,
+        yFromTop: options.coordOverrides?.officeStamp?.yFromTop ?? layout.officeStamp.yFromTop,
+        widthPt: options.coordOverrides?.officeStamp?.widthPt ?? layout.officeStamp.widthPt,
+      }
+    : undefined
+  const effOfficeDate = layout.officeDate
+    ? {
+        x: options.coordOverrides?.officeDate?.x ?? layout.officeDate.x,
+        yFromTop: options.coordOverrides?.officeDate?.yFromTop ?? layout.officeDate.yFromTop,
+        fontSize: options.coordOverrides?.officeDate?.fontSize ?? layout.officeDate.fontSize,
+      }
+    : undefined
+
   // Diagnostic — surfaces effective coordinates in Railway logs so any future
   // placement drift (#126-class bug) is debuggable in seconds, not hours.
   console.log('[auto-stamp]', {
     formType: options.formType,
     manager: options.manager,
     pageSize: { width, height },
-    officeStamp: layout.officeStamp,
-    officeDate: layout.officeDate,
+    officeStamp: effOfficeStamp,
+    officeDate: effOfficeDate,
     clientDate: layout.clientDate,
+    overridden: !!options.coordOverrides,
     dateStr,
   })
 
   // Office stamp + date (only if form has an office counter-stamp)
-  if (layout.officeStamp) {
+  if (effOfficeStamp) {
     const stamp = getManagerStamp(options.manager)
     const png = await pdfDoc.embedPng(stamp.png)
     const aspect = png.height / png.width
-    const stampWidth = layout.officeStamp.widthPt
+    const stampWidth = effOfficeStamp.widthPt
     const stampHeight = stampWidth * aspect
     page.drawImage(png, {
-      x: layout.officeStamp.x,
+      x: effOfficeStamp.x,
       // Anchor the bottom of the image at (yFromTop) measured from page top
-      y: height - layout.officeStamp.yFromTop - stampHeight,
+      y: height - effOfficeStamp.yFromTop - stampHeight,
       width: stampWidth,
       height: stampHeight,
       opacity: 0.9,
     })
   }
 
-  if (layout.officeDate) {
+  if (effOfficeDate) {
     page.drawText(dateStr, {
-      x: layout.officeDate.x,
-      y: height - layout.officeDate.yFromTop,
-      size: layout.officeDate.fontSize,
+      x: effOfficeDate.x,
+      y: height - effOfficeDate.yFromTop,
+      size: effOfficeDate.fontSize,
       font,
       color: rgb(0, 0, 0),
     })
