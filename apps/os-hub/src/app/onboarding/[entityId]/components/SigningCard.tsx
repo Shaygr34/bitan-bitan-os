@@ -154,6 +154,13 @@ export default function SigningCard({
           formType: doc?.formType,
           officeSignerEmail: officeSigner?.email,
           officeSignerName: officeSigner?.name,
+          // Always supersede an existing task for this docType when the office
+          // initiates a fresh send. Covers two cases the UI surfaces this from:
+          //   1. Initial send (no existing task) — supersede is a no-op.
+          //   2. Restart from declined/expired/signed (terminal task exists) —
+          //      replaces the old record in place instead of accumulating
+          //      stale entries in signingTasks[].
+          supersedeExisting: true,
         }),
       })
 
@@ -517,6 +524,47 @@ export default function SigningCard({
                           type="button"
                         >
                           {'שלח מחדש'}
+                        </button>
+                      </>
+                    )}
+
+                    {/*
+                      Post-signed restart. Office picks a fresh PDF; backend
+                      replaces the signed task in place (handleFileSelected
+                      passes supersedeExisting=true). Confirm prompt because
+                      this throws away a completed signed result.
+                    */}
+                    {status === 'signed' && (
+                      <>
+                        <input
+                          ref={el => { fileInputRefs.current[doc.documentType] = el }}
+                          type="file"
+                          accept=".pdf"
+                          className={styles.fileInput}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            const ok = window.confirm(
+                              'המסמך כבר חתום. שליחה חדשה תחליף את המשימה החתומה הקיימת — להמשיך?',
+                            )
+                            if (ok) handleFileSelected(doc.documentType, file)
+                            else if (fileInputRefs.current[doc.documentType]) {
+                              fileInputRefs.current[doc.documentType]!.value = ''
+                            }
+                          }}
+                        />
+                        <button
+                          className={styles.resendBtn}
+                          onClick={() => fileInputRefs.current[doc.documentType]?.click()}
+                          disabled={sending === doc.documentType || !clientEmail}
+                          title={
+                            !clientEmail
+                              ? 'חסר אימייל לקוח'
+                              : 'התחל מחדש — העלה PDF חדש ושלח לחתימה (תחליף את המסמך החתום)'
+                          }
+                          type="button"
+                        >
+                          {sending === doc.documentType ? 'שולח...' : 'שלח שוב'}
                         </button>
                       </>
                     )}

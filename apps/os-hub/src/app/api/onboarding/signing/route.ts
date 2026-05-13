@@ -92,19 +92,35 @@ export async function POST(request: Request) {
     }
 
     // Existing-task conflict check.
-    // Manual overtake with supersedeExisting bypasses this — that path replaces
-    // the existing task instead of erroring. Re-uploads to the same documentType
-    // by any other path still 409 to prevent accidental duplication.
-    const existing = currentTasks.find(
-      t => t.documentType === documentType &&
-        !['signed', 'declined', 'expired', 'external-done'].includes(t.status)
-    )
-    if (existing && !(isManualSign && supersedeExisting)) {
+    //
+    // - Non-terminal existing (sent, pending, awaiting-counter,
+    //   awaiting-office-authorize) WITHOUT supersedeExisting → 409. Prevents
+    //   the office from accidentally double-sending into 2Sign.
+    // - Non-terminal existing WITH supersedeExisting → caller is explicitly
+    //   requesting a restart; we replace the existing task in place below.
+    // - Terminal existing (signed, declined, expired, external-done) is NOT
+    //   a conflict here; whether to replace or append is decided per-flow
+    //   based on supersedeExisting. (The "שלח שוב" buttons on signed/declined
+    //   tasks pass supersedeExisting=true so the array stays clean — one
+    //   task per documentType instead of accumulating history.)
+    const TERMINAL_STATUSES = new Set(['signed', 'declined', 'expired', 'external-done'])
+    const existing = currentTasks.find(t => t.documentType === documentType)
+    const isNonTerminalExisting = !!existing && !TERMINAL_STATUSES.has(existing.status)
+
+    if (isNonTerminalExisting && !supersedeExisting) {
       return NextResponse.json({
         error: 'signing task already exists for this document type',
         taskGuid: existing.taskGuid,
         status: existing.status,
       }, { status: 409 })
+    }
+
+    /** Replace-or-append: replace when supersedeExisting=true AND there's an existing task. */
+    const buildUpdatedTasks = (newTask: SigningTask): SigningTask[] => {
+      if (supersedeExisting && existing) {
+        return currentTasks.map(t => (t.taskGuid === existing.taskGuid ? newTask : t))
+      }
+      return [...currentTasks, newTask]
     }
 
     let pdfBuffer: Buffer | undefined
@@ -144,7 +160,7 @@ export async function POST(request: Request) {
       }
 
       await patch(record._id, {
-        set: { signingTasks: [...currentTasks, externalTask] },
+        set: { signingTasks: buildUpdatedTasks(externalTask) },
       })
 
       notifyExternalDone({
@@ -193,13 +209,8 @@ export async function POST(request: Request) {
         },
       }
 
-      // If superseding, drop the old task in-place; otherwise append the new manual task.
-      const updatedTasks = existing
-        ? currentTasks.map(t => (t.taskGuid === existing.taskGuid ? manualTask : t))
-        : [...currentTasks, manualTask]
-
       await patch(record._id, {
-        set: { signingTasks: updatedTasks },
+        set: { signingTasks: buildUpdatedTasks(manualTask) },
       })
 
       notifySigningCompleted({
@@ -260,7 +271,7 @@ export async function POST(request: Request) {
     }
 
     await patch(record._id, {
-      set: { signingTasks: [...currentTasks, signingTask] },
+      set: { signingTasks: buildUpdatedTasks(signingTask) },
     })
 
     // notifySigningSent dropped 2026-05-12 — the SigningCard status surface

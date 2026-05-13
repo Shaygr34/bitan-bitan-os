@@ -1,19 +1,24 @@
 /**
  * Office doc storage — uploads onboarding documents on behalf of the client
- * from the OS UI (P3 of the manual-overtake arc). Two situations:
+ * from the OS UI. Two situations:
  *   1. Office is correcting a wrong upload (client made a mistake).
  *   2. Office is filling gaps for clients who never used the intake form.
  *
- * Mirrors the existing intake-form storage pattern: Sanity asset upload + a
- * Summit הערה remark in `label: url` format. The OS view picks the new doc
- * up via `extractDocUrls` (summit-client.ts) which scans all remarks for that
- * `label: url` shape and maps Hebrew label keywords back to doc-type keys.
+ * DUAL-WRITE pattern (since 2026-05-13):
+ *   1. Sanity asset upload for the raw file (canonical storage, CDN-served).
+ *   2. Summit typed File-field write via `/crm/data/updateentity/` —
+ *      property value format is `${filename};${base64}`. Mirrors the
+ *      breakthrough pattern from the intake form (bitan-bitan-website
+ *      src/app/api/intake/route.ts + src/lib/intake-types.ts DOC_FIELDS).
+ *      This makes the doc downloadable from inside Summit and lets the
+ *      firm's completion dashboard count it via the typed-field check.
+ *   3. Summit הערה (RichText) remark in `label: url` format — audit trail
+ *      AND fallback signal for the OS view (summit-client.extractDocUrls
+ *      scans remarks for `label: url` lines).
  *
- * Future P3.b: once Avi/Ron confirm the typed Summit field schema (see
- * `apps/os-hub/src/app/api/completion/summary/route.ts` DOC_FIELDS_MAP for
- * the field names that already EXIST in Summit), additionally write the URL
- * to the typed field via `/crm/data/updateentity/`. The remark path stays
- * as audit history.
+ * If the typed-field write fails for any reason (rate-limit, schema drift,
+ * etc.) the הערה path still works and the doc is still discoverable from
+ * the OS view. Both paths are non-fatal w.r.t. Sanity upload success.
  */
 
 import { sanityConfig } from '@/config/integrations'
@@ -38,6 +43,36 @@ export const OFFICE_DOC_LABELS: Record<string, string> = {
   protokolMurshe: 'פרוטוקול מורשה חתימה',
   nesahHevra: 'נסח חברה',
   rentalContract: 'חוזה שכירות',
+}
+
+/**
+ * Office doc-type → Summit typed File field name (the Hebrew APIName for the
+ * field on folder 557688522, ValueType: "File"). Source of truth: the
+ * intake form's DOC_FIELDS in bitan-bitan-website src/lib/intake-types.ts.
+ *
+ * Empty string ("") means "no typed Summit field for this doc-type" — only
+ * the הערה path is used. Notes on collisions / naming:
+ *   - idCard and driverLicense BOTH target 'ת.ז/ רישיון בעלים' (Summit
+ *     stores one file per typed field; latest write wins per intake form
+ *     convention — preserved here).
+ *   - 'פתיחת תיק מעמ' is the field name the intake form writes; it does
+ *     NOT appear in the canonical folder schema dump (which has
+ *     'פתיחת תיק רשויות / ייפוי כח' instead). Sumit appears to silently
+ *     accept the write either way. Matching the intake-form convention
+ *     preserves round-trip parity for clients who used both pipelines.
+ *   - rentalContract has no typed-field equivalent on this folder.
+ */
+export const OFFICE_DOC_SUMMIT_FIELDS: Record<string, string> = {
+  idCard: 'ת.ז/ רישיון בעלים',
+  driverLicense: 'ת.ז/ רישיון בעלים',
+  bankApproval: 'אישור ניהול חשבון',
+  osekMurshe: 'תעודת עוסק מורשה',
+  ptihaTikMaam: 'פתיחת תיק מעמ',
+  teudatHitagdut: 'תעודת התאגדות',
+  takanonHevra: 'תקנון חברה',
+  protokolMurshe: 'פרוטוקול מורשה חתימה',
+  nesahHevra: 'נסח חברה',
+  rentalContract: '',
 }
 
 export function getOfficeDocLabel(docType: string): string {
@@ -133,8 +168,71 @@ export async function persistOfficeDocRemarkToSummit(
 }
 
 /**
- * One-shot helper: Sanity upload + Summit remark.
- * @returns Sanity CDN URL or null on Sanity failure (Summit failure is non-fatal).
+ * Write the office doc to its typed Summit File field via /crm/data/updateentity/.
+ * Property value format: `${filename};${base64}` — Sumit's documented inline
+ * file format (no separate upload endpoint required).
+ *
+ * Non-fatal: if the typed-field write fails, the Sanity asset + הערה path
+ * still works and the doc remains discoverable from the OS view.
+ */
+export async function persistOfficeDocToSummitFileField(
+  entityId: string | number,
+  docType: string,
+  buffer: Buffer,
+  filename: string,
+): Promise<void> {
+  const summitField = OFFICE_DOC_SUMMIT_FIELDS[docType]
+  if (!summitField) return // no typed field for this doc-type
+
+  const creds = {
+    CompanyID: parseInt(process.env.SUMMIT_COMPANY_ID || '0', 10),
+    APIKey: (process.env.SUMMIT_API_KEY || '').trim(),
+  }
+  if (!creds.APIKey || !creds.CompanyID) return
+  const numericId = typeof entityId === 'string' ? parseInt(entityId, 10) : entityId
+  if (!numericId || Number.isNaN(numericId)) return
+
+  const base64 = buffer.toString('base64')
+  const fieldValue = `${filename};${base64}`
+
+  try {
+    const res = await fetch(`${SUMMIT_BASE}/crm/data/updateentity/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Language': 'he' },
+      body: JSON.stringify({
+        Credentials: creds,
+        Entity: {
+          ID: numericId,
+          Folder: CLIENT_FOLDER,
+          Properties: {
+            [summitField]: fieldValue,
+          },
+        },
+      }),
+    })
+    if (!res.ok) {
+      console.error('[OfficeDoc] Summit typed-field update HTTP error:', res.status, summitField)
+      return
+    }
+    const json = await res.json().catch(() => null) as { Status?: number; UserErrorMessage?: string } | null
+    if (json?.Status !== 0) {
+      console.error('[OfficeDoc] Summit typed-field update error:', json?.UserErrorMessage || 'Unknown', summitField)
+    }
+  } catch (err) {
+    console.error('[OfficeDoc] Summit typed-field update error:', err)
+  }
+}
+
+/**
+ * One-shot helper: Sanity upload + Summit typed File field write + Summit הערה.
+ * Triple-write closes the loop:
+ *   - Sanity: canonical CDN-served storage, returned for in-UI links.
+ *   - Summit typed File field: downloadable from inside the Summit client
+ *     card; counted by the firm's completion dashboard.
+ *   - Summit הערה: audit trail + fallback signal for extractDocUrls.
+ *
+ * @returns Sanity CDN URL or null on Sanity failure. Summit failures are
+ *          non-fatal and logged.
  */
 export async function persistOfficeDoc(opts: {
   buffer: Buffer
@@ -145,11 +243,21 @@ export async function persistOfficeDoc(opts: {
 }): Promise<string | null> {
   const sanityUrl = await uploadOfficeDocToSanity(opts.buffer, opts.filename, opts.contentType)
   if (sanityUrl) {
-    await persistOfficeDocRemarkToSummit(
-      opts.summitEntityId,
-      getOfficeDocLabel(opts.docType),
-      sanityUrl,
-    )
+    // Run typed-field write and הערה remark in parallel — both are independent
+    // best-effort writes against Summit.
+    await Promise.all([
+      persistOfficeDocToSummitFileField(
+        opts.summitEntityId,
+        opts.docType,
+        opts.buffer,
+        opts.filename,
+      ),
+      persistOfficeDocRemarkToSummit(
+        opts.summitEntityId,
+        getOfficeDocLabel(opts.docType),
+        sanityUrl,
+      ),
+    ])
   }
   return sanityUrl
 }
