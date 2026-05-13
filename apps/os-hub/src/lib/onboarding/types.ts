@@ -89,6 +89,17 @@ export interface SigningTask {
   signedDocUrl?: string
   /** Final stamped PDF (signed by client + auto office stamp + dates). Set by GET route after auto-stamp. */
   stampedDocUrl?: string
+  /**
+   * Pre-stamp PDF (client-signed, BEFORE auto-stamp painted the office sig +
+   * dates). Persisted by signing-poller the first time auto-stamp runs, so
+   * that the office can later RE-STAMP with overridden coordinates without
+   * the original 2Sign SAS URL going stale.
+   *
+   * Required for the Path B manual-overtake flow (click-to-place coord
+   * override). Missing for records signed before this field was introduced —
+   * the UI disables the restamp action in that case.
+   */
+  preStampDocUrl?: string
   externalRef?: string       // מספר אסמכתא for external tasks
   /** Form template key — used by auto-stamp routing. Persisted at POST time. */
   formType?: string
