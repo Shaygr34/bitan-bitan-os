@@ -157,32 +157,25 @@ export const FORM_LAYOUTS: Record<string, FormLayout> = {
       twoSignFieldHeight: 18,
     },
     officeStamp: {
-      // Tuned 2026-05-14 from live demo (entity 1906385742): Shay flagged the
-      // stamp landed "too far right" in the חתימה וחותמת cell — shifted left
-      // by ~40pt so the stamp sits cleanly inside the cell. Cell visual range
-      // is roughly x=130..280; stamp width is 95pt; left edge 170 puts the
-      // stamp centered at x≈217 (was 260).
-      x: 170,
+      // Re-tuned 2026-05-14 (later session): Shay flagged stamp was still too
+      // far right + overlapping the firm-name text. Shifted left another ~65pt.
+      // Cell visual range x≈30..150 (left-most of section ב bottom row).
+      x: 105,
       yFromTop: 540,
       widthPt: 95,
     },
     officeDate: {
-      // Tuned 2026-05-14 from same demo: date previously landed slightly low
-      // and too far left relative to the section-ב תאריך underline. Bumped
-      // +12 right and -8 up.
+      // Re-tuned 2026-05-14: previous y=597 landed slightly high vs the
+      // תאריך underline. Bumped +8 down to 605.
       x: 432,
-      yFromTop: 597,
+      yFromTop: 605,
       fontSize: 11,
     },
     officeFirmName: {
-      // New 2026-05-14. The "שם משרד המייצג" cell sits between the date and
-      // stamp cells in section ב. Cell visual range ~ x=270..400; baseline
-      // aligned with the date row (yFromTop=597). Firm name rendered in
-      // Helvetica via pdf-lib — Hebrew should render correctly because the
-      // string is right-to-left embedded by the Unicode marks pdf-lib
-      // respects in the default StandardFonts.Helvetica path.
-      x: 290,
-      yFromTop: 597,
+      // Re-tuned 2026-05-14: previous x=290 was a tiny bit too far right
+      // (touching the stamp). Pulled left ~12pt to 278.
+      x: 278,
+      yFromTop: 605,
       fontSize: 10,
       text: 'ביטן את ביטן רואי חשבון',
     },

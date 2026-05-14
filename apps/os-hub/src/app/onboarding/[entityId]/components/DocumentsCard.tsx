@@ -252,13 +252,33 @@ export default function DocumentsCard({
                   {'צפה ↗'}
                 </a>
               ) : inSummit ? (
-                <span
-                  className={styles.viewLink}
-                  style={{ cursor: 'default', color: '#6B7280', fontWeight: 500 }}
-                  title="מאוחסן ישירות בשדה הקובץ בסאמיט — ניתן להוריד מתוך כרטיס הלקוח בסאמיט"
-                >
-                  {'מאוחסן בסאמיט'}
-                </span>
+                <>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: '#6B7280',
+                      fontWeight: 500,
+                      background: '#F3F4F6',
+                      padding: '2px 8px',
+                      borderRadius: 9999,
+                      marginInlineEnd: 6,
+                    }}
+                    title="מאוחסן ישירות בשדה הקובץ בסאמיט"
+                  >
+                    {'מאוחסן בסאמיט'}
+                  </span>
+                  {/* Proxy-served view link — fetches the typed Sumit File
+                      field bytes via our server credentials (Sumit's
+                      /crm/downloadfile/ is auth-walled for the browser). */}
+                  <a
+                    href={`/api/onboarding/docs/proxy?entityId=${encodeURIComponent(summitEntityId)}&docType=${encodeURIComponent(doc.docType)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.viewLink}
+                  >
+                    {'צפה ↗'}
+                  </a>
+                </>
               ) : (
                 <span className={styles.missingBadge}>חסר</span>
               )}

@@ -802,23 +802,43 @@ export default function SigningCard({
         {'PDF ייפוי כוח מופק ידנית בשע"מ / ביטוח לאומי ומועלה כאן לחתימה. קישור ב"ל מיוצגים נשלח ללקוח ישירות.'}
       </div>
 
-      {/* Path B click-to-place coord override modal. Mounted lazily via Next.js dynamic import. */}
+      {/* Path B v2 — drag-based placement with 4 element overlays. */}
       {restampOpenFor && (() => {
         const targetTask = tasks.find(t => t.documentType === restampOpenFor)
         const targetDoc = ALL_SIGNING_DOCS.find(d => d.documentType === restampOpenFor)
         const layout = targetDoc ? FORM_LAYOUTS[targetDoc.formType] : undefined
-        if (!targetTask?.preStampDocUrl || !layout?.officeStamp || !layout.officeDate) {
-          // Defensive: button shouldn't have been clickable without these, but guard anyway.
+        if (!targetTask?.preStampDocUrl || !layout?.officeStamp || !layout.officeDate || !layout.officeFirmName) {
           return null
         }
+        // Today's date in dd/mm/yyyy — same format applyOfficeStamp would paint.
+        const d = new Date()
+        const dd = String(d.getDate()).padStart(2, '0')
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const previewDateStr = `${dd}/${mm}/${d.getFullYear()}`
+        // Manager stamp URL — served from the OS public assets folder if present.
+        // For the demo we fall back to a non-image placeholder if absent.
+        const manager = accountManager || 'אבי ביטן'
+        const stampUrl = manager.includes('רון')
+          ? '/onboarding/stamps/ron.png'
+          : '/onboarding/stamps/avi.png'
         return (
           <RestampModal
             open
             onClose={() => setRestampOpenFor(null)}
             summitEntityId={summitEntityId}
             documentType={restampOpenFor}
-            defaultStampWidthPt={layout.officeStamp.widthPt}
-            defaultDateFontSize={layout.officeDate.fontSize}
+            defaults={{
+              officeStamp: layout.officeStamp,
+              officeDate: layout.officeDate,
+              officeFirmName: layout.officeFirmName,
+              clientDate: {
+                x: layout.clientDate.x,
+                yFromTop: layout.clientDate.autoStampTextBaselineFromTop,
+                fontSize: layout.clientDate.autoStampFontSize,
+              },
+            }}
+            managerStampUrl={stampUrl}
+            previewDateStr={previewDateStr}
             onSuccess={() => {
               setRestampOpenFor(null)
               onTasksChanged()
