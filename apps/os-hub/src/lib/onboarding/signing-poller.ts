@@ -29,6 +29,7 @@ import {
   addSignedDocRemarkToSummit,
   getSignedDocLabel,
 } from '@/lib/onboarding/signed-doc-storage'
+import { persistOfficeOtherDocToSummit } from '@/lib/onboarding/office-doc-storage'
 import {
   notifySigningCompleted,
   notifyStageAdvanced,
@@ -186,6 +187,14 @@ export async function materializeSignedArtifact(
             record.summitEntityId,
             getSignedDocLabel(stampKey),
             stampedUrl,
+          )
+          // Also drop the final stamped PDF into Sumit's `קבצים אחרים`
+          // multi-file field so partners can grab it from the Sumit client
+          // card directly. Non-fatal: hera + Sanity asset are already in.
+          await persistOfficeOtherDocToSummit(
+            record.summitEntityId,
+            `${getSignedDocLabel(stampKey)}-${record.clientName || 'client'}.pdf`,
+            stamped,
           )
         }
       }
@@ -428,6 +437,13 @@ export async function pollRecord(
                     record.summitEntityId,
                     getSignedDocLabel(stampKey),
                     stampedUrl,
+                  )
+                  // Mirror final stamped PDF into Sumit's `קבצים אחרים` multi-file
+                  // field (same rationale as the primary auto-stamp block above).
+                  await persistOfficeOtherDocToSummit(
+                    record.summitEntityId,
+                    `${getSignedDocLabel(stampKey)}-${record.clientName || 'client'}.pdf`,
+                    stamped,
                   )
                 }
               }

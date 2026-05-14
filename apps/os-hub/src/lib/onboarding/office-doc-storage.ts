@@ -75,6 +75,22 @@ export const OFFICE_DOC_SUMMIT_FIELDS: Record<string, string> = {
   rentalContract: '',
 }
 
+/**
+ * Multi-file Summit field on folder 557688522 for "other" docs that don't
+ * fit the rigid template (idCard / driverLicense / etc.). Shay created this
+ * field 2026-05-14 specifically for the office to drop ad-hoc files. Also
+ * used as the destination for the final signed/stamped ייפוי כוח PDFs so
+ * partners can find them inside the Sumit client card without leaving the
+ * CRM.
+ *
+ * If this field doesn't exist on the folder yet (Sumit MCP schema cache lag
+ * after creation), writes will fail with a 400 from updateentity — caller
+ * logs the error and continues. Fallback `Customers_Files` ("קבצים מקושרים")
+ * is the pre-existing equivalent multi-file field; can be swapped here if
+ * we discover the new field name didn't propagate.
+ */
+export const OTHER_DOCS_SUMMIT_FIELD = 'קבצים אחרים'
+
 export function getOfficeDocLabel(docType: string): string {
   return OFFICE_DOC_LABELS[docType] || docType
 }
@@ -220,6 +236,61 @@ export async function persistOfficeDocToSummitFileField(
     }
   } catch (err) {
     console.error('[OfficeDoc] Summit typed-field update error:', err)
+  }
+}
+
+/**
+ * Append a file to Sumit's multi-file `קבצים אחרים` field. Each call adds
+ * one file (Sumit's multi-file fields accept array-of-strings as the
+ * property value; we send a single-element array per call and let Sumit
+ * append to the existing collection).
+ *
+ * Non-fatal: logs and returns void on failure. The Sanity asset write (in
+ * persistOfficeDoc) is the canonical storage; Sumit is a UX convenience.
+ */
+export async function persistOfficeOtherDocToSummit(
+  entityId: string | number,
+  filename: string,
+  buffer: Buffer,
+): Promise<void> {
+  const creds = {
+    CompanyID: parseInt(process.env.SUMMIT_COMPANY_ID || '0', 10),
+    APIKey: (process.env.SUMMIT_API_KEY || '').trim(),
+  }
+  if (!creds.APIKey || !creds.CompanyID) return
+  const numericId = typeof entityId === 'string' ? parseInt(entityId, 10) : entityId
+  if (!numericId || Number.isNaN(numericId)) return
+
+  const base64 = buffer.toString('base64')
+  const fieldValue = `${filename};${base64}`
+
+  try {
+    const res = await fetch(`${SUMMIT_BASE}/crm/data/updateentity/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Language': 'he' },
+      body: JSON.stringify({
+        Credentials: creds,
+        Entity: {
+          ID: numericId,
+          Folder: CLIENT_FOLDER,
+          Properties: {
+            // Try array form first — standard pattern for multi-value Sumit
+            // fields. If Sumit rejects array shape, fallback to single string.
+            [OTHER_DOCS_SUMMIT_FIELD]: [fieldValue],
+          },
+        },
+      }),
+    })
+    if (!res.ok) {
+      console.error('[OfficeDoc] Other-docs Sumit update HTTP error:', res.status)
+      return
+    }
+    const json = (await res.json().catch(() => null)) as { Status?: number; UserErrorMessage?: string } | null
+    if (json?.Status !== 0) {
+      console.error('[OfficeDoc] Other-docs Sumit update error:', json?.UserErrorMessage || 'Unknown')
+    }
+  } catch (err) {
+    console.error('[OfficeDoc] Other-docs Sumit update error:', err)
   }
 }
 
