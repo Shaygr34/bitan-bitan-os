@@ -7,6 +7,8 @@ interface DocItem {
   docType: string
   label: string
   url?: string
+  /** True when the typed Summit File field for this docType is populated. */
+  inSummitFileField?: boolean
 }
 
 interface SignedDocItem {
@@ -55,6 +57,13 @@ const OFFICE_UPLOADABLE = new Set([
 
 const ACCEPT_MIME = '.pdf,application/pdf,image/jpeg,image/png,image/webp,image/heic'
 
+interface UploadedOtherDoc {
+  label: string
+  filename: string
+  url: string
+  uploadedAt: number
+}
+
 export default function DocumentsCard({
   summitEntityId,
   documents,
@@ -67,6 +76,14 @@ export default function DocumentsCard({
   const [uploadingFor, setUploadingFor] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  // Free-form "other" docs uploaded this session. Persisted to Sanity +
+  // Summit's `קבצים אחרים` multi-file field server-side; on page reload they
+  // disappear from this local list but partners can still find them in the
+  // Summit client card (downloadable from CRM). Future iteration could
+  // read-back from a typed-field response.
+  const [otherDocs, setOtherDocs] = useState<UploadedOtherDoc[]>([])
+  const [otherLabel, setOtherLabel] = useState('')
+  const otherFileRef = useRef<HTMLInputElement | null>(null)
 
   const uploadDoc = async (docType: string, file: File) => {
     setUploadingFor(docType)
@@ -109,6 +126,61 @@ export default function DocumentsCard({
     }
   }
 
+  const uploadOtherDoc = async (file: File) => {
+    setUploadingFor('__other__')
+    setError(null)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const bytes = new Uint8Array(arrayBuffer)
+      const CHUNK = 0x8000
+      let bin = ''
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)))
+      }
+      const base64 = btoa(bin)
+
+      const trimmedLabel = otherLabel.trim()
+      const res = await fetch('/api/onboarding/docs/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summitEntityId,
+          docType: 'other',
+          fileBase64: base64,
+          contentType: file.type || 'application/octet-stream',
+          filename: file.name,
+          label: trimmedLabel || undefined,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(data.error || `שגיאה: ${res.status}`)
+      }
+
+      const data = (await res.json()) as { url?: string; label?: string | null }
+      const newUrl = data.url
+      if (newUrl) {
+        setOtherDocs(prev => [
+          ...prev,
+          {
+            label: trimmedLabel || data.label || 'מסמך נוסף',
+            filename: file.name,
+            url: newUrl,
+            uploadedAt: Date.now(),
+          },
+        ])
+      }
+      setOtherLabel('')
+      onUploaded?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שגיאה')
+    } finally {
+      setUploadingFor(null)
+      if (otherFileRef.current) otherFileRef.current.value = ''
+    }
+  }
+
   return (
     <div className={styles.card}>
       <div className={styles.headerRow}>
@@ -132,7 +204,10 @@ export default function DocumentsCard({
       )}
       <div className={styles.list}>
         {documents.map((doc) => {
-          const isUploaded = !!doc.url
+          const hasViewableUrl = !!doc.url
+          const inSummit = !!doc.inSummitFileField
+          // "Done" = visible-here OR known to live in Summit's typed File field.
+          const isUploaded = hasViewableUrl || inSummit
           const displayLabel = DOC_TYPE_LABELS[doc.docType] || doc.label
           const canOfficeUpload = OFFICE_UPLOADABLE.has(doc.docType)
           const isUploadingThis = uploadingFor === doc.docType
@@ -145,7 +220,7 @@ export default function DocumentsCard({
               <span className={isUploaded ? styles.docName : styles.docNameMissing}>
                 {displayLabel}
               </span>
-              {isUploaded && doc.url ? (
+              {hasViewableUrl ? (
                 <a
                   href={doc.url}
                   target="_blank"
@@ -154,6 +229,14 @@ export default function DocumentsCard({
                 >
                   {'צפה ↗'}
                 </a>
+              ) : inSummit ? (
+                <span
+                  className={styles.viewLink}
+                  style={{ cursor: 'default', color: '#6B7280', fontWeight: 500 }}
+                  title="מאוחסן ישירות בשדה הקובץ בסאמיט — ניתן להוריד מתוך כרטיס הלקוח בסאמיט"
+                >
+                  {'מאוחסן בסאמיט'}
+                </span>
               ) : (
                 <span className={styles.missingBadge}>חסר</span>
               )}
@@ -169,33 +252,113 @@ export default function DocumentsCard({
                       if (file) uploadDoc(doc.docType, file)
                     }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => fileRefs.current[doc.docType]?.click()}
-                    disabled={isUploadingThis}
-                    title={
-                      isUploaded
-                        ? 'החלף קובץ קיים — תכתוב הערה חדשה בסאמיט'
-                        : 'העלה קובץ מטעם המשרד — יישמר ב-Sanity וייכתב כהערה בסאמיט'
-                    }
-                    style={{
-                      marginInlineStart: 8,
-                      padding: '2px 8px',
-                      fontSize: 12,
-                      border: '1px solid #D1D5DB',
-                      background: '#fff',
-                      borderRadius: 4,
-                      cursor: isUploadingThis ? 'wait' : 'pointer',
-                      color: '#374151',
-                    }}
-                  >
-                    {isUploadingThis ? 'מעלה…' : isUploaded ? '⤴ החלף' : '⤴ העלה'}
-                  </button>
+                  <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, marginInlineStart: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => fileRefs.current[doc.docType]?.click()}
+                      disabled={isUploadingThis}
+                      title={
+                        isUploaded
+                          ? 'החלף קובץ קיים — יישמר ב-Sanity, בשדה הקובץ הסומך, וכהערה בסאמיט'
+                          : 'העלה קובץ מטעם המשרד — יישמר ב-Sanity, בשדה הקובץ הסומך, וכהערה בסאמיט'
+                      }
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: 12,
+                        border: '1px solid #D1D5DB',
+                        background: '#fff',
+                        borderRadius: 4,
+                        cursor: isUploadingThis ? 'wait' : 'pointer',
+                        color: '#374151',
+                        minWidth: 80,
+                      }}
+                    >
+                      {isUploadingThis ? '⏳ מעלה…' : isUploaded ? '⤴ החלף' : '⤴ העלה'}
+                    </button>
+                    {isUploadingThis && (
+                      <div className={styles.uploadProgress} aria-label="מעלה קובץ" />
+                    )}
+                  </div>
                 </>
               )}
             </div>
           )
         })}
+      </div>
+
+      {/* Other docs — free-form uploads outside the rigid template. Stored in
+          Summit's multi-file `קבצים אחרים` field + Sanity + הערה. */}
+      <div className={styles.headerRow} style={{ marginTop: '1.25rem' }}>
+        <h3 className={styles.title} style={{ fontSize: '0.95rem' }}>{'מסמכים אחרים'}</h3>
+        <span className={styles.count}>{otherDocs.length}</span>
+      </div>
+      <div className={styles.list}>
+        {otherDocs.map((d) => (
+          <div key={`other-${d.uploadedAt}`} className={styles.docRow}>
+            <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'✓'}</div>
+            <span className={styles.docName}>{d.label}</span>
+            <a
+              href={d.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.viewLink}
+            >
+              {'צפה ↗'}
+            </a>
+          </div>
+        ))}
+        <div className={styles.docRow} style={{ borderBottom: 'none', alignItems: 'center', gap: 8 }}>
+          <input
+            type="text"
+            value={otherLabel}
+            onChange={(e) => setOtherLabel(e.target.value)}
+            placeholder="תיוג (למשל: 'אישור עבר נקי')"
+            disabled={uploadingFor === '__other__'}
+            style={{
+              flex: 1,
+              fontSize: 13,
+              padding: '4px 8px',
+              border: '1px solid #D1D5DB',
+              borderRadius: 4,
+              textAlign: 'right',
+              direction: 'rtl',
+              minWidth: 0,
+            }}
+          />
+          <input
+            ref={otherFileRef}
+            type="file"
+            accept={ACCEPT_MIME}
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) uploadOtherDoc(file)
+            }}
+          />
+          <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>
+            <button
+              type="button"
+              onClick={() => otherFileRef.current?.click()}
+              disabled={uploadingFor === '__other__'}
+              title="העלה מסמך חופשי שלא נכלל בתבנית — יישמר בסאמיט כקובץ נוסף"
+              style={{
+                padding: '4px 12px',
+                fontSize: 12,
+                border: '1px solid #1B2A4A',
+                background: '#1B2A4A',
+                color: '#fff',
+                borderRadius: 4,
+                cursor: uploadingFor === '__other__' ? 'wait' : 'pointer',
+                minWidth: 110,
+              }}
+            >
+              {uploadingFor === '__other__' ? '⏳ מעלה…' : '+ הוסף מסמך נוסף'}
+            </button>
+            {uploadingFor === '__other__' && (
+              <div className={styles.uploadProgress} aria-label="מעלה קובץ" />
+            )}
+          </div>
+        </div>
       </div>
 
       {hasSigned && (

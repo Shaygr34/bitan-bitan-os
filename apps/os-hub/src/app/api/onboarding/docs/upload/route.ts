@@ -20,12 +20,18 @@ import { NextResponse } from 'next/server'
 import {
   isValidDocType,
   persistOfficeDoc,
+  persistOfficeOtherDocToSummit,
+  uploadOfficeDocToSanity,
+  persistOfficeDocRemarkToSummit,
 } from '@/lib/onboarding/office-doc-storage'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const MAX_FILE_BYTES = 12 * 1024 * 1024 // 12 MB — generous; intake scans rarely exceed 5
+// Summit's documented per-file ceiling for Customers_Files is 20 MB. We match
+// that. Original 12 MB cap was rejecting iPhone HEIC originals which routinely
+// hit 14-18 MB. Tuned 2026-05-14 after a real demo hit the cap.
+const MAX_FILE_BYTES = 20 * 1024 * 1024
 
 const ALLOWED_CONTENT_TYPES = new Set([
   'application/pdf',
@@ -36,6 +42,14 @@ const ALLOWED_CONTENT_TYPES = new Set([
 ])
 
 interface UploadRequestBody {
+  /**
+   * `docType` semantics:
+   *   - A rigid template key (idCard, driverLicense, ...): file is filed
+   *     under its dedicated typed Summit File field + מסמך הערה.
+   *   - The literal string "other": free-form doc; goes to the multi-file
+   *     `קבצים אחרים` Summit field + הערה. Optional `label` becomes the
+   *     remark/filename prefix so partners can identify it in Sumit.
+   */
   summitEntityId: string
   docType: string
   /** Base64-encoded file bytes (without data URL prefix). */
@@ -44,12 +58,18 @@ interface UploadRequestBody {
   contentType: string
   /** Original filename for the Sanity asset (defaults to a docType-based name). */
   filename?: string
+  /**
+   * Free-form Hebrew label for "other" docs. Embedded into the filename
+   * (so it appears in Sumit's file list) and into the הערה line. Ignored
+   * for rigid-template docTypes.
+   */
+  label?: string
 }
 
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Partial<UploadRequestBody>
-    const { summitEntityId, docType, fileBase64, contentType } = body
+    const { summitEntityId, docType, fileBase64, contentType, label } = body
     const filename = body.filename
 
     if (!summitEntityId || !docType || !fileBase64 || !contentType) {
@@ -59,7 +79,8 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!isValidDocType(docType)) {
+    const isOtherDoc = docType === 'other'
+    if (!isOtherDoc && !isValidDocType(docType)) {
       return NextResponse.json(
         { error: `Unsupported docType: ${docType}` },
         { status: 400 },
@@ -100,6 +121,35 @@ export async function POST(request: Request) {
             : contentType === 'image/webp'
               ? 'webp'
               : 'bin'
+
+    if (isOtherDoc) {
+      // "Other" docs: free-form labelled file. Goes to:
+      //   - Sanity (canonical CDN storage)
+      //   - Summit multi-file field "קבצים אחרים" (downloadable from CRM)
+      //   - Summit הערה line for audit + extractDocUrls round-trip
+      // Skip the typed-File-field path (none applies).
+      const trimmedLabel = (label || '').trim()
+      const finalFilenameOther = filename
+        || `${trimmedLabel ? trimmedLabel.replace(/[\\/]/g, '-') + '-' : ''}other-${summitEntityId}-${Date.now()}.${ext}`
+
+      const sanityUrl = await uploadOfficeDocToSanity(buffer, finalFilenameOther, contentType)
+      if (!sanityUrl) {
+        return NextResponse.json(
+          { error: 'Sanity upload failed (env creds may be missing on this deploy)' },
+          { status: 500 },
+        )
+      }
+      // Serialize the two Sumit writes (same lock-contention rationale as
+      // persistOfficeDoc — see office-doc-storage.ts).
+      await persistOfficeOtherDocToSummit(summitEntityId, finalFilenameOther, buffer)
+      await persistOfficeDocRemarkToSummit(
+        summitEntityId,
+        trimmedLabel || 'מסמך נוסף',
+        sanityUrl,
+      )
+      return NextResponse.json({ ok: true, docType: 'other', url: sanityUrl, label: trimmedLabel || null }, { status: 201 })
+    }
+
     const finalFilename = filename || `${docType}-${summitEntityId}-${Date.now()}.${ext}`
 
     const url = await persistOfficeDoc({

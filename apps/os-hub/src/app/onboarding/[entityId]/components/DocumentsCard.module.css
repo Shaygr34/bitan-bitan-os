@@ -98,3 +98,26 @@
   border-radius: 9999px;
   font-weight: var(--font-weight-medium);
 }
+
+/* Bitan-style indeterminate progress shimmer. Used by the office-side doc
+   upload button (and SigningCard's send button) while a network call is in
+   flight. The keyframe name is intentionally generic so other components
+   can reuse the animation via their own .uploadProgress CSS class. */
+.uploadProgress {
+  position: relative;
+  height: 3px;
+  background: #E5E7EB;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.uploadProgress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, #C5A572 50%, transparent);
+  animation: docUploadShimmer 1.2s linear infinite;
+}
+@keyframes docUploadShimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}

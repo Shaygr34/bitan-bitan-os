@@ -46,7 +46,13 @@ const STAMP_ASPECT_APPROX = 0.5
 interface Props {
   open: boolean
   onClose: () => void
-  preStampDocUrl: string
+  /**
+   * Pre-stamp PDF source. We DO NOT pass the raw Sanity CDN URL here anymore —
+   * Sanity returns HTTP 403 on CORS preflight, which causes pdfjs's "Failed to
+   * fetch" error. The component requests the PDF via the os-hub proxy route
+   * (/api/onboarding/signing/pre-stamp-pdf) which fetches it server-side and
+   * serves it same-origin. summitEntityId + documentType identify the task.
+   */
   summitEntityId: string
   documentType: string
   /** Existing FORM_LAYOUTS office stamp width — used to draw preview rectangle */
@@ -68,13 +74,17 @@ interface PdfClick {
 export default function RestampModal({
   open,
   onClose,
-  preStampDocUrl,
   summitEntityId,
   documentType,
   defaultStampWidthPt,
   defaultDateFontSize,
   onSuccess,
 }: Props) {
+  // Same-origin proxy URL — bypasses Sanity CDN CORS that was breaking
+  // pdfjs's cross-origin fetch (HTTP 403 with Origin header set).
+  const proxiedPdfUrl =
+    `/api/onboarding/signing/pre-stamp-pdf?summitEntityId=${encodeURIComponent(summitEntityId)}` +
+    `&documentType=${encodeURIComponent(documentType)}`
   const [phase, setPhase] = useState<Phase>('placing-stamp')
   const [stampCenter, setStampCenter] = useState<PdfClick | null>(null)
   const [dateBaseline, setDateBaseline] = useState<PdfClick | null>(null)
@@ -274,7 +284,7 @@ export default function RestampModal({
 
         <div style={{ position: 'relative', display: 'inline-block', cursor: 'crosshair' }}>
           <Document
-            file={preStampDocUrl}
+            file={proxiedPdfUrl}
             onLoadError={(err) => setError(`טעינת PDF נכשלה: ${err.message}`)}
           >
             <Page

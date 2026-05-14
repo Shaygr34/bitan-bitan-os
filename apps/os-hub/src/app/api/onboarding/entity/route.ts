@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
-import { getSummitEntity, extractStageFromEntity, extractClientData, extractDocUrls } from '@/lib/onboarding/summit-client'
+import {
+  getSummitEntity,
+  extractStageFromEntity,
+  extractClientData,
+  extractDocUrls,
+  extractTypedFileFieldPresence,
+} from '@/lib/onboarding/summit-client'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -26,6 +32,7 @@ export async function GET(request: Request) {
         companyNumber: '',
         clientName: '',
         docUrls: {},
+        typedDocsFilled: {},
       })
     }
 
@@ -34,6 +41,11 @@ export async function GET(request: Request) {
     const companyNumber = (entity['Customers_CompanyNumber'] as string[])?.[0] || ''
     const clientName = (entity['Customers_FullName'] as string[])?.[0] || ''
     const docUrls = extractDocUrls(entity)
+    // Defense-in-depth: even if the הערה write failed (race / Sumit lock /
+    // network blip), a typed-File-field-only upload still shows as filled in
+    // the OS DocumentsCard. Source of truth split: docUrls for view links,
+    // typedDocsFilled for the "is it uploaded somewhere" question.
+    const typedDocsFilled = extractTypedFileFieldPresence(entity)
 
     return NextResponse.json({
       stage,
@@ -41,6 +53,7 @@ export async function GET(request: Request) {
       companyNumber,
       clientName,
       docUrls,
+      typedDocsFilled,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'

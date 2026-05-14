@@ -460,15 +460,20 @@ export default function SigningCard({
                             if (file) handleFileSelected(doc.documentType, file)
                           }}
                         />
-                        <button
-                          className={styles.sendBtn}
-                          onClick={() => fileInputRefs.current[doc.documentType]?.click()}
-                          disabled={sending === doc.documentType || !clientEmail}
-                          title={!clientEmail ? 'חסר אימייל לקוח' : 'העלה PDF ושלח לחתימה'}
-                          type="button"
-                        >
-                          {sending === doc.documentType ? 'שולח...' : 'העלה PDF ושלח'}
-                        </button>
+                        <div className={styles.sendBtnWrap}>
+                          <button
+                            className={styles.sendBtn}
+                            onClick={() => fileInputRefs.current[doc.documentType]?.click()}
+                            disabled={sending === doc.documentType || !clientEmail}
+                            title={!clientEmail ? 'חסר אימייל לקוח' : 'העלה PDF ושלח לחתימה'}
+                            type="button"
+                          >
+                            {sending === doc.documentType ? '⏳ שולח ל-2Sign…' : 'העלה PDF ושלח'}
+                          </button>
+                          {sending === doc.documentType && (
+                            <div className={styles.sendProgress} aria-label="שולח" />
+                          )}
+                        </div>
                       </>
                     )}
 
@@ -553,19 +558,24 @@ export default function SigningCard({
                             }
                           }}
                         />
-                        <button
-                          className={styles.resendBtn}
-                          onClick={() => fileInputRefs.current[doc.documentType]?.click()}
-                          disabled={sending === doc.documentType || !clientEmail}
-                          title={
-                            !clientEmail
-                              ? 'חסר אימייל לקוח'
-                              : 'התחל מחדש — העלה PDF חדש ושלח לחתימה (תחליף את המסמך החתום)'
-                          }
-                          type="button"
-                        >
-                          {sending === doc.documentType ? 'שולח...' : 'שלח שוב'}
-                        </button>
+                        <div className={styles.sendBtnWrap}>
+                          <button
+                            className={styles.resendBtn}
+                            onClick={() => fileInputRefs.current[doc.documentType]?.click()}
+                            disabled={sending === doc.documentType || !clientEmail}
+                            title={
+                              !clientEmail
+                                ? 'חסר אימייל לקוח'
+                                : 'התחל מחדש — העלה PDF חדש ושלח לחתימה (תחליף את המסמך החתום)'
+                            }
+                            type="button"
+                          >
+                            {sending === doc.documentType ? '⏳ שולח ל-2Sign…' : 'שלח שוב'}
+                          </button>
+                          {sending === doc.documentType && (
+                            <div className={styles.sendProgress} aria-label="שולח" />
+                          )}
+                        </div>
                       </>
                     )}
 
@@ -770,7 +780,6 @@ export default function SigningCard({
           <RestampModal
             open
             onClose={() => setRestampOpenFor(null)}
-            preStampDocUrl={targetTask.preStampDocUrl}
             summitEntityId={summitEntityId}
             documentType={restampOpenFor}
             defaultStampWidthPt={layout.officeStamp.widthPt}

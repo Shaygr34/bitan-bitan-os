@@ -92,6 +92,16 @@ export interface OfficeDatePosition {
   fontSize: number
 }
 
+export interface OfficeFirmNamePosition {
+  x: number
+  /** y in points from top of page — TEXT BASELINE */
+  yFromTop: number
+  fontSize: number
+  /** The firm name string painted onto the PDF. Currently hardcoded per form;
+   * future revision can read from settings if the system serves multiple firms. */
+  text: string
+}
+
 export interface FormLayout {
   /** Client signature marker position (pdf-marker only) */
   clientSignature: ClientSignaturePosition
@@ -115,6 +125,14 @@ export interface FormLayout {
 
   /** Office date — paired with officeStamp (auto-stamp only). */
   officeDate?: OfficeDatePosition
+
+  /**
+   * Firm name text overlay (e.g. "שם משרד המייצג" cell). Paired with officeStamp.
+   * Currently hardcoded per form to "ביטן את ביטן רואי חשבון". When this is
+   * defined, auto-stamp paints the firm name at this position whenever the
+   * form goes through the office stamp pipeline.
+   */
+  officeFirmName?: OfficeFirmNamePosition
 }
 
 /**
@@ -139,16 +157,34 @@ export const FORM_LAYOUTS: Record<string, FormLayout> = {
       twoSignFieldHeight: 18,
     },
     officeStamp: {
-      // Chrome-QA: office stamp cell ("חתימה וחותמת") centered at x≈260; width 95 → left edge 213
-      x: 213,
+      // Tuned 2026-05-14 from live demo (entity 1906385742): Shay flagged the
+      // stamp landed "too far right" in the חתימה וחותמת cell — shifted left
+      // by ~40pt so the stamp sits cleanly inside the cell. Cell visual range
+      // is roughly x=130..280; stamp width is 95pt; left edge 170 puts the
+      // stamp centered at x≈217 (was 260).
+      x: 170,
       yFromTop: 540,
       widthPt: 95,
     },
     officeDate: {
-      x: 420,
-      // Chrome-QA: lands ON the section-ב תאריך underline
-      yFromTop: 605,
+      // Tuned 2026-05-14 from same demo: date previously landed slightly low
+      // and too far left relative to the section-ב תאריך underline. Bumped
+      // +12 right and -8 up.
+      x: 432,
+      yFromTop: 597,
       fontSize: 11,
+    },
+    officeFirmName: {
+      // New 2026-05-14. The "שם משרד המייצג" cell sits between the date and
+      // stamp cells in section ב. Cell visual range ~ x=270..400; baseline
+      // aligned with the date row (yFromTop=597). Firm name rendered in
+      // Helvetica via pdf-lib — Hebrew should render correctly because the
+      // string is right-to-left embedded by the Unicode marks pdf-lib
+      // respects in the default StandardFonts.Helvetica path.
+      x: 290,
+      yFromTop: 597,
+      fontSize: 10,
+      text: 'ביטן את ביטן רואי חשבון',
     },
   },
 
