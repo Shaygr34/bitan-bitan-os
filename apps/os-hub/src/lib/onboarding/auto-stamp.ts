@@ -53,10 +53,47 @@ async function getHebrewFontBytes(): Promise<Uint8Array | null> {
  * Used by the office click-to-place UI to nudge stamp / date placement when
  * auto-stamp's default location is wrong for a specific signed PDF.
  */
+/**
+ * Coordinate overrides for Path B manual placement.
+ *
+ * Two sub-modes per element:
+ *   - LEGACY (top-left): `x` / `yFromTop` directly. Used by old call sites.
+ *   - CENTER: `centerX` / `centerY` — the visual CENTER of the element.
+ *     For images (officeStamp) the backend converts center→top-left AFTER
+ *     embedding the PNG and reading the real aspect ratio. This eliminates
+ *     the drift caused by approximating the aspect on the client side
+ *     (Shay 2026-05-14: "actually does it more down" was because the
+ *     frontend assumed aspect=0.5 but the real autograph PNG aspect is
+ *     larger, so the top-left subtraction was wrong).
+ *   - For text elements (officeDate, officeFirmName, clientDate), `centerY`
+ *     is treated as the text baseline since text is single-line. `centerX`
+ *     is offset by half the rendered text width — backend uses pdf-lib's
+ *     `font.widthOfTextAtSize(...)` for the actual width.
+ *
+ * When BOTH a center value and a top-left value are provided, center wins.
+ */
 export interface ApplyStampCoordOverrides {
-  officeStamp?: { x?: number; yFromTop?: number; widthPt?: number }
-  officeDate?: { x?: number; yFromTop?: number; fontSize?: number }
-  officeFirmName?: { x?: number; yFromTop?: number; fontSize?: number; text?: string }
+  officeStamp?: {
+    x?: number; yFromTop?: number; widthPt?: number
+    centerX?: number; centerY?: number
+  }
+  officeDate?: {
+    x?: number; yFromTop?: number; fontSize?: number
+    centerX?: number; centerY?: number
+  }
+  officeFirmName?: {
+    x?: number; yFromTop?: number; fontSize?: number; text?: string
+    centerX?: number; centerY?: number
+  }
+  /**
+   * Path B v2 also lets the office reposition the client date painted by
+   * the `alsoFillClientDate` backup path. When provided + alsoFillClientDate
+   * is true, paints at the override; else falls through to FORM_LAYOUTS.
+   */
+  clientDate?: {
+    x?: number; yFromTop?: number; fontSize?: number
+    centerX?: number; centerY?: number
+  }
 }
 
 /** Format today's date as dd/mm/yyyy (Israeli convention). */
@@ -147,17 +184,33 @@ export async function applyOfficeStamp(
     dateStr,
   })
 
-  // Office stamp + date (only if form has an office counter-stamp)
+  // Pull center-override fields up front for clarity.
+  const ovStamp = options.coordOverrides?.officeStamp
+  const ovDate = options.coordOverrides?.officeDate
+  const ovFirm = options.coordOverrides?.officeFirmName
+  const ovClientDate = options.coordOverrides?.clientDate
+
+  // Office stamp — supports center-mode (Path B v2 drag UI). When center
+  // coords supplied, use REAL embedded-PNG aspect for the height offset
+  // instead of any client-side approximation. Eliminates the "ends up more
+  // down than clicked" drift Shay flagged 2026-05-14.
   if (effOfficeStamp) {
     const stamp = getManagerStamp(options.manager)
     const png = await pdfDoc.embedPng(stamp.png)
     const aspect = png.height / png.width
     const stampWidth = effOfficeStamp.widthPt
     const stampHeight = stampWidth * aspect
+
+    let topLeftX = effOfficeStamp.x
+    let topLeftYFromTop = effOfficeStamp.yFromTop
+    if (typeof ovStamp?.centerX === 'number' && typeof ovStamp?.centerY === 'number') {
+      topLeftX = ovStamp.centerX - stampWidth / 2
+      topLeftYFromTop = ovStamp.centerY - stampHeight / 2
+    }
+
     page.drawImage(png, {
-      x: effOfficeStamp.x,
-      // Anchor the bottom of the image at (yFromTop) measured from page top
-      y: height - effOfficeStamp.yFromTop - stampHeight,
+      x: topLeftX,
+      y: height - topLeftYFromTop - stampHeight,
       width: stampWidth,
       height: stampHeight,
       opacity: 0.9,
@@ -165,9 +218,16 @@ export async function applyOfficeStamp(
   }
 
   if (effOfficeDate) {
+    let x = effOfficeDate.x
+    let yFromTop = effOfficeDate.yFromTop
+    if (typeof ovDate?.centerX === 'number' && typeof ovDate?.centerY === 'number') {
+      const textWidth = font.widthOfTextAtSize(dateStr, effOfficeDate.fontSize)
+      x = ovDate.centerX - textWidth / 2
+      yFromTop = ovDate.centerY
+    }
     page.drawText(dateStr, {
-      x: effOfficeDate.x,
-      y: height - effOfficeDate.yFromTop,
+      x,
+      y: height - yFromTop,
       size: effOfficeDate.fontSize,
       font,
       color: rgb(0, 0, 0),
@@ -175,18 +235,25 @@ export async function applyOfficeStamp(
   }
 
   if (effOfficeFirmName) {
-    // Hebrew text requires a Hebrew-capable font. Helvetica throws on any
-    // code point outside WinAnsi. Fetch + cache Heebo on first need.
-    // Soft-degrade: if the fetch fails, stamp + dates still render — only
-    // the firm name silently skips, with a console warning for visibility.
+    // Hebrew text — Helvetica throws on Hebrew code points. Fetch + cache
+    // Heebo TTF on first need. Soft-degrade: if fetch fails, firm name
+    // silently skips so stamp + dates still render.
     try {
       const hebrewBytes = await getHebrewFontBytes()
       if (hebrewBytes) {
         pdfDoc.registerFontkit(fontkit)
         const hebrewFont = await pdfDoc.embedFont(hebrewBytes, { subset: true })
+
+        let x = effOfficeFirmName.x
+        let yFromTop = effOfficeFirmName.yFromTop
+        if (typeof ovFirm?.centerX === 'number' && typeof ovFirm?.centerY === 'number') {
+          const textWidth = hebrewFont.widthOfTextAtSize(effOfficeFirmName.text, effOfficeFirmName.fontSize)
+          x = ovFirm.centerX - textWidth / 2
+          yFromTop = ovFirm.centerY
+        }
         page.drawText(effOfficeFirmName.text, {
-          x: effOfficeFirmName.x,
-          y: height - effOfficeFirmName.yFromTop,
+          x,
+          y: height - yFromTop,
           size: effOfficeFirmName.fontSize,
           font: hebrewFont,
           color: rgb(0, 0, 0),
@@ -200,11 +267,27 @@ export async function applyOfficeStamp(
     }
   }
 
+  // Client date — Path B v2 lets the office reposition this too (was: hard-
+  // coded to FORM_LAYOUTS clientDate). Override falls back to FORM_LAYOUTS
+  // when not supplied.
   if (options.alsoFillClientDate) {
+    let x = layout.clientDate.x
+    let yFromTop = layout.clientDate.autoStampTextBaselineFromTop
+    const fontSize = ovClientDate?.fontSize ?? layout.clientDate.autoStampFontSize
+
+    if (typeof ovClientDate?.centerX === 'number' && typeof ovClientDate?.centerY === 'number') {
+      const textWidth = font.widthOfTextAtSize(dateStr, fontSize)
+      x = ovClientDate.centerX - textWidth / 2
+      yFromTop = ovClientDate.centerY
+    } else if (typeof ovClientDate?.x === 'number' && typeof ovClientDate?.yFromTop === 'number') {
+      x = ovClientDate.x
+      yFromTop = ovClientDate.yFromTop
+    }
+
     page.drawText(dateStr, {
-      x: layout.clientDate.x,
-      y: height - layout.clientDate.autoStampTextBaselineFromTop,
-      size: layout.clientDate.autoStampFontSize,
+      x,
+      y: height - yFromTop,
+      size: fontSize,
       font,
       color: rgb(0, 0, 0),
     })
