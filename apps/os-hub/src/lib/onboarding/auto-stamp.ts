@@ -16,8 +16,36 @@
  */
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import fontkit from '@pdf-lib/fontkit'
 import { getManagerStamp, type ManagerName } from './manager-stamps'
 import { FORM_LAYOUTS } from './form-layouts'
+
+/**
+ * Hebrew-capable TTF cache. pdf-lib's StandardFonts.Helvetica is WinAnsi-
+ * encoded and throws on any code point outside that range (e.g. ב = 0x05d1).
+ * The firm name text "ביטן את ביטן רואי חשבון" hit this, breaking Path B
+ * re-stamps. We fetch a variable-weight Heebo TTF from the Google Fonts
+ * GitHub repo on first stamp, cache in module scope. ~150KB one-time fetch
+ * per server boot.
+ */
+const HEEBO_TTF_URL = 'https://github.com/google/fonts/raw/main/ofl/heebo/Heebo%5Bwght%5D.ttf'
+let cachedHebrewFontBytes: Uint8Array | null = null
+
+async function getHebrewFontBytes(): Promise<Uint8Array | null> {
+  if (cachedHebrewFontBytes) return cachedHebrewFontBytes
+  try {
+    const res = await fetch(HEEBO_TTF_URL)
+    if (!res.ok) {
+      console.warn('[auto-stamp] Hebrew font fetch returned', res.status)
+      return null
+    }
+    cachedHebrewFontBytes = new Uint8Array(await res.arrayBuffer())
+    return cachedHebrewFontBytes
+  } catch (err) {
+    console.warn('[auto-stamp] Hebrew font fetch threw:', err)
+    return null
+  }
+}
 
 /**
  * Coordinate overrides for Path B manual-overtake re-stamp.
@@ -147,13 +175,29 @@ export async function applyOfficeStamp(
   }
 
   if (effOfficeFirmName) {
-    page.drawText(effOfficeFirmName.text, {
-      x: effOfficeFirmName.x,
-      y: height - effOfficeFirmName.yFromTop,
-      size: effOfficeFirmName.fontSize,
-      font,
-      color: rgb(0, 0, 0),
-    })
+    // Hebrew text requires a Hebrew-capable font. Helvetica throws on any
+    // code point outside WinAnsi. Fetch + cache Heebo on first need.
+    // Soft-degrade: if the fetch fails, stamp + dates still render — only
+    // the firm name silently skips, with a console warning for visibility.
+    try {
+      const hebrewBytes = await getHebrewFontBytes()
+      if (hebrewBytes) {
+        pdfDoc.registerFontkit(fontkit)
+        const hebrewFont = await pdfDoc.embedFont(hebrewBytes, { subset: true })
+        page.drawText(effOfficeFirmName.text, {
+          x: effOfficeFirmName.x,
+          y: height - effOfficeFirmName.yFromTop,
+          size: effOfficeFirmName.fontSize,
+          font: hebrewFont,
+          color: rgb(0, 0, 0),
+        })
+      } else {
+        console.warn('[auto-stamp] firm name skipped — Hebrew font unavailable')
+      }
+    } catch (firmNameErr) {
+      console.error('[auto-stamp] firm name paint failed:',
+        firmNameErr instanceof Error ? firmNameErr.message : String(firmNameErr))
+    }
   }
 
   if (options.alsoFillClientDate) {

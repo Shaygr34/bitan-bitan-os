@@ -435,13 +435,20 @@ export default function SigningCard({
           const isComplete = status === 'signed' || status === 'external-done'
 
           return (
-            <div key={doc.documentType} className={`${styles.taskRow} ${isComplete ? styles.status_signed : ''} ${status === 'declined' || status === 'expired' ? styles.status_declined : ''} ${status === 'awaiting-office-authorize' ? styles.status_awaitingAuthorize : ''}`}>
+            <div key={doc.documentType} className={`${styles.taskRow} ${isComplete ? styles.status_signed : ''} ${status === 'declined' || status === 'expired' ? styles.status_declined : ''} ${status === 'awaiting-office-authorize' ? styles.status_awaitingAuthorize : ''} ${status === 'sent' || status === 'pending' ? styles.status_sent : ''}`}>
               <div className={styles.taskInfo}>
                 <span className={styles.taskIcon}>{icon}</span>
                 <div className={styles.taskLabels}>
                   <span className={styles.taskLabel}>{doc.label}</span>
                   <span className={styles.taskDescription}>{doc.description}</span>
-                  <span className={styles.taskStatus}>{statusLabel}</span>
+                  <span className={styles.taskStatus}>
+                    {statusLabel}
+                    {(status === 'sent' || status === 'pending') && (
+                      <span className={styles.inFlightBadge} style={{ marginInlineStart: 8 }}>
+                        {'ממתין לחתימת לקוח'}
+                      </span>
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -478,14 +485,41 @@ export default function SigningCard({
                     )}
 
                     {task && (status === 'sent' || status === 'pending') && (
-                      <button
-                        className={styles.resendBtn}
-                        onClick={() => handleResend(task.taskGuid)}
-                        disabled={resending === task.taskGuid}
-                        type="button"
-                      >
-                        {resending === task.taskGuid ? 'שולח...' : 'שלח שוב'}
-                      </button>
+                      <>
+                        <button
+                          className={styles.resendBtn}
+                          onClick={() => handleResend(task.taskGuid)}
+                          disabled={resending === task.taskGuid}
+                          type="button"
+                        >
+                          {resending === task.taskGuid ? 'שולח...' : 'שלח שוב'}
+                        </button>
+                        {/* Fallback: when the 2Sign task is gone (TASK_NOT_FOUND
+                            → 410 from the resend), the office can upload a
+                            fresh PDF here to restart the signing from scratch.
+                            Same handler as declined/expired but visible up-front
+                            so the office doesn't have to wait for the 410. */}
+                        <input
+                          ref={el => { fileInputRefs.current[doc.documentType] = el }}
+                          type="file"
+                          accept=".pdf"
+                          className={styles.fileInput}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleFileSelected(doc.documentType, file)
+                          }}
+                        />
+                        <button
+                          className={styles.resendBtn}
+                          onClick={() => fileInputRefs.current[doc.documentType]?.click()}
+                          disabled={sending === doc.documentType || !clientEmail}
+                          title="העלה PDF חדש והתחל את החתימה מחדש (תחליף את המשימה הקיימת)"
+                          type="button"
+                          style={{ fontSize: 11 }}
+                        >
+                          {'⤴ התחל מחדש'}
+                        </button>
+                      </>
                     )}
 
                     {task && status === 'awaiting-office-authorize' && (

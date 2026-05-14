@@ -468,6 +468,9 @@ export default function ClientDetailPage() {
             clientName={record?.clientName || ''}
             clientType={state.summitData.clientType || record?.clientType}
             companyNumber={state.companyNumber}
+            recordId={record?._id}
+            nationalInsuranceRepLink={record?.nationalInsuranceRepLink}
+            onRecordUpdated={loadData}
           />
           <DocumentsCard
             summitEntityId={entityId}
@@ -475,6 +478,7 @@ export default function ClientDetailPage() {
             uploadedCount={uploadedCount}
             requiredCount={requiredCount}
             historicalOtherDocs={state.otherDocs}
+            recordOtherDocs={record?.otherDocs}
             onUploaded={loadData}
             signedDocs={state.signingTasks
               .map((t) => {

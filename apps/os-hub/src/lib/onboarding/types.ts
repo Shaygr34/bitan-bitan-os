@@ -23,6 +23,24 @@ export interface OnboardingRecord {
   cachedRequiredDocs?: number
   lastSyncedAt?: string
   signingTasks?: SigningTask[]
+  /**
+   * URL the office pastes after registering the client at
+   * meyutzagim.btl.gov.il. Used as the link sent to the client in the BTL
+   * מיוצגים signing flow. Office-managed only; clients don't enter this.
+   */
+  nationalInsuranceRepLink?: string
+  /**
+   * Canonical list of "other" docs uploaded via the OS UI. Sumit's
+   * `קבצים אחרים` multi-file field overwrites on each write — so we keep
+   * the full history here on the Sanity record and only show the LATEST
+   * in Sumit's CRM. The OS DocumentsCard reads from this list.
+   */
+  otherDocs?: Array<{
+    label?: string
+    filename: string
+    url: string
+    uploadedAt: string
+  }>
 }
 
 export interface PipelineClient extends OnboardingRecord {

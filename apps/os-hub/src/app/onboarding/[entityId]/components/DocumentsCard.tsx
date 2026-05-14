@@ -24,12 +24,25 @@ interface Props {
   requiredCount: number
   signedDocs?: SignedDocItem[]
   /**
-   * Historical "other" docs from Sumit's `קבצים אחרים` field. Server-fetched.
-   * Rendered alongside this-session uploads so the list survives page reload.
-   * Names only — Sumit requires auth to download files, so partners click
-   * through to the Sumit client card to view.
+   * Historical "other" docs from Sumit's `קבצים אחרים` field.
+   * Sumit OVERWRITES on each write — this field reflects only the latest
+   * file present in CRM. Provided as a fallback signal for legacy data
+   * uploaded before we started writing to Sanity. New uploads use
+   * `recordOtherDocs` below.
    */
   historicalOtherDocs?: { name: string }[]
+  /**
+   * Canonical "other" docs list from the Sanity onboardingRecord. Source of
+   * truth for what's been uploaded via the OS over time. Clickable Sanity
+   * CDN URLs. Survives page reload. Replaces the session-local list for
+   * any upload that completes via /api/onboarding/docs/upload (other path).
+   */
+  recordOtherDocs?: Array<{
+    label?: string
+    filename: string
+    url: string
+    uploadedAt: string
+  }>
   /** Called after a successful office upload so the parent re-fetches. */
   onUploaded?: () => void
 }
@@ -78,6 +91,7 @@ export default function DocumentsCard({
   requiredCount,
   signedDocs,
   historicalOtherDocs,
+  recordOtherDocs,
   onUploaded,
 }: Props) {
   const hasSigned = !!signedDocs && signedDocs.length > 0
@@ -294,43 +308,74 @@ export default function DocumentsCard({
         })}
       </div>
 
-      {/* Other docs — free-form uploads outside the rigid template. Stored in
-          Summit's multi-file `קבצים אחרים` field + Sanity + הערה. */}
-      <div className={styles.headerRow} style={{ marginTop: '1.25rem' }}>
-        <h3 className={styles.title} style={{ fontSize: '0.95rem' }}>{'מסמכים אחרים'}</h3>
-        <span className={styles.count}>{(historicalOtherDocs?.length || 0) + otherDocs.length}</span>
-      </div>
-      <div className={styles.list}>
-        {/* Historical other-docs from Sumit (server-fetched). Names only —
-            partners click through to Sumit's client card to download. */}
-        {(historicalOtherDocs || []).map((d, i) => (
-          <div key={`hist-other-${i}-${d.name}`} className={styles.docRow}>
-            <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'✓'}</div>
-            <span className={styles.docName}>{d.name}</span>
-            <span
-              className={styles.viewLink}
-              style={{ cursor: 'default', color: '#6B7280' }}
-              title="מאוחסן ב-קבצים אחרים בכרטיס הלקוח בסאמיט — ניתן להוריד משם"
-            >
-              {'מאוחסן בסאמיט'}
-            </span>
-          </div>
-        ))}
-        {/* This-session uploads — clickable Sanity links. */}
-        {otherDocs.map((d) => (
-          <div key={`other-${d.uploadedAt}`} className={styles.docRow}>
-            <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'✓'}</div>
-            <span className={styles.docName}>{d.label}</span>
-            <a
-              href={d.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.viewLink}
-            >
-              {'צפה ↗'}
-            </a>
-          </div>
-        ))}
+      {/* Other docs — free-form uploads outside the rigid template.
+          Canonical list lives in Sanity onboardingRecord.otherDocs (because
+          Sumit's `קבצים אחרים` multi-file field overwrites on each write).
+          The session-local `otherDocs` state is used for optimistic display
+          before the parent re-fetches after upload. */}
+      {(() => {
+        // De-dupe: session-local entries that already made it into the
+        // Sanity record (same uploadedAt as an entry returned by the server)
+        // are filtered out so we don't render duplicates after refresh.
+        const recordUrls = new Set((recordOtherDocs || []).map((d) => d.url))
+        const sessionPending = otherDocs.filter((d) => !recordUrls.has(d.url))
+        const totalCount = (recordOtherDocs?.length || 0) + sessionPending.length + (historicalOtherDocs?.length || 0)
+        return (
+          <>
+            <div className={styles.headerRow} style={{ marginTop: '1.25rem' }}>
+              <h3 className={styles.title} style={{ fontSize: '0.95rem' }}>{'מסמכים אחרים'}</h3>
+              <span className={styles.count}>{totalCount}</span>
+            </div>
+            <div className={styles.list}>
+              {/* Canonical Sanity-sourced other-docs. Clickable Sanity CDN. */}
+              {(recordOtherDocs || []).map((d, i) => (
+                <div key={`rec-other-${i}-${d.uploadedAt}`} className={styles.docRow}>
+                  <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'✓'}</div>
+                  <span className={styles.docName}>{d.label || d.filename}</span>
+                  <a
+                    href={d.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.viewLink}
+                  >
+                    {'צפה ↗'}
+                  </a>
+                </div>
+              ))}
+              {/* Legacy: Sumit-derived. Only shows the LATEST due to multi-file
+                  overwrite. Click lands in the Sumit client card. Empty in
+                  practice for any record uploaded post-2026-05-14 since the
+                  canonical list above covers it. */}
+              {(historicalOtherDocs || []).map((d, i) => (
+                <div key={`hist-other-${i}-${d.name}`} className={styles.docRow}>
+                  <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'✓'}</div>
+                  <span className={styles.docName}>{d.name}</span>
+                  <a
+                    href={`https://app.sumit.co.il/f557688522/c${summitEntityId}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.viewLink}
+                    title="פתח את כרטיס הלקוח בסאמיט — הקובץ זמין בשדה 'קבצים אחרים'"
+                  >
+                    {'פתח בסאמיט ↗'}
+                  </a>
+                </div>
+              ))}
+              {/* Optimistic session-local rows (not yet in Sanity record). */}
+              {sessionPending.map((d) => (
+                <div key={`other-${d.uploadedAt}`} className={styles.docRow}>
+                  <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'✓'}</div>
+                  <span className={styles.docName}>{d.label}</span>
+                  <a
+                    href={d.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.viewLink}
+                  >
+                    {'צפה ↗'}
+                  </a>
+                </div>
+              ))}
         <div className={styles.docRow} style={{ borderBottom: 'none', alignItems: 'center', gap: 8 }}>
           <input
             type="text"
@@ -384,6 +429,9 @@ export default function DocumentsCard({
           </div>
         </div>
       </div>
+          </>
+        )
+      })()}
 
       {hasSigned && (
         <>

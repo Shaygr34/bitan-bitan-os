@@ -679,7 +679,12 @@ export async function initiateSigning(params: {
     sendEmail: true,
     isSignatureRoutine: isRoutine,
     signatureRoutineSignerNumber: isRoutine ? 1 : undefined,
-    datePosition: marked.clientDatePosition,
+    // 2Sign client date auto-fill field DROPPED 2026-05-14 per Shay feedback:
+    //   - The blue date rectangle was visually misplaced and confused clients.
+    //   - Auto-stamp fills the client date itself (alsoFillClientDate=true),
+    //     so 2Sign-side fieldType:4 is redundant.
+    // Client now sees ONLY the signature field on the marker position.
+    datePosition: undefined,
   })
 
   // 5. If counter-signature needed, create office signer task in routine
