@@ -48,6 +48,46 @@ export function extractClientData(entity: Record<string, unknown>) {
 }
 
 /**
+ * Defensive extraction of items from the `קבצים אחרים` multi-file field.
+ *
+ * Sumit's exact response shape for populated multi-file fields isn't
+ * documented; based on patterns from sibling fields it's likely either:
+ *   (a) Array of strings — file GUIDs.
+ *   (b) Array of objects with { Name | FileName, GUID | ID }.
+ *   (c) Same shape as Entity references — array of `{ ID, Name, ... }`.
+ *
+ * Returns a count + best-effort list of `{ name }` items. We don't try to
+ * construct downloadable URLs yet — Sumit's downloadfile/{GUID}/ requires
+ * auth, so partners view these directly in the Sumit client card. The OS
+ * UI just surfaces presence so partners know historical other-docs exist.
+ */
+export interface OtherDocItem {
+  name: string
+}
+export function extractOtherDocs(entity: Record<string, unknown>): OtherDocItem[] {
+  const raw = entity['קבצים אחרים']
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item): OtherDocItem | null => {
+      if (typeof item === 'string') {
+        // Strip leading filename if it's our `${name};${base64}` pattern;
+        // otherwise treat as bare name.
+        const semi = item.indexOf(';')
+        const name = semi > 0 ? item.slice(0, semi) : item
+        return { name: name || 'מסמך' }
+      }
+      if (item && typeof item === 'object') {
+        const o = item as Record<string, unknown>
+        const name = (o.Name || o.FileName || o.fileName || o.name) as string | undefined
+        if (typeof name === 'string' && name) return { name }
+        return { name: 'מסמך' }
+      }
+      return null
+    })
+    .filter((x): x is OtherDocItem => x !== null)
+}
+
+/**
  * Map of Summit typed File field name → our internal doc-type key.
  * Mirrors the intake-form DOC_FIELDS map (bitan-bitan-website
  * src/lib/intake-types.ts) and the OFFICE_DOC_SUMMIT_FIELDS map in
