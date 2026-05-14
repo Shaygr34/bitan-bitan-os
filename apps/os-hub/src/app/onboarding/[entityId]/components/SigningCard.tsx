@@ -817,10 +817,13 @@ export default function SigningCard({
         const previewDateStr = `${dd}/${mm}/${d.getFullYear()}`
         // Manager stamp URL — served from the OS public assets folder if present.
         // For the demo we fall back to a non-image placeholder if absent.
+        // Real autograph PNG served from a route that decodes the inline
+        // base64 in manager-stamps.ts. Avoids the gold-placeholder fallback
+        // and gives Path B v2's draggable preview true WYSIWYG.
         const manager = accountManager || 'אבי ביטן'
         const stampUrl = manager.includes('רון')
-          ? '/onboarding/stamps/ron.png'
-          : '/onboarding/stamps/avi.png'
+          ? '/api/onboarding/stamps/ron'
+          : '/api/onboarding/stamps/avi'
         return (
           <RestampModal
             open
