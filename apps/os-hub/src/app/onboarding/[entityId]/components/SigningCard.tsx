@@ -11,6 +11,7 @@ import styles from './SigningCard.module.css'
 // office actually opens the click-to-place modal. Dynamic import + ssr:false
 // keeps the SigningCard bundle slim and avoids server-side pdfjs issues.
 const RestampModal = dynamic(() => import('./RestampModal'), { ssr: false })
+const AuthorizeModal = dynamic(() => import('./AuthorizeModal'), { ssr: false })
 
 interface Props {
   summitEntityId: string
@@ -114,6 +115,8 @@ export default function SigningCard({
   const [externalLink, setExternalLink] = useState<Record<string, string>>({})
   /** documentType currently open in the click-to-place restamp modal (Path B). */
   const [restampOpenFor, setRestampOpenFor] = useState<string | null>(null)
+  /** Authorize-flow modal state: minted JWT token to render inside the modal. */
+  const [authorizeModalToken, setAuthorizeModalToken] = useState<string | null>(null)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const manualFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const externalDoneFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
@@ -185,6 +188,14 @@ export default function SigningCard({
   }, [summitEntityId, clientName, clientEmail, clientPhone, clientIdNumber, accountManager, onTasksChanged])
 
   /** In-app authorize for tasks at the office-authorize gate (Option C). */
+  /**
+   * Office-side authorize: mints the JWT token then OPENS the AuthorizeModal
+   * (was: immediately POST to authorize). The modal renders the same
+   * AuthorizeFlow used by the email link — preview the signed doc, optional
+   * approval note, deliberate confirm. Unified UX across surfaces per Shay
+   * 2026-05-14 feedback ("not one click... avi + ron need to see the signed
+   * customer doc, then approve with a message").
+   */
   const handleAuthorize = useCallback(async (taskGuid: string) => {
     if (!recordId) {
       setError('חסר מזהה רשומה לאישור — רענן את הדף ונסה שוב')
@@ -202,25 +213,15 @@ export default function SigningCard({
       if (!mintRes.ok || !mintData.token) {
         throw new Error(mintData.error || 'לא ניתן להפיק טוקן אישור')
       }
-      const authRes = await fetch('/api/onboarding/signing/authorize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: mintData.token }),
-      })
-      const authData = await authRes.json().catch(() => ({})) as { error?: string | { message?: string } }
-      if (!authRes.ok) {
-        const msg = typeof authData.error === 'string'
-          ? authData.error
-          : authData.error?.message || 'אישור נכשל'
-        throw new Error(msg)
-      }
-      onTasksChanged()
+      // Open the modal with the minted token — the modal handles preview +
+      // confirm + actual authorize POST internally.
+      setAuthorizeModalToken(mintData.token)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאה באישור')
     } finally {
       setAuthorizing(null)
     }
-  }, [recordId, onTasksChanged])
+  }, [recordId])
 
   const handleResend = useCallback(async (taskGuid: string) => {
     setResending(taskGuid)
@@ -825,6 +826,16 @@ export default function SigningCard({
           />
         )
       })()}
+
+      {/* Office-side authorize modal — mirrors the email-link AuthorizeFlow.
+          See AuthorizeModal for rationale (unified UX, multi-step preview +
+          optional note + deliberate confirm). */}
+      <AuthorizeModal
+        open={!!authorizeModalToken}
+        token={authorizeModalToken}
+        onClose={() => setAuthorizeModalToken(null)}
+        onSuccess={onTasksChanged}
+      />
     </div>
   )
 }
