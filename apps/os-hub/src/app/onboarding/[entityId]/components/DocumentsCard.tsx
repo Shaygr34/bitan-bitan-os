@@ -23,6 +23,13 @@ interface Props {
   uploadedCount: number
   requiredCount: number
   signedDocs?: SignedDocItem[]
+  /**
+   * Historical "other" docs from Sumit's `קבצים אחרים` field. Server-fetched.
+   * Rendered alongside this-session uploads so the list survives page reload.
+   * Names only — Sumit requires auth to download files, so partners click
+   * through to the Sumit client card to view.
+   */
+  historicalOtherDocs?: { name: string }[]
   /** Called after a successful office upload so the parent re-fetches. */
   onUploaded?: () => void
 }
@@ -70,6 +77,7 @@ export default function DocumentsCard({
   uploadedCount,
   requiredCount,
   signedDocs,
+  historicalOtherDocs,
   onUploaded,
 }: Props) {
   const hasSigned = !!signedDocs && signedDocs.length > 0
@@ -290,9 +298,25 @@ export default function DocumentsCard({
           Summit's multi-file `קבצים אחרים` field + Sanity + הערה. */}
       <div className={styles.headerRow} style={{ marginTop: '1.25rem' }}>
         <h3 className={styles.title} style={{ fontSize: '0.95rem' }}>{'מסמכים אחרים'}</h3>
-        <span className={styles.count}>{otherDocs.length}</span>
+        <span className={styles.count}>{(historicalOtherDocs?.length || 0) + otherDocs.length}</span>
       </div>
       <div className={styles.list}>
+        {/* Historical other-docs from Sumit (server-fetched). Names only —
+            partners click through to Sumit's client card to download. */}
+        {(historicalOtherDocs || []).map((d, i) => (
+          <div key={`hist-other-${i}-${d.name}`} className={styles.docRow}>
+            <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'✓'}</div>
+            <span className={styles.docName}>{d.name}</span>
+            <span
+              className={styles.viewLink}
+              style={{ cursor: 'default', color: '#6B7280' }}
+              title="מאוחסן ב-קבצים אחרים בכרטיס הלקוח בסאמיט — ניתן להוריד משם"
+            >
+              {'מאוחסן בסאמיט'}
+            </span>
+          </div>
+        ))}
+        {/* This-session uploads — clickable Sanity links. */}
         {otherDocs.map((d) => (
           <div key={`other-${d.uploadedAt}`} className={styles.docRow}>
             <div className={`${styles.iconCircle} ${styles.iconUploaded}`}>{'✓'}</div>

@@ -5,6 +5,7 @@ import {
   extractClientData,
   extractDocUrls,
   extractTypedFileFieldPresence,
+  extractOtherDocs,
 } from '@/lib/onboarding/summit-client'
 
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
         clientName: '',
         docUrls: {},
         typedDocsFilled: {},
+        otherDocs: [],
       })
     }
 
@@ -46,6 +48,10 @@ export async function GET(request: Request) {
     // the OS DocumentsCard. Source of truth split: docUrls for view links,
     // typedDocsFilled for the "is it uploaded somewhere" question.
     const typedDocsFilled = extractTypedFileFieldPresence(entity)
+    // Historical "other" docs that live in Sumit's `קבצים אחרים` multi-file
+    // field. Returned so the OS DocumentsCard can render them on page load
+    // (session-local list only covers this-session uploads).
+    const otherDocs = extractOtherDocs(entity)
 
     return NextResponse.json({
       stage,
@@ -54,6 +60,7 @@ export async function GET(request: Request) {
       clientName,
       docUrls,
       typedDocsFilled,
+      otherDocs,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'

@@ -207,7 +207,9 @@ export async function materializeSignedArtifact(
       updated.pdfFetchLastError = `auto-stamp failed: ${msg}`
     }
   } else {
-    // Non-stamp form (e.g. ב"ל ניכויים): mirror to Sanity + Summit הערות
+    // Non-stamp form (e.g. ב"ל ניכויים): mirror to Sanity + Summit הערות,
+    // AND drop into `קבצים אחרים` so partners see the signed doc in Sumit
+    // alongside the auto-stamped POAs (parity with the stamp branch above).
     try {
       const persistedUrl = await persistSignedDoc({
         buffer: signedBuf,
@@ -216,6 +218,13 @@ export async function materializeSignedArtifact(
         summitEntityId: record.summitEntityId || '',
       })
       if (persistedUrl) updated.signedDocUrl = persistedUrl
+      if (record.summitEntityId) {
+        await persistOfficeOtherDocToSummit(
+          record.summitEntityId,
+          `${getSignedDocLabel(stampKey)}-${record.clientName || 'client'}.pdf`,
+          signedBuf,
+        )
+      }
     } catch (persistErr) {
       const msg = persistErr instanceof Error ? persistErr.message : String(persistErr)
       console.error('[materializeSignedArtifact] persist failed:', msg)

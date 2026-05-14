@@ -285,6 +285,27 @@ export default function RestampModal({
         <div style={{ position: 'relative', display: 'inline-block', cursor: 'crosshair' }}>
           <Document
             file={proxiedPdfUrl}
+            loading={
+              <div
+                style={{
+                  width: PIXEL_WIDTH,
+                  height: PIXEL_WIDTH * 1.41, // A4 aspect approx — placeholder while page loads
+                  background: '#F3F4F6',
+                  border: '1px dashed #D1D5DB',
+                  borderRadius: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                  gap: 8,
+                  color: '#6B7280',
+                  fontSize: 13,
+                }}
+              >
+                <span>⏳ טוען PDF...</span>
+                <span style={{ fontSize: 11 }}>הקובץ נמשך מסאמיט דרך פרוקסי OS</span>
+              </div>
+            }
             onLoadError={(err) => setError(`טעינת PDF נכשלה: ${err.message}`)}
           >
             <Page

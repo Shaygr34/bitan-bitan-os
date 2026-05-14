@@ -48,6 +48,8 @@ interface PageState {
   companyNumber: string
   documents: DocItem[]
   signingTasks: SigningTask[]
+  /** Historical "other" docs from Sumit's `קבצים אחרים` multi-file field. */
+  otherDocs: { name: string }[]
 }
 
 function formatDate(dateStr?: string): string {
@@ -71,6 +73,7 @@ export default function ClientDetailPage() {
     companyNumber: '',
     documents: [],
     signingTasks: [],
+    otherDocs: [],
   })
 
   const isPending = entityId.startsWith('pending-')
@@ -112,6 +115,7 @@ export default function ClientDetailPage() {
           companyNumber: '',
           documents: [],
           signingTasks: [],
+          otherDocs: [],
         })
         return
       }
@@ -138,6 +142,7 @@ export default function ClientDetailPage() {
       let summitName = ''
       let docUrls: Record<string, string> = {}
       let typedDocsFilled: Record<string, boolean> = {}
+      let otherDocs: { name: string }[] = []
       if (entityRes.ok) {
         const entityData = await entityRes.json() as {
           stage: number
@@ -146,6 +151,7 @@ export default function ClientDetailPage() {
           clientName?: string
           docUrls?: Record<string, string>
           typedDocsFilled?: Record<string, boolean>
+          otherDocs?: { name: string }[]
         }
         currentStage = entityData.stage || 0
         summitData = entityData.clientData || {}
@@ -153,6 +159,7 @@ export default function ClientDetailPage() {
         summitName = entityData.clientName || ''
         docUrls = entityData.docUrls || {}
         typedDocsFilled = entityData.typedDocsFilled || {}
+        otherDocs = entityData.otherDocs || []
       }
 
       // If no onboarding record exists, auto-create one in Sanity with checklist template
@@ -215,6 +222,7 @@ export default function ClientDetailPage() {
         companyNumber,
         documents,
         signingTasks,
+        otherDocs,
       })
 
       // Fire-and-forget: sync cached values to Sanity for dashboard use
@@ -466,6 +474,7 @@ export default function ClientDetailPage() {
             documents={state.documents}
             uploadedCount={uploadedCount}
             requiredCount={requiredCount}
+            historicalOtherDocs={state.otherDocs}
             onUploaded={loadData}
             signedDocs={state.signingTasks
               .map((t) => {
