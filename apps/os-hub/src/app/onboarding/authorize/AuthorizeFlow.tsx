@@ -24,6 +24,14 @@ type State =
 
 interface Props {
   token: string
+  /**
+   * When provided, the component runs in "modal mode" — after a successful
+   * authorize the parent gets notified instead of showing the built-in
+   * success card. Used by AuthorizeModal in SigningCard so the OS-side
+   * "אשר עכשיו" surface uses the SAME preview-then-confirm UX as the
+   * email-link page (was: fragmented one-click vs page-based preview).
+   */
+  onSuccess?: (info: { stampedDocUrl?: string; signedDocUrl?: string; alreadyApplied?: boolean }) => void
 }
 
 const DOC_LABELS: Record<string, string> = {
@@ -32,9 +40,12 @@ const DOC_LABELS: Record<string, string> = {
   'poa-nii-representatives': 'ב"ל מיוצגים',
 }
 
-export default function AuthorizeFlow({ token }: Props) {
+export default function AuthorizeFlow({ token, onSuccess }: Props) {
   const [state, setState] = useState<State>({ kind: 'loading' })
   const previewFired = useRef(false)
+  // Optional approval note the office can type before confirming. Audited
+  // into the Sumit הערות so partners can see who approved with what context.
+  const [approvalNote, setApprovalNote] = useState('')
 
   // Fetch preview metadata on mount (does NOT materialize)
   useEffect(() => {
@@ -104,21 +115,33 @@ export default function AuthorizeFlow({ token }: Props) {
   const handleConfirm = async () => {
     setState({ kind: 'confirming' })
     try {
+      const trimmedNote = approvalNote.trim()
       const res = await fetch('/api/onboarding/signing/authorize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({
+          token,
+          ...(trimmedNote ? { note: trimmedNote } : {}),
+        }),
       })
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
 
       if (res.ok) {
+        const stampedDocUrl = str(data.stampedDocUrl)
+        const signedDocUrl = str(data.signedDocUrl)
+        const alreadyApplied = data.alreadyApplied === true
+        // Modal mode: bubble success up, let parent close + refresh.
+        if (onSuccess) {
+          onSuccess({ stampedDocUrl, signedDocUrl, alreadyApplied })
+          return
+        }
         setState({
           kind: 'success',
           clientName: str(data.clientName),
           summitEntityId: str(data.summitEntityId),
-          stampedDocUrl: str(data.stampedDocUrl),
-          signedDocUrl: str(data.signedDocUrl),
-          alreadyApplied: data.alreadyApplied === true,
+          stampedDocUrl,
+          signedDocUrl,
+          alreadyApplied,
         })
       } else {
         const errVal = data.error
@@ -203,6 +226,36 @@ export default function AuthorizeFlow({ token }: Props) {
             <strong>לחיצה על &quot;אשר וחתום&quot;</strong> תחיל את חתימת המשרד +
             תאריך על המסמך, תשלח אותו לסאמיט כהערה, ותעביר את הלקוח לשלב 4 (רשויות).
           </p>
+        </div>
+
+        {/* Optional approval note. When typed, gets appended to the Sumit
+            הערות alongside the signed-doc remark so partners can see who
+            authorized with what context. */}
+        <div style={{ marginBottom: 18 }}>
+          <label
+            htmlFor="approval-note"
+            style={{ display: 'block', fontSize: 13, color: '#4A5568', marginBottom: 6, fontWeight: 500 }}
+          >
+            הערת אישור (אופציונלי) — תיכתב להערות בסאמיט
+          </label>
+          <textarea
+            id="approval-note"
+            value={approvalNote}
+            onChange={(e) => setApprovalNote(e.target.value)}
+            placeholder="לדוגמה: אישרתי לאחר בדיקה חזותית. החתימה תקינה."
+            rows={2}
+            dir="rtl"
+            style={{
+              width: '100%',
+              padding: '8px 10px',
+              border: '1px solid #D1D5DB',
+              borderRadius: 6,
+              fontSize: 13,
+              fontFamily: 'inherit',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+            }}
+          />
         </div>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

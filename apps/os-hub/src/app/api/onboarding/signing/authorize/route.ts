@@ -26,9 +26,9 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function POST(request: Request) {
-  let body: { token?: string }
+  let body: { token?: string; note?: string }
   try {
-    body = (await request.json()) as { token?: string }
+    body = (await request.json()) as { token?: string; note?: string }
   } catch {
     return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 })
   }
@@ -37,6 +37,13 @@ export async function POST(request: Request) {
   if (!token || typeof token !== 'string') {
     return NextResponse.json({ error: 'token required' }, { status: 400 })
   }
+  /**
+   * Optional approval note — typed by the office in the AuthorizeFlow
+   * preview screen. When present, gets appended to the Sumit הערות
+   * alongside the signed-doc remark for audit context (who approved with
+   * what observation).
+   */
+  const approvalNote = typeof body?.note === 'string' ? body.note.trim() : ''
 
   const verified = verifyAuthorizeToken(token)
   if (!verified) {
@@ -91,6 +98,22 @@ export async function POST(request: Request) {
       { error: result.error || 'materialization failed' },
       { status: 500 },
     )
+  }
+
+  // Append the office's approval note (if any) to the Sumit הערות. Best-effort,
+  // non-fatal — if it fails we still report success to the office.
+  if (approvalNote && record.summitEntityId) {
+    try {
+      const { addSignedDocRemarkToSummit } = await import('@/lib/onboarding/signed-doc-storage')
+      await addSignedDocRemarkToSummit(
+        record.summitEntityId,
+        `הערת אישור משרד`,
+        approvalNote,
+      )
+    } catch (noteErr) {
+      console.error('[authorize] approval-note remark failed:',
+        noteErr instanceof Error ? noteErr.message : String(noteErr))
+    }
   }
 
   return NextResponse.json({
