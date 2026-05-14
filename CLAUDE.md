@@ -1029,24 +1029,70 @@ remark). #136's completion-summary fallback still helps for legacy / hera-only r
    tracking gap.
 3. **Original Batch 4 work** (separate thread, deferred not abandoned — see below).
 
-## Deferred — Onboarding Batch 4 (spouse fields + BTL link + doc badges)
+## Session: May 14, 2026 — Batch 4 wrap + 2Sign dead-endpoint cleanup
 
-Scoped and decisions-locked on 2026-05-12 but deferred when Shay pivoted to the manual-
-overtake arc shipped 2026-05-13. Still in scope; pick up after visual-QA on #131–#136 settles.
+Closing session for the manual-overtake + Batch 4 arc that started 2026-05-12 and ran through
+13. Three shipped, one deferred remains.
 
-- **(1b) Spouse fields → bundled (no Summit schema change).** Add `spouseFullName`,
-  `spouseIdNumber`, `spousePhone` to the intake form (`bitan-bitan-website` repo,
-  `src/app/intake/`). Bundle into office-notification email + הערה + `submittedData` JSON.
-  Do NOT add new Summit Customer Properties — Shay has not opened spouse fields in Summit.
-- **(2a) ב"ל מיוצגים link → office-side CMS field.** Add `nationalInsuranceRepLink` (URL) to
-  the `onboardingRecord` Sanity schema + a small input in `ClientInfoCard`. Office-managed,
-  pasted after registering at `meyutzagim.btl.gov.il`. Not client-entered.
-- **(3) Doc badges on reopen.** When a client opens an update-mode intake link, look up
-  matching `clientDocument` rows in Sanity and render `✓ הועלה — {filename}` badges under
-  each doc slot. Note: P3.a (#135) gave the OFFICE the same per-doc visibility — this remains
-  about the CLIENT-side reopen UI.
+### Shipped
+- **bitan-bitan-website PR #66** — `feat(intake): spouse fields bundled + reopen doc badges`.
+  Closes Batch 4.1b and 4.3 in one PR (both touch the same intake form code paths, so the
+  bundle was natural).
+  - Spouse fields (`spouseFullName`/`spouseIdNumber`/`spousePhone`) flow into the office
+    notification email (`intake-email.ts` — conditionally appended rows when present), the
+    Sumit הערה (`intake/route.ts` — the Summit-update block now triggers on `files OR
+    spouse`, with a `פרטי בן/בת זוג:` block appended to noteLines), and the `submittedData`
+    JSON. No Sumit schema change — bundled-only per the locked decision.
+  - Doc badges on reopen: `intake/[token]/page.tsx` does a GROQ lookup of `clientDocument`
+    rows for the linked Summit entity (latest per `docType`) and passes `uploadedDocs` map to
+    the form. `IntakeForm.tsx` renders `✓ הועלה בעבר — {filename}` under each unfilled doc
+    slot whose `docKey` matches. `missingRequiredDocs` now also treats a prior upload as
+    satisfying the required check so reopen doesn't false-flag the client.
 
-**Batch 3 (canonical signing templates from Sanity) is still BLOCKED on 3 PDFs from Shay:**
-`poa-tax-authority`, `poa-nii-withholdings`, `poa-nii-representatives`. Schema + dropdown
-ship without them but the `templates` field stays empty and SigningCard's "Send" button has
-nothing to pick from.
+- **bitan-bitan-os PR #145** — `chore(onboarding): remove three dead 2Sign endpoints`.
+  Deletes `getOriginalDocument`, `getAllAttachments`, and `deleteTask` from
+  `twosign-client.ts`. All three used the same wrong-controller pattern as the #124
+  ghost-records bug (`/TaskAttachments/*`, `/Task/Delete*`) and had zero callers across the
+  OS repo. Per CLAUDE.md ("If you are certain that something is unused, you can delete it
+  completely") deletion beat preemptive "fix" — there was nothing real to verify against.
+
+### Status of the Batch 4 decomposition (canonical)
+- ✅ **(1b) Spouse fields** — PR #66 (website)
+- ✅ **(2a) ב"ל מיוצגים link** — already shipped earlier in PR #140 (`BTL link CMS`,
+  `nationalInsuranceRepLink` on `onboardingRecord` + ClientInfoCard input)
+- ✅ **(3) Doc badges on reopen** — PR #66 (website)
+- ⏸ **(Batch 3) Canonical signing templates from Sanity** — still BLOCKED on 3 PDFs from
+  Shay: `poa-tax-authority`, `poa-nii-withholdings`, `poa-nii-representatives`. Schema +
+  dropdown ship without them but the `templates` field stays empty and SigningCard's "Send"
+  button has nothing to pick from.
+
+### Lessons / patterns worth keeping
+- **Bundle related Batch items when they hit the same files.** Spouse (1b) and doc badges
+  (3) both touched `IntakeForm.tsx` + the intake route + the [token]/page.tsx — splitting
+  them into separate PRs would have duplicated review work and risked merge-order surprises.
+- **Dead code earns deletion, not "fixing."** The temptation to preemptively correct
+  endpoints to the right pattern is wrong when there's no caller and no test. Verifying an
+  external API contract against a live GUID (the #124 `scripts/verify-getsigned.mjs`
+  recipe) is the gating step — without it you're guessing, and a fixed-but-unverified
+  endpoint reads as "this works" to future-you when it doesn't.
+- **Auto-memory continuity beat the prior session's force-cut.** The 2026-05-12 force-cut
+  embedded a "Session Pickup Point" via the heavyweight-session continuity rule; the
+  2026-05-13 session resumed cleanly and pivoted; this 2026-05-14 session wrapped what 13
+  pivoted away from. The ritual works.
+
+### Next session pickup (priority order)
+1. **Mass-action checkboxes on the OS onboarding dashboard** — multi-select rows in
+   `apps/os-hub/src/app/onboarding/components/ClientTable.tsx` → bulk delete + bulk stage
+   advance. Real triage workflow value for Avi/Ron, isolated UI scope.
+2. **Path B visual QA** — first office user opens the click-to-place modal against a real
+   record, iterates on the `STAMP_ASPECT_APPROX = 0.5` constant in `RestampModal.tsx` if the
+   real autograph aspect drifts off it.
+3. **Batch 3 signing templates** — unblocks when Shay sends the 3 PDFs.
+
+---
+
+## Deferred — Onboarding Batch 4 (historical, all closed 2026-05-14)
+
+Scoped and decisions-locked on 2026-05-12, deferred 2026-05-13 (manual-overtake arc),
+closed 2026-05-14 (PR #66 website + #145 OS cleanup). Decomposition above under the
+2026-05-14 session header.

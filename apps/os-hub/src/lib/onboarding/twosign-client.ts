@@ -586,35 +586,9 @@ export async function getSignedDocument(
   return { FileUrl: fileUrl }
 }
 
-/** Get the original (unsigned) document for a task. */
-export async function getOriginalDocument(
-  guid: string,
-  format: 0 | 1 | 2 = 0,
-): Promise<TwoSignAttachment> {
-  const res = await authFetch(`/TaskAttachments/GetOriginalTaskDocument/${guid}?fileDownloadType=${format}`)
-  if (!res.ok) throw new Error(`2Sign getOriginalDocument failed: ${res.status}`)
-  return res.json()
-}
-
-/** Get all attachments for a task (signed doc, ID uploads, etc.). */
-export async function getAllAttachments(
-  guid: string,
-  format: 0 | 1 | 2 = 0,
-): Promise<TwoSignAttachment[]> {
-  const res = await authFetch(`/TaskAttachments/GetAllAttachments/${guid}?fileDownloadType=${format}`)
-  if (!res.ok) throw new Error(`2Sign getAllAttachments failed: ${res.status}`)
-  return res.json()
-}
-
 // ---------------------------------------------------------------------------
 // Task Lifecycle
 // ---------------------------------------------------------------------------
-
-/** Delete a task. */
-export async function deleteTask(guid: string): Promise<void> {
-  const res = await authFetch(`/Task/DeleteTaskByGuid/${guid}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`2Sign deleteTask failed: ${res.status}`)
-}
 
 /** Get task count for the current month. */
 export async function getMonthlyTaskCount(): Promise<number> {
