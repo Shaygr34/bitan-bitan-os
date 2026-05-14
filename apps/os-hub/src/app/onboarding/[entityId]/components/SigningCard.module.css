@@ -114,6 +114,41 @@
   background: rgba(245, 158, 11, 0.06);
 }
 
+/* Sent / pending — gold-tinted border + pulse animation. Communicates
+   "in flight, waiting for client" without needing a separate progress bar.
+   Subtle pulse on the border draws the eye without being noisy. */
+.status_sent {
+  border-color: #C5A572;
+  background: rgba(197, 165, 114, 0.05);
+  animation: sentBorderPulse 2.4s ease-in-out infinite;
+}
+@keyframes sentBorderPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(197, 165, 114, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(197, 165, 114, 0.18); }
+}
+
+/* In-flight badge that sits inline with the status text, animated dot. */
+.inFlightBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #92400E;
+  font-weight: 500;
+}
+.inFlightBadge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: #C5A572;
+  border-radius: 50%;
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
 .taskInfo {
   display: flex;
   align-items: center;

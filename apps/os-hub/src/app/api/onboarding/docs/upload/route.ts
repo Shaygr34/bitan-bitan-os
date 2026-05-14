@@ -24,6 +24,8 @@ import {
   uploadOfficeDocToSanity,
   persistOfficeDocRemarkToSummit,
 } from '@/lib/onboarding/office-doc-storage'
+import { query, patch } from '@/lib/sanity/client'
+import type { OnboardingRecord } from '@/lib/onboarding/types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -147,6 +149,33 @@ export async function POST(request: Request) {
         trimmedLabel || 'מסמך נוסף',
         sanityUrl,
       )
+
+      // Sumit's `קבצים אחרים` multi-file field OVERWRITES on each write
+      // (confirmed live 2026-05-14 — uploading file #2 replaced file #1
+      // instead of appending). Sanity is the canonical history. Append the
+      // new entry to onboardingRecord.otherDocs so the OS UI can render the
+      // full list across reloads. Sumit still shows the latest file in CRM.
+      try {
+        const records = await query<OnboardingRecord[]>(
+          `*[_type == "onboardingRecord" && summitEntityId == $eid][0..0]{ _id, otherDocs }`,
+          { eid: summitEntityId },
+        )
+        const record = records?.[0]
+        if (record?._id) {
+          const currentList = record.otherDocs || []
+          const newEntry = {
+            label: trimmedLabel || 'מסמך נוסף',
+            filename: finalFilenameOther,
+            url: sanityUrl,
+            uploadedAt: new Date().toISOString(),
+          }
+          await patch(record._id, { set: { otherDocs: [...currentList, newEntry] } })
+        }
+      } catch (sanityErr) {
+        console.error('[upload] Sanity otherDocs append failed:',
+          sanityErr instanceof Error ? sanityErr.message : String(sanityErr))
+      }
+
       return NextResponse.json({ ok: true, docType: 'other', url: sanityUrl, label: trimmedLabel || null }, { status: 201 })
     }
 

@@ -178,19 +178,72 @@ export async function DELETE(request: NextRequest) {
 }
 
 /**
- * PATCH /api/onboarding/records — link a record to its Summit entity.
- * Body: { recordId, summitEntityId }
+ * Fields the PATCH endpoint allows updating via the generic `patch` body
+ * shape. Whitelist guards against arbitrary writes into the document — only
+ * fields explicitly listed here can be set. Strings/numbers/booleans pass
+ * through; `null` deletes the field.
+ */
+const ALLOWED_PATCH_FIELDS = new Set<string>([
+  'summitEntityId',
+  'nationalInsuranceRepLink',
+])
+
+/**
+ * PATCH /api/onboarding/records
+ *
+ * Two shapes accepted:
+ *   1. Legacy: `{ recordId, summitEntityId }` — links a record to its Summit
+ *      entity (kept for back-compat with existing callers).
+ *   2. Generic: `{ recordId, patch: { [field]: value } }` — applies a
+ *      whitelisted set/unset to the document. `null` values unset the field.
+ *
+ * The generic shape is preferred for new code (ClientInfoCard's BTL link
+ * input uses it). Both shapes can coexist on the same request — the legacy
+ * `summitEntityId` field is folded into the patch.
  */
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { recordId, summitEntityId } = body as { recordId?: string; summitEntityId?: string }
-
-    if (!recordId || !summitEntityId) {
-      return NextResponse.json({ error: 'recordId and summitEntityId are required' }, { status: 400 })
+    const { recordId, summitEntityId, patch: patchBody } = body as {
+      recordId?: string
+      summitEntityId?: string
+      patch?: Record<string, unknown>
     }
 
-    await patch(recordId, { set: { summitEntityId } })
+    if (!recordId) {
+      return NextResponse.json({ error: 'recordId is required' }, { status: 400 })
+    }
+
+    // Merge legacy summitEntityId into the generic patch shape.
+    const incoming: Record<string, unknown> = { ...(patchBody || {}) }
+    if (summitEntityId !== undefined) incoming.summitEntityId = summitEntityId
+
+    if (Object.keys(incoming).length === 0) {
+      return NextResponse.json({ error: 'patch payload is empty' }, { status: 400 })
+    }
+
+    // Whitelist filter + null → unset split.
+    const setFields: Record<string, unknown> = {}
+    const unsetFields: string[] = []
+    for (const [field, value] of Object.entries(incoming)) {
+      if (!ALLOWED_PATCH_FIELDS.has(field)) {
+        return NextResponse.json(
+          { error: `Field "${field}" is not patchable via this route` },
+          { status: 400 },
+        )
+      }
+      if (value === null) {
+        unsetFields.push(field)
+      } else {
+        setFields[field] = value
+      }
+    }
+
+    const ops: { set?: Record<string, unknown>; unset?: string[] } = {}
+    if (Object.keys(setFields).length > 0) ops.set = setFields
+    if (unsetFields.length > 0) ops.unset = unsetFields
+
+    await patch(recordId, ops)
     return NextResponse.json({ ok: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
