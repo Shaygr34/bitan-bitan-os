@@ -35,11 +35,20 @@ export function extractStageFromEntity(entity: Record<string, unknown>): number 
 }
 
 export function extractClientData(entity: Record<string, unknown>) {
+  // Sumit date fields come back as ISO strings inside an array
+  const birthdateRaw = (entity['Customers_Birthdate'] as string[])?.[0]
+  // Convert to YYYY-MM-DD for HTML <input type="date">.
+  const birthdate = birthdateRaw ? birthdateRaw.slice(0, 10) : ''
+
   return {
     phone: (entity['Customers_Phone'] as string[])?.[0] ?? '',
     email: (entity['Customers_EmailAddress'] as string[])?.[0] ?? '',
     sector: (entity['תחום עיסוק'] as Array<{ Name: string }>)?.[0]?.Name ?? '',
     address: (entity['Customers_Address'] as string[])?.[0] ?? '',
+    city: (entity['Customers_City'] as string[])?.[0] ?? '',
+    zipCode: (entity['Customers_ZipCode'] as string[])?.[0] ?? '',
+    birthdate,
+    centralNote: (entity['Customers_Text'] as string[])?.[0] ?? '',
     clientType: (entity['סוג לקוח'] as Array<{ Name: string }>)?.[0]?.Name ?? '',
     accountManager: (entity['מנהל תיק'] as Array<{ Name: string }>)?.[0]?.Name ?? '',
     auditWorker: (entity['עובד/ת ביקורת'] as Array<{ Name: string }>)?.[0]?.Name ?? '',

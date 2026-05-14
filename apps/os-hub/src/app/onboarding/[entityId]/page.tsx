@@ -22,6 +22,10 @@ interface SummitData {
   accountManager?: string
   auditWorker?: string
   bookkeeper?: string
+  city?: string
+  zipCode?: string
+  birthdate?: string
+  centralNote?: string
 }
 
 interface DocItem {
@@ -464,6 +468,7 @@ export default function ClientDetailPage() {
       <div className={styles.columns}>
         <div className={styles.leftColumn}>
           <ClientInfoCard
+            summitEntityId={entityId}
             summitData={state.summitData}
             clientName={record?.clientName || ''}
             clientType={state.summitData.clientType || record?.clientType}
