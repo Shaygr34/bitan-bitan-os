@@ -152,11 +152,26 @@ export const FORM_LAYOUTS: Record<string, FormLayout> = {
     },
   },
 
-  // ביטוח לאומי ניכויים — employer signs alone, no office counter-stamp
+  // ביטוח לאומי ניכויים — employer signs alone, no office counter-stamp.
+  //
+  // Form layout (A4, 594.96 x 841.92): in the signature row, RTL convention puts
+  //   "חתימת המעסיק/ה" on the RIGHT (higher x), "תאריך" on the LEFT (lower x).
+  //
+  // Pre-2026-05-13 values had the x's swapped — clientSignature at x=150 and
+  // clientDate at x=350. 2Sign was placing the drawable signature field on the
+  // date underline (left) and the date auto-fill rectangle on the signature
+  // underline (right). Client saw the form as "already filled" because their
+  // signature field rendered on top of the date label, and the actual signature
+  // line on the right was untouched. Confirmed against the reference PDF at
+  // ~/Library/CloudStorage/.../Onboarding/ייפוי כוח ב״ל ניכויים.pdf (Shay
+  // 2026-05-13). Swapped values below derived by inspecting the rendered form:
+  //   - "חתימת" underline runs roughly x=340..560; field anchor near center → 440
+  //   - "תאריך" underline runs roughly x=80..240; field anchor near center → 110
+  //   - Both share the same vertical baseline at yFromTop ≈ 539.
   'poa-nii-withholdings': {
-    clientSignature: { x: 150, yFromTop: 539 }, // חתימת המעסיק/ה
+    clientSignature: { x: 440, yFromTop: 539 }, // חתימת המעסיק/ה — right-side underline
     clientDate: {
-      x: 350,
+      x: 110,                                    // תאריך — left-side underline
       autoStampTextBaselineFromTop: 542,
       autoStampFontSize: 11,
       twoSignFieldRectTopFromTop: 539,

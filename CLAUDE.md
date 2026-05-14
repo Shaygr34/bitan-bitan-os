@@ -986,15 +986,19 @@ arc on placement fixes + doc-upload bidirectionality.
   differences (`takanonHevra` ↔ `takanonCompany`, etc.). Three docs (`driverLicense`,
   `ptihaTikMaam`, `rentalContract`) have no typed-field equivalent and stay הערות-only.
 
-### P3.b API gap — tracked, not solved
-Writing to Summit's **typed File fields** (`ValueType: "File"`: `ת.ז/ רישיון בעלים`,
-`אישור ניהול חשבון`, etc.) programmatically was supposed to be P3.b. Sumit's public Swagger
-spec (`https://app.sumit.co.il/swagger/v1/swagger.json`, **83 endpoints** surveyed
-2026-05-13) has **no CRM file-upload endpoint** — `/crm/downloadfile/{GUID}/` exists, no
-counterpart. Browser UI uses an internal endpoint Sumit hasn't documented. Unblock path:
-Sumit support to expose the endpoint, OR browser automation against `app.sumit.co.il`. The
-#136 completion-summary fallback means the firm's day-to-day workflow has zero impact from
-this gap.
+### P3.b unlocked (correction to prior session note)
+Writing to Summit's **typed File fields** (`ValueType: "File"`) was *initially* concluded as
+"API-blocked" because Sumit's public Swagger spec has no separate CRM file-upload endpoint.
+That conclusion was wrong. Shay pointed out the intake form was already doing it; the actual
+pattern is much simpler than expected:
+
+  `/crm/data/updateentity/` with `Properties[fieldName] = "${filename};${base64}"`
+
+The file goes inline as a base64 string in the property value, no separate upload step. The
+intake form (bitan-bitan-website `src/app/api/intake/route.ts` + `src/lib/intake-types.ts`
+DOC_FIELDS) has been doing this since v3. Office-side parity now lives in
+`office-doc-storage.ts` (`persistOfficeDocToSummitFileField` — dual-write alongside the הערה
+remark). #136's completion-summary fallback still helps for legacy / hera-only records.
 
 ### Lessons / patterns worth keeping
 - **Stack PRs without waiting on CI.** Branching b2 directly off b1 (PR #134 off the still-CI
