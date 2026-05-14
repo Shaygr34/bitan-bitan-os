@@ -175,6 +175,8 @@ export default function OnboardingPage() {
   }
 
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState<null | 'delete' | 'advance'>(null)
 
   const handleDelete = async (clientId: string) => {
     const client = clients.find(c => c._id === clientId)
@@ -229,6 +231,115 @@ export default function OnboardingPage() {
   // Count clients not yet at stage 6 (active)
   const activeCount = clients.filter((c) => c.currentStage !== 6).length
 
+  // Selected clients that ARE currently rendered (the action bar operates on
+  // the visible filtered set — selection across filters is preserved but
+  // bulk actions only touch what's visible).
+  const selectedVisible = filteredClients.filter((c) => selectedIds.has(c._id))
+  const selectedCount = selectedVisible.length
+
+  const toggleSelect = (clientId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(clientId)) next.delete(clientId)
+      else next.add(clientId)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      const allVisibleSelected = filteredClients.every((c) => prev.has(c._id))
+      const next = new Set(prev)
+      if (allVisibleSelected) {
+        // Clear only the visible ones — keeps selections from other filters
+        for (const c of filteredClients) next.delete(c._id)
+      } else {
+        for (const c of filteredClients) next.add(c._id)
+      }
+      return next
+    })
+  }
+
+  const clearSelection = () => setSelectedIds(new Set())
+
+  // Bulk delete — serial, animates per-row via deletingIds, mirrors the
+  // single-delete confirm/error semantics. Confirmation is once, with count.
+  const handleBulkDelete = async () => {
+    if (selectedCount === 0) return
+    if (!confirm(`למחוק ${selectedCount} לקוחות? פעולה זו אינה ניתנת לביטול.`)) return
+
+    setBulkBusy('delete')
+    const targets = selectedVisible.map((c) => c._id)
+    setDeletingIds((prev) => {
+      const next = new Set(prev)
+      for (const id of targets) next.add(id)
+      return next
+    })
+
+    for (const clientId of targets) {
+      const isLegacy = clientId.startsWith('token-')
+      const sanityId = isLegacy ? `intakeToken-${clientId.replace('token-', '')}` : clientId
+      try {
+        const res = await fetch('/api/onboarding/records', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recordId: sanityId }),
+        })
+        if (res.ok) {
+          setClients((prev) => prev.filter((c) => c._id !== clientId))
+        }
+      } catch {
+        /* per-row failure: leave it in the list, deletingIds cleared below */
+      } finally {
+        setDeletingIds((prev) => {
+          const next = new Set(prev)
+          next.delete(clientId)
+          return next
+        })
+      }
+    }
+
+    clearSelection()
+    setBulkBusy(null)
+  }
+
+  // Bulk stage-advance — requires Summit entity. Skips rows without one and
+  // surfaces a tail-count in the confirmation. Target stage = current+1 of
+  // each row independently (most useful when filtered to a single stage).
+  const handleBulkAdvance = async () => {
+    if (selectedCount === 0) return
+    const advanceable = selectedVisible.filter(
+      (c) => c.summitEntityId && c.currentStage >= 1 && c.currentStage < 6,
+    )
+    const skipped = selectedCount - advanceable.length
+    if (advanceable.length === 0) {
+      alert('אף לקוח מהבחירה אינו זמין להעברת שלב (חסר Summit ID או כבר בשלב פעיל).')
+      return
+    }
+    const msg = skipped > 0
+      ? `להעביר ${advanceable.length} לקוחות לשלב הבא? (${skipped} מהבחירה ידולגו — חסרים פרטים או כבר בשלב 6)`
+      : `להעביר ${advanceable.length} לקוחות לשלב הבא?`
+    if (!confirm(msg)) return
+
+    setBulkBusy('advance')
+    for (const c of advanceable) {
+      try {
+        const targetStage = c.currentStage + 1
+        await fetch('/api/onboarding/advance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entityId: c.summitEntityId, targetStage }),
+        })
+      } catch {
+        /* per-row failure: continue with the rest */
+      }
+    }
+
+    clearSelection()
+    setBulkBusy(null)
+    loadData()
+  }
+
   return (
     <div className="animate-page">
       <PageHeader
@@ -258,19 +369,53 @@ export default function OnboardingPage() {
 
       {activeTab === 'dashboard' && (
         <>
-          {/* Top Bar */}
-          <div className={styles.topBar}>
-            <span className={styles.clientCount}>
-              {activeCount} לקוחות בתהליך קליטה
-            </span>
-            <button
-              className={styles.newClientBtn}
-              onClick={() => setShowModal(true)}
-              type="button"
-            >
-              + לקוח חדש
-            </button>
-          </div>
+          {/* Top Bar — replaced by bulk action bar when rows are selected */}
+          {selectedCount > 0 ? (
+            <div className={styles.bulkBar}>
+              <span className={styles.bulkCount}>
+                {selectedCount} נבחרו
+              </span>
+              <div className={styles.bulkActions}>
+                <button
+                  className={styles.bulkAdvanceBtn}
+                  onClick={handleBulkAdvance}
+                  disabled={bulkBusy !== null}
+                  type="button"
+                >
+                  {bulkBusy === 'advance' ? 'מעביר…' : 'העבר שלב'}
+                </button>
+                <button
+                  className={styles.bulkDeleteBtn}
+                  onClick={handleBulkDelete}
+                  disabled={bulkBusy !== null}
+                  type="button"
+                >
+                  {bulkBusy === 'delete' ? 'מוחק…' : 'מחק נבחרים'}
+                </button>
+                <button
+                  className={styles.bulkCancelBtn}
+                  onClick={clearSelection}
+                  disabled={bulkBusy !== null}
+                  type="button"
+                >
+                  בטל בחירה
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.topBar}>
+              <span className={styles.clientCount}>
+                {activeCount} לקוחות בתהליך קליטה
+              </span>
+              <button
+                className={styles.newClientBtn}
+                onClick={() => setShowModal(true)}
+                type="button"
+              >
+                + לקוח חדש
+              </button>
+            </div>
+          )}
 
           {/* Loading State */}
           {loading && (
@@ -302,6 +447,9 @@ export default function OnboardingPage() {
                   onNavigate={handleNavigate}
                   onDelete={handleDelete}
                   deletingIds={deletingIds}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleSelect}
+                  onToggleSelectAll={toggleSelectAll}
                 />
               </div>
             </>

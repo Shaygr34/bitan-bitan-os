@@ -72,6 +72,74 @@
   transform: scale(0.97);
 }
 
+/* ── Bulk Action Bar (replaces topBar when rows are selected) ── */
+
+.bulkBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--brand-deep-navy);
+  color: var(--text-on-navy);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.bulkCount {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--brand-gold);
+}
+
+.bulkActions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.bulkAdvanceBtn,
+.bulkDeleteBtn,
+.bulkCancelBtn {
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-on-navy);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.bulkAdvanceBtn {
+  background: var(--brand-gold);
+  border-color: var(--brand-gold);
+  color: var(--brand-navy);
+}
+
+.bulkAdvanceBtn:hover:not(:disabled) {
+  filter: brightness(1.07);
+  transform: scale(1.03);
+}
+
+.bulkDeleteBtn:hover:not(:disabled) {
+  background: rgba(229, 62, 62, 0.25);
+  border-color: rgba(229, 62, 62, 0.6);
+}
+
+.bulkCancelBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.bulkAdvanceBtn:disabled,
+.bulkDeleteBtn:disabled,
+.bulkCancelBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* ── Funnel Section ── */
 
 .funnelSection {

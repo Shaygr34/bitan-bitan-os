@@ -9,6 +9,9 @@ interface Props {
   onNavigate: (entityId: string) => void
   onDelete?: (clientId: string) => void
   deletingIds?: Set<string>
+  selectedIds?: Set<string>
+  onToggleSelect?: (clientId: string) => void
+  onToggleSelectAll?: () => void
 }
 
 function formatDate(dateStr?: string): string {
@@ -29,8 +32,22 @@ function daysFromStart(dateStr?: string): number {
   return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-export default function ClientTable({ clients, onNavigate, onDelete, deletingIds }: Props) {
+export default function ClientTable({
+  clients,
+  onNavigate,
+  onDelete,
+  deletingIds,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
+}: Props) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+
+  const selectable = !!onToggleSelect && !!selectedIds
+  const allSelected =
+    selectable && clients.length > 0 && clients.every((c) => selectedIds!.has(c._id))
+  const someSelected =
+    selectable && !allSelected && clients.some((c) => selectedIds!.has(c._id))
 
   const navIdFor = (client: PipelineClient): string | null => {
     if (client.summitEntityId) return client.summitEntityId
@@ -93,6 +110,19 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
       <table className={styles.table}>
         <thead>
           <tr>
+            {selectable && (
+              <th className={styles.checkboxCell}>
+                <input
+                  type="checkbox"
+                  aria-label="בחר הכל"
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someSelected
+                  }}
+                  onChange={onToggleSelectAll}
+                />
+              </th>
+            )}
             <th>לקוח</th>
             <th>שלב</th>
             <th>התקדמות</th>
@@ -122,6 +152,19 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
                 style={{ '--row-stage-color': stageColor } as React.CSSProperties}
                 onClick={() => handleRowClick(client)}
               >
+                  {selectable && (
+                    <td
+                      className={styles.checkboxCell}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`בחר ${client.clientName}`}
+                        checked={selectedIds!.has(client._id)}
+                        onChange={() => onToggleSelect!(client._id)}
+                      />
+                    </td>
+                  )}
                   <td>
                     <div className={styles.clientName}>{client.clientName}</div>
                     <div className={styles.clientMeta}>
@@ -199,7 +242,7 @@ export default function ClientTable({ clients, onNavigate, onDelete, deletingIds
                   </td>
                 </tr>
                 <tr className={styles.detailRow}>
-                  <td colSpan={6}>
+                  <td colSpan={selectable ? 7 : 6}>
                     <div className={styles.detailContent}>
                       <div className={styles.detailGrid}>
                         {client.summitData?.phone && (

@@ -257,3 +257,19 @@
   color: var(--text-caption);
   font-size: var(--font-size-sm);
 }
+
+/* ── Checkbox cell (mass-action selection) ── */
+.checkboxCell {
+  width: 36px;
+  padding-inline-start: var(--space-sm);
+  padding-inline-end: 0;
+}
+
+.checkboxCell input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--brand-gold);
+  margin: 0;
+  vertical-align: middle;
+}
