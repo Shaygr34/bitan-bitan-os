@@ -107,7 +107,7 @@ export default function ClientInfoCard({
           htmlFor="btl-link-input"
           style={{ display: 'block', fontSize: 12, color: '#6B7280', marginBottom: 4 }}
         >
-          קישור ב"ל מיוצגים (משרד)
+          קישור ב״ל מיוצגים (משרד)
         </label>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <input
