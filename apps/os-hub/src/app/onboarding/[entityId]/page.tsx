@@ -27,7 +27,16 @@ interface SummitData {
 interface DocItem {
   docType: string
   label: string
+  /** View URL — set when the doc is in הערות (linkable via Sanity CDN). */
   url?: string
+  /**
+   * Doc is stored in Summit's typed File field (downloadable from Sumit UI)
+   * but no view-URL is available — Sumit stores it inline base64 and only
+   * exposes it via its own /crm/downloadfile/ path which is auth-walled.
+   * When true and `url` is also set, prefer the view link. When true alone,
+   * render ✓ with a "מאוחסן בסאמיט" hint instead of "חסר".
+   */
+  inSummitFileField?: boolean
 }
 
 interface PageState {
@@ -128,6 +137,7 @@ export default function ClientDetailPage() {
       let companyNumber = ''
       let summitName = ''
       let docUrls: Record<string, string> = {}
+      let typedDocsFilled: Record<string, boolean> = {}
       if (entityRes.ok) {
         const entityData = await entityRes.json() as {
           stage: number
@@ -135,12 +145,14 @@ export default function ClientDetailPage() {
           companyNumber?: string
           clientName?: string
           docUrls?: Record<string, string>
+          typedDocsFilled?: Record<string, boolean>
         }
         currentStage = entityData.stage || 0
         summitData = entityData.clientData || {}
         companyNumber = entityData.companyNumber || ''
         summitName = entityData.clientName || ''
         docUrls = entityData.docUrls || {}
+        typedDocsFilled = entityData.typedDocsFilled || {}
       }
 
       // If no onboarding record exists, auto-create one in Sanity with checklist template
@@ -181,6 +193,7 @@ export default function ClientDetailPage() {
         docType: key,
         label: key,
         url: docUrls[key] || undefined,
+        inSummitFileField: !!typedDocsFilled[key],
       }))
 
       // Fetch signing tasks (fire-and-forget refresh from 2Sign)
@@ -213,7 +226,7 @@ export default function ClientDetailPage() {
           body: JSON.stringify({
             summitEntityId: syncEntityId,
             stage: currentStage,
-            uploadedDocs: documents.filter(d => !!d.url).length,
+            uploadedDocs: documents.filter(d => !!d.url || !!d.inSummitFileField).length,
             requiredDocs: documents.length,
           }),
         }).catch(() => {}) // Silent — cache sync is best-effort
@@ -336,7 +349,7 @@ export default function ClientDetailPage() {
 
   const record = state.record
   const checklistItems: ChecklistItem[] = record?.checklistItems || []
-  const uploadedCount = state.documents.filter((d) => !!d.url).length
+  const uploadedCount = state.documents.filter((d) => !!d.url || !!d.inSummitFileField).length
   const requiredCount = state.documents.length
 
   const completionPercent = calculateCompletion(checklistItems, uploadedCount, requiredCount)

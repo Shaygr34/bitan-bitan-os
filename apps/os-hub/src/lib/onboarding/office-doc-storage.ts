@@ -243,21 +243,23 @@ export async function persistOfficeDoc(opts: {
 }): Promise<string | null> {
   const sanityUrl = await uploadOfficeDocToSanity(opts.buffer, opts.filename, opts.contentType)
   if (sanityUrl) {
-    // Run typed-field write and הערה remark in parallel — both are independent
-    // best-effort writes against Summit.
-    await Promise.all([
-      persistOfficeDocToSummitFileField(
-        opts.summitEntityId,
-        opts.docType,
-        opts.buffer,
-        opts.filename,
-      ),
-      persistOfficeDocRemarkToSummit(
-        opts.summitEntityId,
-        getOfficeDocLabel(opts.docType),
-        sanityUrl,
-      ),
-    ])
+    // Serialize the two Summit writes (was: Promise.all). Observed 2026-05-14
+    // demo: when both ran in parallel, the typed File field write succeeded
+    // but addclientremark silently failed — likely entity-lock contention on
+    // Sumit's side. Running them sequentially adds ~1s but the הערה write
+    // becomes reliable, which the OS DocumentsCard depends on for round-trip
+    // visibility via extractDocUrls.
+    await persistOfficeDocToSummitFileField(
+      opts.summitEntityId,
+      opts.docType,
+      opts.buffer,
+      opts.filename,
+    )
+    await persistOfficeDocRemarkToSummit(
+      opts.summitEntityId,
+      getOfficeDocLabel(opts.docType),
+      sanityUrl,
+    )
   }
   return sanityUrl
 }

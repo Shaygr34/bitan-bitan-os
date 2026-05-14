@@ -28,6 +28,7 @@ import { FORM_LAYOUTS } from './form-layouts'
 export interface ApplyStampCoordOverrides {
   officeStamp?: { x?: number; yFromTop?: number; widthPt?: number }
   officeDate?: { x?: number; yFromTop?: number; fontSize?: number }
+  officeFirmName?: { x?: number; yFromTop?: number; fontSize?: number; text?: string }
 }
 
 /** Format today's date as dd/mm/yyyy (Israeli convention). */
@@ -96,6 +97,14 @@ export async function applyOfficeStamp(
         fontSize: options.coordOverrides?.officeDate?.fontSize ?? layout.officeDate.fontSize,
       }
     : undefined
+  const effOfficeFirmName = layout.officeFirmName
+    ? {
+        x: options.coordOverrides?.officeFirmName?.x ?? layout.officeFirmName.x,
+        yFromTop: options.coordOverrides?.officeFirmName?.yFromTop ?? layout.officeFirmName.yFromTop,
+        fontSize: options.coordOverrides?.officeFirmName?.fontSize ?? layout.officeFirmName.fontSize,
+        text: options.coordOverrides?.officeFirmName?.text ?? layout.officeFirmName.text,
+      }
+    : undefined
 
   // Diagnostic — surfaces effective coordinates in Railway logs so any future
   // placement drift (#126-class bug) is debuggable in seconds, not hours.
@@ -132,6 +141,16 @@ export async function applyOfficeStamp(
       x: effOfficeDate.x,
       y: height - effOfficeDate.yFromTop,
       size: effOfficeDate.fontSize,
+      font,
+      color: rgb(0, 0, 0),
+    })
+  }
+
+  if (effOfficeFirmName) {
+    page.drawText(effOfficeFirmName.text, {
+      x: effOfficeFirmName.x,
+      y: height - effOfficeFirmName.yFromTop,
+      size: effOfficeFirmName.fontSize,
       font,
       color: rgb(0, 0, 0),
     })

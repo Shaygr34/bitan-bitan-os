@@ -25,7 +25,10 @@ import {
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const MAX_FILE_BYTES = 12 * 1024 * 1024 // 12 MB — generous; intake scans rarely exceed 5
+// Summit's documented per-file ceiling for Customers_Files is 20 MB. We match
+// that. Original 12 MB cap was rejecting iPhone HEIC originals which routinely
+// hit 14-18 MB. Tuned 2026-05-14 after a real demo hit the cap.
+const MAX_FILE_BYTES = 20 * 1024 * 1024
 
 const ALLOWED_CONTENT_TYPES = new Set([
   'application/pdf',

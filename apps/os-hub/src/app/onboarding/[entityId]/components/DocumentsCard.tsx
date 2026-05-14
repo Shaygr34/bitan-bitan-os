@@ -7,6 +7,8 @@ interface DocItem {
   docType: string
   label: string
   url?: string
+  /** True when the typed Summit File field for this docType is populated. */
+  inSummitFileField?: boolean
 }
 
 interface SignedDocItem {
@@ -132,7 +134,10 @@ export default function DocumentsCard({
       )}
       <div className={styles.list}>
         {documents.map((doc) => {
-          const isUploaded = !!doc.url
+          const hasViewableUrl = !!doc.url
+          const inSummit = !!doc.inSummitFileField
+          // "Done" = visible-here OR known to live in Summit's typed File field.
+          const isUploaded = hasViewableUrl || inSummit
           const displayLabel = DOC_TYPE_LABELS[doc.docType] || doc.label
           const canOfficeUpload = OFFICE_UPLOADABLE.has(doc.docType)
           const isUploadingThis = uploadingFor === doc.docType
@@ -145,7 +150,7 @@ export default function DocumentsCard({
               <span className={isUploaded ? styles.docName : styles.docNameMissing}>
                 {displayLabel}
               </span>
-              {isUploaded && doc.url ? (
+              {hasViewableUrl ? (
                 <a
                   href={doc.url}
                   target="_blank"
@@ -154,6 +159,14 @@ export default function DocumentsCard({
                 >
                   {'צפה ↗'}
                 </a>
+              ) : inSummit ? (
+                <span
+                  className={styles.viewLink}
+                  style={{ cursor: 'default', color: '#6B7280', fontWeight: 500 }}
+                  title="מאוחסן ישירות בשדה הקובץ בסאמיט — ניתן להוריד מתוך כרטיס הלקוח בסאמיט"
+                >
+                  {'מאוחסן בסאמיט'}
+                </span>
               ) : (
                 <span className={styles.missingBadge}>חסר</span>
               )}
@@ -169,28 +182,33 @@ export default function DocumentsCard({
                       if (file) uploadDoc(doc.docType, file)
                     }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => fileRefs.current[doc.docType]?.click()}
-                    disabled={isUploadingThis}
-                    title={
-                      isUploaded
-                        ? 'החלף קובץ קיים — תכתוב הערה חדשה בסאמיט'
-                        : 'העלה קובץ מטעם המשרד — יישמר ב-Sanity וייכתב כהערה בסאמיט'
-                    }
-                    style={{
-                      marginInlineStart: 8,
-                      padding: '2px 8px',
-                      fontSize: 12,
-                      border: '1px solid #D1D5DB',
-                      background: '#fff',
-                      borderRadius: 4,
-                      cursor: isUploadingThis ? 'wait' : 'pointer',
-                      color: '#374151',
-                    }}
-                  >
-                    {isUploadingThis ? 'מעלה…' : isUploaded ? '⤴ החלף' : '⤴ העלה'}
-                  </button>
+                  <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, marginInlineStart: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => fileRefs.current[doc.docType]?.click()}
+                      disabled={isUploadingThis}
+                      title={
+                        isUploaded
+                          ? 'החלף קובץ קיים — יישמר ב-Sanity, בשדה הקובץ הסומך, וכהערה בסאמיט'
+                          : 'העלה קובץ מטעם המשרד — יישמר ב-Sanity, בשדה הקובץ הסומך, וכהערה בסאמיט'
+                      }
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: 12,
+                        border: '1px solid #D1D5DB',
+                        background: '#fff',
+                        borderRadius: 4,
+                        cursor: isUploadingThis ? 'wait' : 'pointer',
+                        color: '#374151',
+                        minWidth: 80,
+                      }}
+                    >
+                      {isUploadingThis ? '⏳ מעלה…' : isUploaded ? '⤴ החלף' : '⤴ העלה'}
+                    </button>
+                    {isUploadingThis && (
+                      <div className={styles.uploadProgress} aria-label="מעלה קובץ" />
+                    )}
+                  </div>
                 </>
               )}
             </div>

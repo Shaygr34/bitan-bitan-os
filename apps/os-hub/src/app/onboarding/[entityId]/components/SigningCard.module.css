@@ -306,3 +306,35 @@
   color: var(--text-caption);
   line-height: 1.5;
 }
+
+/* Bitan-style indeterminate progress shimmer. Duplicated from
+   DocumentsCard.module.css because CSS Modules scope @keyframes names per
+   module. Reused for any in-flight network action under a SigningCard
+   button — send, resend, authorize, etc. */
+.sendProgress {
+  position: relative;
+  height: 3px;
+  background: #E5E7EB;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.sendProgress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, #C5A572 50%, transparent);
+  animation: signingShimmer 1.2s linear infinite;
+}
+@keyframes signingShimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* Stack the send button + progress bar vertically when in-flight. */
+.sendBtnWrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 140px;
+}

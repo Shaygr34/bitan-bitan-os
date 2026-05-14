@@ -48,6 +48,47 @@ export function extractClientData(entity: Record<string, unknown>) {
 }
 
 /**
+ * Map of Summit typed File field name → our internal doc-type key.
+ * Mirrors the intake-form DOC_FIELDS map (bitan-bitan-website
+ * src/lib/intake-types.ts) and the OFFICE_DOC_SUMMIT_FIELDS map in
+ * office-doc-storage.ts. Source of truth across all three should match.
+ */
+const SUMMIT_TYPED_FILE_FIELDS_TO_DOC_KEY: Record<string, string> = {
+  'ת.ז/ רישיון בעלים': 'idCard',  // also covers driverLicense (intake form puts both here)
+  'אישור ניהול חשבון': 'bankApproval',
+  'תעודת עוסק מורשה': 'osekMurshe',
+  'פתיחת תיק מעמ': 'ptihaTikMaam',
+  'תעודת התאגדות': 'teudatHitagdut',
+  'תקנון חברה': 'takanonHevra',
+  'פרוטוקול מורשה חתימה': 'protokolMurshe',
+  'נסח חברה': 'nesahHevra',
+}
+
+/**
+ * Check which doc-types have content in their typed Summit File field.
+ * Complements `extractDocUrls` (which reads from הערות only). Used by the
+ * entity route to surface a "doc is uploaded to Summit even if הערה write
+ * failed/missed" signal to the OS DocumentsCard.
+ *
+ * Returns Record<docTypeKey, boolean>. True means a typed Summit File field
+ * for this docKey is non-empty. No URL is returned because typed File field
+ * content is base64-inline in Summit — view links require Summit's UI.
+ */
+export function extractTypedFileFieldPresence(
+  entity: Record<string, unknown>,
+): Record<string, boolean> {
+  const presence: Record<string, boolean> = {}
+  for (const [summitField, docKey] of Object.entries(SUMMIT_TYPED_FILE_FIELDS_TO_DOC_KEY)) {
+    const value = entity[summitField]
+    // Summit File-field response shape: array of refs/objects when filled,
+    // null/undefined/empty array when empty.
+    const filled = Array.isArray(value) ? value.length > 0 : !!value
+    if (filled) presence[docKey] = true
+  }
+  return presence
+}
+
+/**
  * Extract uploaded doc URLs from Summit הערות.
  *
  * Scans ALL remarks (not just notes[0]) so that office-side uploads from the
