@@ -1029,15 +1029,15 @@ remark). #136's completion-summary fallback still helps for legacy / hera-only r
    tracking gap.
 3. **Original Batch 4 work** (separate thread, deferred not abandoned — see below).
 
-## Session: May 14, 2026 — Batch 4 wrap + 2Sign dead-endpoint cleanup
+## Session: May 14, 2026 — Batch 4 close + cleanup + dashboard triage + intake UX (5 PRs)
 
-Closing session for the manual-overtake + Batch 4 arc that started 2026-05-12 and ran through
-13. Three shipped, one deferred remains.
+Closing session for the manual-overtake + Batch 4 arc that started 2026-05-12 and ran
+through 13. **Compound day: 5 PRs shipped across both repos + a Sumit Sync spine bump.**
+Everything unblocked got cleared; remaining work is genuinely waiting on Shay/Avi/Ron.
 
-### Shipped
+### Shipped (chronological)
 - **bitan-bitan-website PR #66** — `feat(intake): spouse fields bundled + reopen doc badges`.
-  Closes Batch 4.1b and 4.3 in one PR (both touch the same intake form code paths, so the
-  bundle was natural).
+  Closes Batch 4.1b and 4.3 in one PR (both touch the same intake form code paths).
   - Spouse fields (`spouseFullName`/`spouseIdNumber`/`spousePhone`) flow into the office
     notification email (`intake-email.ts` — conditionally appended rows when present), the
     Sumit הערה (`intake/route.ts` — the Summit-update block now triggers on `files OR
@@ -1056,43 +1056,80 @@ Closing session for the manual-overtake + Batch 4 arc that started 2026-05-12 an
   OS repo. Per CLAUDE.md ("If you are certain that something is unused, you can delete it
   completely") deletion beat preemptive "fix" — there was nothing real to verify against.
 
-### Status of the Batch 4 decomposition (canonical)
+- **bitan-bitan-os PR #146** — `feat(onboarding): mass-action checkboxes on dashboard`.
+  Leading checkbox column on `ClientTable` (optional props gated by
+  `selectable = !!onToggleSelect && !!selectedIds`; header checkbox uses `indeterminate`
+  when only some visible rows selected; detailRow `colSpan` auto-bumps). Navy/gold bulk
+  action bar replaces the topBar entirely when selection is non-empty. **Bulk delete**
+  reuses the single-delete confirm + per-row `deletingIds` animation, serial against
+  `/api/onboarding/records`, per-row failure non-fatal. **Bulk advance** filters out rows
+  without a Summit entity or already at stage 6, surfaces the skip count in the confirm,
+  advances `currentStage+1` per row against `/api/onboarding/advance`, reloads after. No
+  API changes — both routes already existed. Selection survives stage-filter changes but
+  actions only touch the visible subset.
+
+- **bitan-bitan-website PR #67** — `feat(intake): real per-byte upload progress (XHR
+  refactor)`. Replaced `fetch()` with `XMLHttpRequest` on the intake submit path to expose
+  `upload.onprogress`. New `uploadProgress { loaded, total, percent }` state drives a gold
+  progress bar above the submit button: live % + loaded/total bytes during upload,
+  `xhr.upload.onload` pins it at 99% while the server does its Sanity CDN + Sumit writes,
+  `xhr.onload` flips to 100% on 2xx (parses JSON error body on non-2xx). `xhr.onerror`/
+  `onabort` surface Hebrew network errors. ARIA `role="progressbar"`. Bar only renders when
+  there are files; no-file submits skip straight to the spinner. **No fetch fallback kept**
+  — XHR is the documented workaround for fetch()'s missing upload-progress hook and is
+  universally supported.
+
+- **Sumit Sync spine `~/bitan-summit-sync-system-map.md` v0.3 → v0.4** — WS-4 dangling
+  reference **formally dropped**. The referencing state file
+  (`coda-bitan-summit-sync-state.md`) no longer exists in memory (purged in the 2026-05-13
+  courses-only restore); no concrete workstream was ever captured. Confirmed operator
+  memory drift, not a descoped real WS. WS numbering jumps 3→5 going forward (no
+  renumbering of WS-5). No engine code touched — onboarding work is out of Sumit Sync scope.
+
+### Status of the Batch 4 decomposition (canonical — ALL CLOSED)
 - ✅ **(1b) Spouse fields** — PR #66 (website)
-- ✅ **(2a) ב"ל מיוצגים link** — already shipped earlier in PR #140 (`BTL link CMS`,
+- ✅ **(2a) ב"ל מיוצגים link** — shipped earlier in PR #140 (`BTL link CMS`,
   `nationalInsuranceRepLink` on `onboardingRecord` + ClientInfoCard input)
 - ✅ **(3) Doc badges on reopen** — PR #66 (website)
-- ⏸ **(Batch 3) Canonical signing templates from Sanity** — still BLOCKED on 3 PDFs from
-  Shay: `poa-tax-authority`, `poa-nii-withholdings`, `poa-nii-representatives`. Schema +
-  dropdown ship without them but the `templates` field stays empty and SigningCard's "Send"
-  button has nothing to pick from.
+- ⏸ **(Batch 3) Canonical signing templates from Sanity** — NOT a Batch 4 item; still
+  BLOCKED on 3 PDFs from Shay: `poa-tax-authority`, `poa-nii-withholdings`,
+  `poa-nii-representatives`. Schema + dropdown ship without them but the `templates` field
+  stays empty and SigningCard's "Send" button has nothing to pick from.
 
 ### Lessons / patterns worth keeping
 - **Bundle related Batch items when they hit the same files.** Spouse (1b) and doc badges
-  (3) both touched `IntakeForm.tsx` + the intake route + the [token]/page.tsx — splitting
-  them into separate PRs would have duplicated review work and risked merge-order surprises.
-- **Dead code earns deletion, not "fixing."** The temptation to preemptively correct
-  endpoints to the right pattern is wrong when there's no caller and no test. Verifying an
-  external API contract against a live GUID (the #124 `scripts/verify-getsigned.mjs`
-  recipe) is the gating step — without it you're guessing, and a fixed-but-unverified
+  (3) both touched `IntakeForm.tsx` + the intake route + the [token]/page.tsx — one PR.
+- **Dead code earns deletion, not "fixing."** Preemptively correcting endpoints with no
+  caller and no test is wrong. Verifying an external API contract against a live GUID (the
+  #124 `scripts/verify-getsigned.mjs` recipe) is the gating step — a fixed-but-unverified
   endpoint reads as "this works" to future-you when it doesn't.
-- **Auto-memory continuity beat the prior session's force-cut.** The 2026-05-12 force-cut
-  embedded a "Session Pickup Point" via the heavyweight-session continuity rule; the
-  2026-05-13 session resumed cleanly and pivoted; this 2026-05-14 session wrapped what 13
-  pivoted away from. The ritual works.
+- **Compound-day cadence.** When momentum is high and CI is ~1-3 min, stack PRs by
+  interleaving a backgrounded `until gh pr checks` watcher with the next piece of work in
+  another file/repo scope. 5 PRs, none rushed, each one concern. (Captured in auto-memory
+  `feedback_compound_day_session.md`.)
+- **`ClientTable` selection plumbing is opt-in.** Selection props are optional and the
+  whole checkbox column is gated by their presence — the component still works standalone
+  for any other caller. Pattern to reuse for future bulk-action tables.
+- **XHR for upload progress, deliberately not fetch.** Documented in the PR #67 commit +
+  inline comment. Don't "modernize" this back to fetch until `ReadableStream` +
+  `duplex: 'half'` upload streaming is universal.
 
-### Next session pickup (priority order)
-1. **Mass-action checkboxes on the OS onboarding dashboard** — multi-select rows in
-   `apps/os-hub/src/app/onboarding/components/ClientTable.tsx` → bulk delete + bulk stage
-   advance. Real triage workflow value for Avi/Ron, isolated UI scope.
-2. **Path B visual QA** — first office user opens the click-to-place modal against a real
-   record, iterates on the `STAMP_ASPECT_APPROX = 0.5` constant in `RestampModal.tsx` if the
-   real autograph aspect drifts off it.
-3. **Batch 3 signing templates** — unblocks when Shay sends the 3 PDFs.
+### What's blocked / waiting (as of session close)
+- **Batch 3 signing templates** — waiting on Shay (3 PDFs). Single biggest unblock; gates
+  fully self-serve signing.
+- **Path B visual QA** — waiting on Avi/Ron to open `RestampModal` against a real record;
+  iterate `STAMP_ASPECT_APPROX = 0.5` in `RestampModal.tsx` only after real autograph data.
+- **Path A real test** — waiting on Avi/Ron to exercise manual-overtake (#132) on a live
+  in-flight task.
+- **Stages 4–6 specs** (רשויות / לקוח חדש / פעיל) — sent to Avi/Ron on WhatsApp 2026-05-08,
+  no reply. Pipeline stays pill-only past stage 3 until specced.
+- **Sumit Sync first prod cold-cache run** — not blocked, just not prioritized. Validates
+  the 12.6-min extrapolation (spine §5). Separate workstream.
 
 ---
 
 ## Deferred — Onboarding Batch 4 (historical, all closed 2026-05-14)
 
 Scoped and decisions-locked on 2026-05-12, deferred 2026-05-13 (manual-overtake arc),
-closed 2026-05-14 (PR #66 website + #145 OS cleanup). Decomposition above under the
-2026-05-14 session header.
+closed 2026-05-14 (PR #66 website + #145/#146 OS + #67 website). Full decomposition above
+under the 2026-05-14 session header.
