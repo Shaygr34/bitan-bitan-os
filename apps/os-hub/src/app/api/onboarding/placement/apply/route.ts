@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
     const manager = resolveStampOwner(accountManager)
 
-    const res = await fetch(pdfUrl)
+    const res = await fetch(pdfUrl, { signal: AbortSignal.timeout(25_000), cache: 'no-store' })
     if (!res.ok) {
       return NextResponse.json(
         { error: `Failed to fetch source PDF: HTTP ${res.status}` },

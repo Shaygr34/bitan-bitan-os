@@ -69,6 +69,12 @@ export default function PlacementStudio({
 
   const scale = pageWidthPt ? PIXEL_WIDTH / pageWidthPt : 1
 
+  // react-pdf fetches the PDF from the BROWSER — a raw cross-origin Sanity/
+  // 2Sign URL is CORS-blocked ("Failed to load PDF file"). Same fix as
+  // RestampModal (#138): load via a same-origin proxy. suggest/apply still
+  // get the original pdfUrl (server-side fetch, no CORS).
+  const proxiedPdfUrl = `/api/onboarding/placement/pdf?url=${encodeURIComponent(pdfUrl)}`
+
   const loadSuggestion = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -230,7 +236,7 @@ export default function PlacementStudio({
           {loading && <div style={{ padding: 40, color: '#6B7280' }}>⏳ טוען הצעת מיקום…</div>}
           {!loading && (
             <Document
-              file={pdfUrl}
+              file={proxiedPdfUrl}
               onLoadSuccess={(d) => setNumPages(d.numPages)}
               onLoadError={(e) => setError(`טעינת PDF נכשלה: ${e.message}`)}
               loading={<div style={{ width: PIXEL_WIDTH, height: PIXEL_WIDTH * 1.41, background: '#F3F4F6' }} />}
