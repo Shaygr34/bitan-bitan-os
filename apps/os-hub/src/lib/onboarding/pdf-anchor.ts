@@ -17,7 +17,7 @@
  * matched as an unordered token SET sharing a y-band, never as a substring.
  */
 
-import { createRequire } from 'node:module'
+// NB: no top-level pdfjs-dist import — see getPdfjs() below for why.
 
 export interface AnchorSpec {
   /** Tokens that must all appear on the same y-band to identify the heading. */
@@ -43,12 +43,36 @@ export interface ResolvedAnchor {
 
 const Y_BAND_TOLERANCE = 4 // pt — tokens within this Δy are "same line"
 
-let _pdfjs: typeof import('pdfjs-dist') | null = null
-async function getPdfjs() {
+/**
+ * Minimal local typing of the pdfjs surface we use. We deliberately do NOT
+ * type-import 'pdfjs-dist' — its deep legacy build has no stable subpath
+ * types and pnpm strict-hoisting made the bare specifier unresolvable in a
+ * clean CI install. pdfjs-dist is now a DIRECT dependency (resolves at
+ * runtime incl. Railway), and the runtime import below uses a NON-LITERAL
+ * specifier so TS performs zero compile-time module resolution on it.
+ */
+interface PdfTextItem { str?: unknown; transform?: unknown }
+interface PdfTextContent { items: PdfTextItem[] }
+interface PdfPage {
+  getViewport(o: { scale: number }): { width: number; height: number }
+  getTextContent(): Promise<PdfTextContent>
+}
+interface PdfDoc { numPages: number; getPage(n: number): Promise<PdfPage> }
+interface PdfjsModule {
+  getDocument(src: {
+    data: Uint8Array
+    useSystemFonts?: boolean
+    isEvalSupported?: boolean
+  }): { promise: Promise<PdfDoc> }
+}
+
+let _pdfjs: PdfjsModule | null = null
+async function getPdfjs(): Promise<PdfjsModule> {
   if (_pdfjs) return _pdfjs
-  const require = createRequire('/Users/shay/bitan-bitan-os/apps/os-hub/')
-  const path = require.resolve('pdfjs-dist/legacy/build/pdf.mjs')
-  _pdfjs = (await import(path)) as typeof import('pdfjs-dist')
+  // Variable (non-literal) specifier → TS does NO static module resolution
+  // (no TS2307 on the legacy subpath); resolves at runtime via the direct dep.
+  const spec = 'pdfjs-dist/legacy/build/pdf.mjs'
+  _pdfjs = (await import(spec)) as unknown as PdfjsModule
   return _pdfjs
 }
 
@@ -83,13 +107,14 @@ export async function resolveAnchor(
     const page = await doc.getPage(p)
     const vp = page.getViewport({ scale: 1 })
     const content = await page.getTextContent()
-    const toks: Tok[] = content.items
-      // pdfjs TextItem has .str/.transform; TextMarkedContent does not.
-      .flatMap((i) =>
-        'str' in i && i.str.trim()
-          ? [{ str: i.str.trim(), x: i.transform[4], yTop: vp.height - i.transform[5] }]
-          : [],
-      )
+    const toks: Tok[] = content.items.flatMap((i: PdfTextItem) => {
+      // pdfjs TextItem has string .str + number[] .transform; TextMarkedContent
+      // does not. Narrow defensively (str/transform are typed unknown).
+      const s = typeof i.str === 'string' ? i.str.trim() : ''
+      const tr = Array.isArray(i.transform) ? (i.transform as number[]) : null
+      if (!s || !tr) return []
+      return [{ str: s, x: tr[4], yTop: vp.height - tr[5] }]
+    })
 
     // Group tokens into y-bands, then look for one band containing ALL wanted tokens.
     const bands = new Map<number, Tok[]>()
