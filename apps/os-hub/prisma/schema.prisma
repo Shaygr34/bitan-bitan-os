@@ -385,3 +385,131 @@ model RefUpload {
   @@index([articleId])
   @@map("ref_uploads")
 }
+
+// ---------------------------------------------------------------------------
+// CPAA replacement ("מסך CPA") — OS-owned amounts/state ledger.
+//
+// Summit is the system of record. This layer holds ONLY data Summit
+// deliberately does not (raw amounts not in Summit, free adjustment הערה א',
+// computed total הערה ב', colour state, send-state, multi-year history).
+// NOT a Summit mirror — this is the §3 LOCKED editing-layer "new data".
+// Audit reuses the generic EventLog model (entityType = "CpaaReport", etc.).
+//
+// POC slice = VAT only. The enums carry the full report set so the
+// year-keyed schema never needs a retrofit (seed gap #8).
+// ---------------------------------------------------------------------------
+
+enum CpaaReportType {
+  VAT // מע"מ — POC slice
+  INCOME_TAX_ADVANCE // מ"ה מקדמות
+  BTL_ADVANCE // ב"ל מקדמות
+  TAX_WITHHOLDING // מ"ה ניכויים
+  BTL_WITHHOLDING // ב"ל ניכויים
+  SOCIAL // סוציאליות
+  DIVIDEND // דיבידנד
+  FUEL_BLO // בלו סולר (always a negative refund)
+}
+
+enum CpaaColourState {
+  GRAY // אפור בהיר — no data yet
+  ORANGE // כתום בהיר — raw amount saved / הנה"ח התקבל
+  YELLOW // צהוב בהיר — raw entered + completions (השלמות)
+  PURPLE // סגול — אישור דיווח (OS-owned manual)
+  BLUE // כחול בהיר — שודר ושולם (Summit-derived: Books_LastVATHistoryDate ≥ periodEnd)
+  GREEN // ירוק בהיר — sent to client (idMessage success); only green trigger; terminal
+}
+
+enum CpaaAmountSource {
+  MANUAL
+  MIKPAL // מיכפל 102 importer (out of VAT slice; enum ready)
+  BTL // ביטוח לאומי Excel importer (out of VAT slice; enum ready)
+  SUMMIT
+}
+
+enum CpaaChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum CpaaSendState {
+  PENDING
+  QUEUED
+  SENT
+  FAILED
+}
+
+/// A client in the CPAA cockpit. `summitEntityId` is NULLABLE by design —
+/// "לקוח שלא נמצא בסאמיט" is first-class, not an edge case (seed gap #5).
+model CpaaClient {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  summitEntityId String?     @unique // Summit לקוחות entity ID; null = OS-only client
+  displayName    String
+  phone          String? // Summit Customers_Phone snapshot (raw)
+  email          String?
+  channelPref    CpaaChannel @default(WHATSAPP) // ← Summit "העדפה שליחת סכומים" once provisioned
+  accountManager String? // snapshot label (אבי / רון)
+  clientType     String? // snapshot label (סוג לקוח)
+  lastSyncedAt   DateTime? // when Summit-backed fields were last hydrated
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  reports  CpaaReport[]
+  messages CpaaMessage[]
+
+  @@index([summitEntityId])
+  @@index([accountManager])
+  @@map("cpaa_clients")
+}
+
+/// One report row = (client, reportType, year, period). Year-keyed from day
+/// one (gap #8). הערה א' is free and NEVER overwritten by re-import; הערה ב'
+/// is the computed total = raw + הערה א' and is the number sent to the client.
+model CpaaReport {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId        String           @db.Uuid
+  client          CpaaClient       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  reportType      CpaaReportType
+  year            Int
+  periodLabel     String // human, e.g. "04/2026" or "03-04/2026"
+  periodStart     DateTime         @db.Date
+  periodEnd       DateTime         @db.Date // BLUE derive compares Summit filed-date ≥ this
+  rawAmount       Decimal?         @db.Decimal(14, 2) // null until landed; manual/imported wins on display
+  noteA           Decimal          @default(0) @db.Decimal(14, 2) // הערה א' — free ±, never auto-overwritten
+  noteB           Decimal?         @db.Decimal(14, 2) // הערה ב' — computed = raw + noteA; sent to client
+  amountSource    CpaaAmountSource @default(MANUAL)
+  colourState     CpaaColourState  @default(GRAY)
+  approved        Boolean          @default(false) // OS-owned PURPLE trigger (אישור דיווח)
+  completionsDone Boolean          @default(false) // YELLOW trigger (השלמות)
+  summitFiledDate DateTime?        @db.Date // snapshot of Books_LastVATHistoryDate (BLUE source)
+  internalNote    String?          @db.Text // per-report office note; never sent to client
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([clientId, reportType, year, periodLabel])
+  @@index([reportType, year])
+  @@index([colourState])
+  @@map("cpaa_reports")
+}
+
+/// A generated client message (the consolidated "what to pay this month").
+/// Live send is gated on a real Green API Business instance (open #7); the
+/// preview/dry-run path persists body + PENDING without an idMessage.
+model CpaaMessage {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId  String        @db.Uuid
+  client    CpaaClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  channel   CpaaChannel
+  body      String        @db.Text
+  reportIds String[]      @default([]) @db.Uuid // CpaaReport ids this message consolidates
+  idMessage String? // Green API idMessage on successful send
+  sendState CpaaSendState @default(PENDING)
+  error     String?       @db.Text
+  sentAt    DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([clientId])
+  @@index([sendState])
+  @@map("cpaa_messages")
+}
