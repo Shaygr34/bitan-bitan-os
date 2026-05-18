@@ -64,6 +64,22 @@
   --status-api: #7c3aed;
   --status-api-bg: rgba(124, 58, 237, 0.08);
 
+  /* ——— CPAA colour-state tokens (מסך CPA row states) ———
+     Provisional: reuse the established status hues for consistency.
+     TODO: reconcile against the finalized Bitan brand palette. */
+  --cpaa-gray: #6B7280;
+  --cpaa-gray-bg: rgba(107, 114, 128, 0.10);
+  --cpaa-orange: #C2660C;
+  --cpaa-orange-bg: rgba(194, 102, 12, 0.12);
+  --cpaa-yellow: #B8860B;
+  --cpaa-yellow-bg: rgba(184, 134, 11, 0.14);
+  --cpaa-purple: #7C3AED;
+  --cpaa-purple-bg: rgba(124, 58, 237, 0.12);
+  --cpaa-blue: #2563EB;
+  --cpaa-blue-bg: rgba(37, 99, 235, 0.12);
+  --cpaa-green: #16A34A;
+  --cpaa-green-bg: rgba(22, 163, 74, 0.12);
+
   /* ——— Sidebar tokens ——— */
   --sidebar-background: #0F1D35;
   --sidebar-foreground: #FFFFFF;

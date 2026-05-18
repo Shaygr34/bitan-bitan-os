@@ -26,6 +26,7 @@ const mainNav: NavItem[] = [
   { key: "nav.items.sumitSync", href: "/sumit-sync" },
   { key: "nav.items.bitanWebsite", href: "/bitan-website" },
   { key: "nav.items.customerOnboarding", href: "/onboarding" },
+  { key: "nav.items.cpaa", href: "/cpaa" },
 ];
 
 const secondaryNav = [

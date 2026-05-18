@@ -71,4 +71,16 @@ Each entry should include:
   - **Singleton pattern**: One Chromium process per cron cycle, `closeBrowser()` after batch.
   - **Risk**: Calcalist section URLs need verification — may change structure.
 
+### 2026-05-18 — CPAA replacement ("מסך CPA"): Phase-0 probe + VAT-slice spine
+
+- **Context**: Parallel CPAA-replacement build (separate branch/session from onboarding). The seed's #1 risk: the Summit הנה"ח report-card status field driving the סגול/כחול colours is never named. A read-only `getfolderschema` probe of folder 557689484 (תיקי הנהלת חשבונות) proved there is **no per-period report-card status field** on the Summit bookkeeping entity — the spec's "OS reads the colour chain from Summit" premise is not buildable as written. Only Summit-readable signal = `Books_LastVATHistoryDate` (557689913). Shay locked: the firm files VAT 100% inside Summit, the OS never transmits.
+- **Options**: (1) Block the build on Ron naming a Summit status field; (2) Mirror Summit reporting state into an OS table; (3) OS-owned colour state machine with a single swappable Summit-derived signal for BLUE.
+- **Outcome**: Option 3.
+  1. **OS-owned amounts/state ledger** (`CpaaClient`/`CpaaReport`/`CpaaMessage`, Prisma) holds only data Summit deliberately does not (raw not-in-Summit, הערה א'/ב', colour state, send-state, multi-year). This is the §3 LOCKED "new data", not a forbidden Summit mirror. `summitEntityId` is nullable — not-in-Summit clients are first-class (seed gap #5).
+  2. **Colour state machine is OS-owned**; only BLUE (שודר ושולם) is Summit-derived, from `Books_LastVATHistoryDate ≥ periodEnd` (locked decision #1). PURPLE (אישור דיווח) is OS-owned manual — the assumed Summit field does not exist. GREEN fires only on a successful client send (locked #3) and is terminal. Declared transition map mirrors `content-factory/transitions.ts`; manual override is an app-layer audited escape hatch, not a declared move.
+  3. **Audit reuses the generic `EventLog` model** (entityType="CpaaReport", before/after in metadata) — no dedicated `CpaaAuditLog` table; follows the existing house pattern, avoids schema sprawl.
+  4. **Full `CpaaReportType` enum from day one** (8 types) though only VAT is wired — year/period-keyed schema must never need a retrofit (seed gap #8).
+  5. **POC slice = VAT only**: the one report type touching zero missing hard-inputs (no מיכפל-102 / BTL Excel / year-keyed income). Spine is decision-independent, typecheck-clean, unwired (no API/UI, zero blast radius) — mirrors the onboarding `summit-onboarding-fields.ts` start.
+  - **Migration note**: schema models added; `prisma migrate` deferred to the wiring PR (no local/CI DATABASE_URL at spine stage; `prisma generate` validates the schema and types).
+
 <!-- TODO: Add future decisions below -->
