@@ -22,6 +22,7 @@ export const strings: Record<string, string> = {
 
   // Placeholder modules (coming soon)
   "nav.items.customerOnboarding": "קליטת לקוחות",
+  "nav.items.cpaa": "מסך CPA",
   "nav.items.analytics": "Analytics",
   "dashboard.modules.customerOnboarding.description": "קליטת לקוחות חכמה — דרך API סאמיט ודף נחיתה ייעודי.",
   "dashboard.modules.analytics.description": "ניתוח נתוני לקוחות — דוחות, תובנות וסטטיסטיקות.",

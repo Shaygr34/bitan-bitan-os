@@ -22,6 +22,10 @@
 
 import type { CpaaColourState } from "@prisma/client";
 
+// The colour contract has one home — re-export the type so UI/consumers
+// import both the palette meta and the type from here.
+export type { CpaaColourState };
+
 // ── Declared transitions ────────────────────────────────────────────────────
 // Forward progression + bounded backward moves for corrections. GREEN is
 // terminal (full closure); an after-send correction is an app-layer audited
