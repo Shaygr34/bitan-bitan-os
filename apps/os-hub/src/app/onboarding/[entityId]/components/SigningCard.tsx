@@ -12,6 +12,9 @@ import styles from './SigningCard.module.css'
 // keeps the SigningCard bundle slim and avoids server-side pdfjs issues.
 const RestampModal = dynamic(() => import('./RestampModal'), { ssr: false })
 const AuthorizeModal = dynamic(() => import('./AuthorizeModal'), { ssr: false })
+// Universal manual placement mini-app (Layer 1, the spine). Same dynamic +
+// ssr:false reason as RestampModal — react-pdf/pdfjs only loads on open.
+const PlacementStudio = dynamic(() => import('./PlacementStudio'), { ssr: false })
 
 interface Props {
   summitEntityId: string
@@ -115,6 +118,8 @@ export default function SigningCard({
   const [externalLink, setExternalLink] = useState<Record<string, string>>({})
   /** documentType currently open in the click-to-place restamp modal (Path B). */
   const [restampOpenFor, setRestampOpenFor] = useState<string | null>(null)
+  /** documentType currently open in the universal PlacementStudio (suggest + manual + learn). */
+  const [placementOpenFor, setPlacementOpenFor] = useState<string | null>(null)
   /** Authorize-flow modal state: minted JWT token to render inside the modal. */
   const [authorizeModalToken, setAuthorizeModalToken] = useState<string | null>(null)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
@@ -686,6 +691,32 @@ export default function SigningCard({
                             {'🎯 כיוון מיקום החותמת'}
                           </button>
                         )}
+                        {/*
+                          Universal manual placement (Layer 1 spine). Available
+                          for EVERY 2Sign doc — the always-on clean bypass when
+                          auto-detection is off or missing. Needs an existing
+                          PDF to place on (preStamp → signed → stamped fallback);
+                          disabled w/ tooltip if none yet.
+                        */}
+                        {(() => {
+                          const placementPdfUrl =
+                            task?.preStampDocUrl || task?.signedDocUrl || task?.stampedDocUrl || null
+                          return (
+                            <button
+                              className={styles.resendBtn}
+                              onClick={() => setPlacementOpenFor(doc.documentType)}
+                              disabled={!placementPdfUrl}
+                              title={
+                                placementPdfUrl
+                                  ? 'מיקום חתימות / תאריך / טקסט — הצעה חכמה + עקיפה ידנית נקייה (לומד לפעם הבאה)'
+                                  : 'נדרש PDF קיים — שלח לחתימה או העלה PDF חתום תחילה'
+                              }
+                              type="button"
+                            >
+                              {'🎯 מיקום חתימות (חכם)'}
+                            </button>
+                          )
+                        })()}
                       </div>
                     </details>
                   </>
@@ -844,6 +875,32 @@ export default function SigningCard({
             previewDateStr={previewDateStr}
             onSuccess={() => {
               setRestampOpenFor(null)
+              onTasksChanged()
+            }}
+          />
+        )
+      })()}
+
+      {/* Universal PlacementStudio — Layer 1 spine. Suggests positions from
+          the real form, lets the office accept/drag/add, applies, and records
+          the placement so next time is smarter. Sourced from the task's
+          available PDF (preStamp → signed → stamped). */}
+      {placementOpenFor && (() => {
+        const targetTask = tasks.find(t => t.documentType === placementOpenFor)
+        const targetDoc = ALL_SIGNING_DOCS.find(d => d.documentType === placementOpenFor)
+        const placementPdfUrl =
+          targetTask?.preStampDocUrl || targetTask?.signedDocUrl || targetTask?.stampedDocUrl
+        if (!placementPdfUrl || !targetDoc) return null
+        return (
+          <PlacementStudio
+            open
+            onClose={() => setPlacementOpenFor(null)}
+            pdfUrl={placementPdfUrl}
+            formType={targetDoc.formType || targetDoc.documentType}
+            summitEntityId={summitEntityId}
+            documentType={placementOpenFor}
+            onSuccess={() => {
+              setPlacementOpenFor(null)
               onTasksChanged()
             }}
           />
